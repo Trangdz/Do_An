@@ -19,17 +19,30 @@ module.exports = {
       allowUnlimitedContractSize: true,
     },
 
-    sepolia: {
-      url: process.env.INFURA_SEPOLIA_API_URL,
-      accounts: [process.env.MAIN_ACCOUNT],
-      chainId: 11155111,
+    ganache: {
+      url: "http://127.0.0.1:7545",
+      chainId: 1337,
+      accounts: {
+        mnemonic: "moral all merit answer area fault silver accuse ancient range disorder fortune", // Ganache mnemonic mặc định
+      },
     },
 
-    mumbai: {
-      url: process.env.INFURA_MUMBAI_API_URL,
-      accounts: [process.env.MAIN_ACCOUNT],
-      chainIds: 80001, // mumbai testnet
+    localhost: {
+      url: "http://127.0.0.1:7545",
+      chainId: 1337,
     },
+
+    // sepolia: {
+    //   url: process.env.INFURA_SEPOLIA_API_URL,
+    //   accounts: [process.env.MAIN_ACCOUNT],
+    //   chainId: 11155111,
+    // },
+
+    // mumbai: {
+    //   url: process.env.INFURA_MUMBAI_API_URL,
+    //   accounts: [process.env.MAIN_ACCOUNT],
+    //   chainIds: 80001, // mumbai testnet
+    // },
   },
 
   gasReporter: {

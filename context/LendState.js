@@ -80,8 +80,15 @@ const LendState = (props) => {
       const networkName = network.name;
       const signer = provider.getSigner();
 
-      if (networkName != "sepolia") {
-        alert("Please switch your network to Sepolia Testnet");
+      // if (networkName != "sepolia") {
+      //   alert("Please switch your network to Sepolia Testnet");
+      //   return;
+      // }
+
+
+       // Chấp nhận cả Sepolia (11155111) và Localhost/Ganache (1337)
+       if (![11155111, 1337].includes(network.chainId)) {
+        alert("Please switch your network to Sepolia Testnet or Localhost (Ganache)");
         return;
       }
 
