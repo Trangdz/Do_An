@@ -23,7 +23,7 @@ module.exports = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "deliver lock present maze face carry memory glimpse evil burden video type", // Ganache mnemonic từ GUI
+        mnemonic: "deliver lock present maze face carry memory glimpse evil burden video type",
         count: 10,
         initialIndex: 0,
         path: "m/44'/60'/0'/0",
@@ -31,7 +31,7 @@ module.exports = {
     },
 
     localhost: {
-      url: "http://127.0.0.1:7545",
+      url: "http://127.0.0.1:8545",
       chainId: 1337,
     },
 
