@@ -23,15 +23,16 @@ describe("Liquidation Tests", function () {
     beforeEach(async function () {
         [owner, user1, liquidator] = await ethers.getSigners();
         
+        // Deploy mock tokens first
+        const MockToken = await ethers.getContractFactory("MockToken");
+        weth = await MockToken.deploy("Wrapped Ether", "WETH", 18);
+        dai = await MockToken.deploy("Dai Stablecoin", "DAI", 18);
+        usdc = await MockToken.deploy("USD Coin", "USDC", 6);
+        
         // Deploy MockOracle
         const MockOracle = await ethers.getContractFactory("MockOracle");
         mockOracle = await MockOracle.deploy();
         await mockOracle.deployed();
-        
-        // Set initial prices
-        await mockOracle.setPrice(weth.address, PRICE_WETH);
-        await mockOracle.setPrice(dai.address, PRICE_DAI);
-        await mockOracle.setPrice(usdc.address, PRICE_USDC);
         
         // Deploy RiskManager
         const RiskManager = await ethers.getContractFactory("RiskManager");
@@ -43,36 +44,36 @@ describe("Liquidation Tests", function () {
         lendingPool = await LendingPoolV2.deploy(riskManager.address);
         await lendingPool.deployed();
         
-        // Deploy mock tokens
-        const MockToken = await ethers.getContractFactory("MockToken");
-        weth = await MockToken.deploy("Wrapped Ether", "WETH", 18);
-        dai = await MockToken.deploy("Dai Stablecoin", "DAI", 18);
-        usdc = await MockToken.deploy("USD Coin", "USDC", 6);
+        // Add tokens to lending pool first
+        await lendingPool.addToken(weth.address);
+        await lendingPool.addToken(dai.address);
+        await lendingPool.addToken(usdc.address);
         
         // Add tokens to risk manager
         await riskManager.addToken(weth.address, true, LTV_WETH, LT_WETH, BONUS_WETH);
         await riskManager.addToken(dai.address, true, LTV_DAI, LT_DAI, BONUS_DAI);
         await riskManager.addToken(usdc.address, false, 0, 0, 0); // Not collateral
         
-        // Add tokens to lending pool
-        await lendingPool.addToken(weth.address);
-        await lendingPool.addToken(dai.address);
-        await lendingPool.addToken(usdc.address);
+        // Add tokens to oracle with initial prices
+        await mockOracle.addToken(weth.address, PRICE_WETH);
+        await mockOracle.addToken(dai.address, PRICE_DAI);
+        await mockOracle.addToken(usdc.address, PRICE_USDC);
         
         // Mint tokens to users
         const mintAmount = ethers.utils.parseEther("1000");
-        await weth.mint(user1.address, mintAmount);
-        await weth.mint(liquidator.address, mintAmount);
-        await dai.mint(user1.address, mintAmount);
-        await dai.mint(liquidator.address, mintAmount);
-        await usdc.mint(user1.address, ethers.utils.parseUnits("1000000", 6));
-        await usdc.mint(liquidator.address, ethers.utils.parseUnits("1000000", 6));
+        await weth.connect(owner).mint(user1.address, mintAmount);
+        await weth.connect(owner).mint(liquidator.address, mintAmount);
+        await dai.connect(owner).mint(user1.address, mintAmount);
+        await dai.connect(owner).mint(liquidator.address, mintAmount);
+        await usdc.connect(owner).mint(user1.address, ethers.utils.parseUnits("1000000", 6));
+        await usdc.connect(owner).mint(liquidator.address, ethers.utils.parseUnits("1000000", 6));
         
-        // Approve tokens
+        // Approve tokens for user1
         await weth.connect(user1).approve(lendingPool.address, ethers.constants.MaxUint256);
         await dai.connect(user1).approve(lendingPool.address, ethers.constants.MaxUint256);
         await usdc.connect(user1).approve(lendingPool.address, ethers.constants.MaxUint256);
         
+        // Approve tokens for liquidator
         await weth.connect(liquidator).approve(lendingPool.address, ethers.constants.MaxUint256);
         await dai.connect(liquidator).approve(lendingPool.address, ethers.constants.MaxUint256);
         await usdc.connect(liquidator).approve(lendingPool.address, ethers.constants.MaxUint256);

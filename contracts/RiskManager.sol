@@ -2,6 +2,7 @@
 pragma solidity ^0.8.6;
 
 import "./MockOracle.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @title RiskManager
@@ -107,7 +108,14 @@ contract RiskManager {
     function getTokenValue(address token, uint256 amount) public view returns (uint256) {
         int256 price = getTokenPrice(token);
         require(price > 0, "Invalid price");
-        return (amount * uint256(price)) / 1e8; // Convert from 1e8 to 1e18
+        // Convert from 1e8 (oracle) to WAD value (1e18)
+        // amount is in token units (1e18 for WETH, 1e6 for USDC)
+        // price is in 1e8 format
+        // result should be in WAD (1e18 format)
+        // Formula: (amount * price) / (10^decimals) * (10^18) / (10^8)
+        // To avoid overflow: (amount / 10^decimals) * price * 10^10
+        uint256 tokenDecimals = 10 ** IERC20Metadata(token).decimals();
+        return (amount / tokenDecimals) * uint256(price) * 1e10;
     }
     
     function calculateBorrowableValue(
@@ -166,6 +174,8 @@ contract RiskManager {
         }
         
         // Health Factor = Σ(collUSD_i * LT_i) / Σ(borrowUSD_j) in WAD format
+        // Both collateralValue and borrowValue are in WAD (1e18) format
+        // Need to multiply by WAD to get WAD result: (WAD * WAD) / WAD = WAD
         healthFactor = (collateralValue * WAD) / borrowValue;
     }
     

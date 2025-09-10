@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./RiskManager.sol";
+import "./InterestRateModel.sol";
 import "hardhat/console.sol";
 
 /**
@@ -18,6 +19,7 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
     
     RiskManager public immutable riskManager;
+    InterestRateModel public immutable interestRateModel;
     
     // Pool state
     mapping(address => uint256) public reserves;
@@ -31,9 +33,12 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
     mapping(address => mapping(address => uint256)) public userSupplyTimestamps;
     mapping(address => mapping(address => uint256)) public userBorrowTimestamps;
     
-    // Interest rates (in basis points)
+    // Interest rates (in basis points) - legacy
     mapping(address => uint256) public supplyRates;
     mapping(address => uint256) public borrowRates;
+    
+    // Reserve factors (in WAD format, 1e18 = 100%)
+    mapping(address => uint256) public reserveFactorWAD;
     
     // Events
     event TokenAdded(address indexed token);
@@ -46,6 +51,7 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
     
     constructor(address _riskManager) {
         riskManager = RiskManager(_riskManager);
+        interestRateModel = new InterestRateModel();
     }
     
     modifier onlySupportedToken(address token) {
@@ -56,7 +62,17 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
     function addToken(address token) external onlyOwner {
         require(!_isTokenSupported(token), "Token already supported");
         supportedTokens.push(token);
+        
+        // Set default reserve factor to 10% (0.10e18)
+        reserveFactorWAD[token] = 0.10e18;
+        
         emit TokenAdded(token);
+    }
+    
+    function setReserveFactor(address token, uint256 reserveFactor) external onlyOwner {
+        require(_isTokenSupported(token), "Token not supported");
+        require(reserveFactor <= 1e18, "Reserve factor cannot exceed 100%");
+        reserveFactorWAD[token] = reserveFactor;
     }
     
     function _isTokenSupported(address token) internal view returns (bool) {
@@ -168,6 +184,13 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
         // Calculate new borrow value
         uint256 newBorrowValue = currentBorrowValue + riskManager.getTokenValue(token, amount);
         
+        // Debug logging
+        console.log("=== _canBorrow Debug ===");
+        console.log("totalBorrowableValue:", totalBorrowableValue);
+        console.log("currentBorrowValue:", currentBorrowValue);
+        console.log("newBorrowValue:", newBorrowValue);
+        console.log("canBorrow:", newBorrowValue <= totalBorrowableValue);
+        
         // Check if new borrow value is within borrowable limit
         return newBorrowValue <= totalBorrowableValue;
     }
@@ -259,9 +282,9 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
     }
     
     function _updateInterestRates(address token) internal {
-        uint256 utilization = totalSupplied[token] > 0 ? (totalBorrowed[token] * 10000) / totalSupplied[token] : 0;
-        borrowRates[token] = riskManager.calculateBorrowRate(utilization);
-        supplyRates[token] = riskManager.calculateSupplyRate(utilization, borrowRates[token]);
+        uint256 utilizationRate = totalSupplied[token] > 0 ? (totalBorrowed[token] * 10000) / totalSupplied[token] : 0;
+        borrowRates[token] = riskManager.calculateBorrowRate(utilizationRate);
+        supplyRates[token] = riskManager.calculateSupplyRate(utilizationRate, borrowRates[token]);
         
         emit InterestUpdated(token, supplyRates[token], borrowRates[token]);
     }
@@ -470,5 +493,27 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
         uint256 repayUSD = _toUsd1e8(debtAsset, actualRepayAmount);
         uint256 collateralUSD_withBonus = (repayUSD * (10000 + bonusBP)) / 10000;
         collateralAmount = _usdToTokenAmount(collateralAsset, collateralUSD_withBonus);
+    }
+    
+    // Interest Rate Functions
+    function utilization(address token) external view returns (uint256) {
+        if (totalSupplied[token] == 0) {
+            return 0;
+        }
+        return interestRateModel.calculateUtilization(totalBorrowed[token], totalSupplied[token]);
+    }
+    
+    function currentRates(address token) external view returns (uint256 borrowAPR, uint256 supplyAPR, uint256 utilizationRate) {
+        utilizationRate = this.utilization(token);
+        uint256 reserveFactor = reserveFactorWAD[token];
+        (borrowAPR, supplyAPR) = interestRateModel.rates(utilizationRate, reserveFactor);
+    }
+    
+    function getReserveFactor(address token) external view returns (uint256) {
+        return reserveFactorWAD[token];
+    }
+    
+    function getInterestRateModel() external view returns (address) {
+        return address(interestRateModel);
     }
 }

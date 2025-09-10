@@ -24,16 +24,17 @@ describe("Health Factor Tests", function () {
     beforeEach(async function () {
         [owner, user1, user2] = await ethers.getSigners();
         
+        // Deploy mock tokens first
+        const MockToken = await ethers.getContractFactory("MockToken");
+        weth = await MockToken.deploy("Wrapped Ether", "WETH", 18);
+        usdc = await MockToken.deploy("USD Coin", "USDC", 6);
+        dai = await MockToken.deploy("Dai Stablecoin", "DAI", 18);
+        link = await MockToken.deploy("Chainlink Token", "LINK", 18);
+        
         // Deploy MockOracle
         const MockOracle = await ethers.getContractFactory("MockOracle");
         mockOracle = await MockOracle.deploy();
         await mockOracle.deployed();
-        
-        // Set initial prices
-        await mockOracle.setPrice(weth.address, PRICE_WETH);
-        await mockOracle.setPrice(usdc.address, PRICE_USDC);
-        await mockOracle.setPrice(dai.address, PRICE_DAI);
-        await mockOracle.setPrice(link.address, PRICE_LINK);
         
         // Deploy RiskManager
         const RiskManager = await ethers.getContractFactory("RiskManager");
@@ -45,12 +46,11 @@ describe("Health Factor Tests", function () {
         lendingPool = await LendingPoolV2.deploy(riskManager.address);
         await lendingPool.deployed();
         
-        // Deploy mock tokens
-        const MockToken = await ethers.getContractFactory("MockToken");
-        weth = await MockToken.deploy("Wrapped Ether", "WETH", 18);
-        usdc = await MockToken.deploy("USD Coin", "USDC", 6);
-        dai = await MockToken.deploy("Dai Stablecoin", "DAI", 18);
-        link = await MockToken.deploy("Chainlink Token", "LINK", 18);
+        // Add tokens to lending pool first
+        await lendingPool.addToken(weth.address);
+        await lendingPool.addToken(usdc.address);
+        await lendingPool.addToken(dai.address);
+        await lendingPool.addToken(link.address);
         
         // Add tokens to risk manager
         await riskManager.addToken(weth.address, true, LTV_WETH, LT_WETH, BONUS_WETH);
@@ -58,32 +58,42 @@ describe("Health Factor Tests", function () {
         await riskManager.addToken(dai.address, false, 0, 0, 0); // Not collateral
         await riskManager.addToken(link.address, false, 0, 0, 0); // Not collateral
         
-        // Add tokens to lending pool
-        await lendingPool.addToken(weth.address);
-        await lendingPool.addToken(usdc.address);
-        await lendingPool.addToken(dai.address);
-        await lendingPool.addToken(link.address);
+        // Add tokens to oracle with initial prices
+        await mockOracle.addToken(weth.address, PRICE_WETH);
+        await mockOracle.addToken(usdc.address, PRICE_USDC);
+        await mockOracle.addToken(dai.address, PRICE_DAI);
+        await mockOracle.addToken(link.address, PRICE_LINK);
         
         // Mint tokens to users
         const mintAmount = ethers.utils.parseEther("1000");
-        await weth.mint(user1.address, mintAmount);
-        await weth.mint(user2.address, mintAmount);
-        await usdc.mint(user1.address, ethers.utils.parseUnits("1000000", 6));
-        await usdc.mint(user2.address, ethers.utils.parseUnits("1000000", 6));
-        await dai.mint(user1.address, mintAmount);
-        await dai.mint(user2.address, mintAmount);
-        await link.mint(user1.address, mintAmount);
-        await link.mint(user2.address, mintAmount);
+        await weth.connect(owner).mint(user1.address, mintAmount);
+        await weth.connect(owner).mint(user2.address, mintAmount);
+        await usdc.connect(owner).mint(user1.address, ethers.utils.parseUnits("1000000", 6));
+        await usdc.connect(owner).mint(user2.address, ethers.utils.parseUnits("1000000", 6));
+        await dai.connect(owner).mint(user1.address, mintAmount);
+        await dai.connect(owner).mint(user2.address, mintAmount);
+        await link.connect(owner).mint(user1.address, mintAmount);
+        await link.connect(owner).mint(user2.address, mintAmount);
         
-        // Approve tokens
+        // Approve tokens for user1
         await weth.connect(user1).approve(lendingPool.address, ethers.constants.MaxUint256);
         await usdc.connect(user1).approve(lendingPool.address, ethers.constants.MaxUint256);
         await dai.connect(user1).approve(lendingPool.address, ethers.constants.MaxUint256);
         await link.connect(user1).approve(lendingPool.address, ethers.constants.MaxUint256);
+        
+        // Approve tokens for user2
+        await weth.connect(user2).approve(lendingPool.address, ethers.constants.MaxUint256);
+        await usdc.connect(user2).approve(lendingPool.address, ethers.constants.MaxUint256);
+        await dai.connect(user2).approve(lendingPool.address, ethers.constants.MaxUint256);
+        await link.connect(user2).approve(lendingPool.address, ethers.constants.MaxUint256);
     });
 
     describe("Health Factor Calculation", function () {
         it("Should calculate correct health factor for WETH collateral", async function () {
+            // First, user2 deposits USDC to provide liquidity
+            const usdcDepositAmount = ethers.utils.parseUnits("10000", 6);
+            await lendingPool.connect(user2).supply(usdc.address, usdcDepositAmount);
+            
             // Deposit 5 WETH (worth $10,000)
             const depositAmount = ethers.utils.parseEther("5");
             await lendingPool.connect(user1).supply(weth.address, depositAmount);
@@ -107,6 +117,10 @@ describe("Health Factor Tests", function () {
         });
 
         it("Should prevent borrow when health factor would be too low", async function () {
+            // First, user2 deposits USDC to provide liquidity
+            const usdcDepositAmount = ethers.utils.parseUnits("10000", 6);
+            await lendingPool.connect(user2).supply(usdc.address, usdcDepositAmount);
+            
             // Deposit 5 WETH
             const depositAmount = ethers.utils.parseEther("5");
             await lendingPool.connect(user1).supply(weth.address, depositAmount);
@@ -119,6 +133,10 @@ describe("Health Factor Tests", function () {
         });
 
         it("Should prevent withdraw when health factor would be too low", async function () {
+            // First, user2 deposits USDC to provide liquidity
+            const usdcDepositAmount = ethers.utils.parseUnits("10000", 6);
+            await lendingPool.connect(user2).supply(usdc.address, usdcDepositAmount);
+            
             // Deposit 5 WETH
             const depositAmount = ethers.utils.parseEther("5");
             await lendingPool.connect(user1).supply(weth.address, depositAmount);
@@ -135,6 +153,10 @@ describe("Health Factor Tests", function () {
         });
 
         it("Should handle price changes affecting health factor", async function () {
+            // First, user2 deposits USDC to provide liquidity
+            const usdcDepositAmount = ethers.utils.parseUnits("10000", 6);
+            await lendingPool.connect(user2).supply(usdc.address, usdcDepositAmount);
+            
             // Deposit 5 WETH
             const depositAmount = ethers.utils.parseEther("5");
             await lendingPool.connect(user1).supply(weth.address, depositAmount);
@@ -166,6 +188,10 @@ describe("Health Factor Tests", function () {
         });
 
         it("Should allow operations when health factor is sufficient", async function () {
+            // First, user2 deposits USDC to provide liquidity
+            const usdcDepositAmount = ethers.utils.parseUnits("10000", 6);
+            await lendingPool.connect(user2).supply(usdc.address, usdcDepositAmount);
+            
             // Deposit 5 WETH
             const depositAmount = ethers.utils.parseEther("5");
             await lendingPool.connect(user1).supply(weth.address, depositAmount);
