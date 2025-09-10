@@ -23,7 +23,10 @@ module.exports = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "moral all merit answer area fault silver accuse ancient range disorder fortune", // Ganache mnemonic mặc định
+        mnemonic: "deliver lock present maze face carry memory glimpse evil burden video type", // Ganache mnemonic từ GUI
+        count: 10,
+        initialIndex: 0,
+        path: "m/44'/60'/0'/0",
       },
     },
 

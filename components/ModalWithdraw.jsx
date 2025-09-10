@@ -71,8 +71,12 @@ const ModalWithdraw = ({
       await connectWallet();
     } else {
       const pattern = /'([^']*)'/;
-      const error = transaction.message.match(pattern);
-      toast.error(`${error[1]}`);
+      const error = transaction.message ? transaction.message.match(pattern) : null;
+      if (error && error[1]) {
+        toast.error(`${error[1]}`);
+      } else {
+        toast.error(transaction.message || "Transaction failed");
+      }
       console.log("ERROR: " + transaction.message);
       setIsWithdrawing(false);
     }

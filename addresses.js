@@ -2,13 +2,13 @@ const ETHAddress = "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6";
 
 /****************** GANACHE **********************/
 // npx hardhat run scripts/deploy.js --network ganache
-const DAITokenAddress = "0xF63491b547441343e7401bC00818067136a0f9f2"
-const LINKTokenAddress = "0x2De4C428bE37582F657c3313764FF5A8d578445D"
-const USDCTokenAddress = "0xcFDFe8aD15E5a141dF4513d1096730a952178A2d"
-const AddressToTokenMapAddress = "0x34a256e798B762a305bd67000c6Fdd547e23f3D5"
-const LendingConfigAddress = "0x829faA2e0e36c27153466762A0a952E7442Feb10"
-const LendingHelperAddress = "0x18d50ac8AE86A126a26E320B0f3051462eEf151c"
-const LendingPoolAddress = "0xbB5d35C3e9bd8ee1d268D2AE635fCFD99D77d392"
+const DAITokenAddress = "0x304a863b0929eF2190382347562DAf53B63c801E"
+const LINKTokenAddress = "0x4c009161c0f0e08dB10b6F5C90Fe78146B18b390"
+const USDCTokenAddress = "0x3B1e521e72Ce480C30Ecf339CE83fa9E19Ce7DaF"
+const AddressToTokenMapAddress = "0x4CD8C940E28a9D9F1360c9e8541f4756C3f3d673"
+const LendingConfigAddress = "0x447Aa26743FA06181f7Bea4a0F8Ea48c535422D0"
+const LendingHelperAddress = "0x7C69a1E47D57472Ab74582131aa8D9a838f4A4a9"
+const LendingPoolAddress = "0xA84C8de069904A285735672cF61c4bA242a38598"
 
 /****************** LOCAL HOST **********************/
 // npx hardhat run scripts/deploy.js --network localhost
@@ -45,9 +45,9 @@ const LINK_USD_PF_ADDRESS = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
 // const LINK_USD_PF_ADDRESS = "0xc59E3633BAAC79493d908e63626716e204A45EdF";
 
 // Ganache test accounts
-const account1 = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-const account2 = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const account3 = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const account1 = "0x5A61D0993a1068A57152c8e0af44B17D6b2E2B11";
+const account2 = "0x876FF3A3A5cD015BA6B407d53Ad004A5827a13B0";
+const account3 = "0x9BeD0F4C7bD54a9A9531Ac6aAf4C9B3CD335e364";
 
 // Comment out Sepolia accounts
 // const account4 = "0x315F60449DaB3D321aF75821b576E7F436308635";

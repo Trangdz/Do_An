@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi Lending Platform - Đồ án tốt nghiệp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'mint': '#4fd1c5',
+                        'navy': '#1a202c',
+                        'light-gray': '#f7fafc'
+                    },
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-inter bg-light-gray min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <h1 class="text-2xl font-bold text-navy">DeFi Lending</h1>
+                    </div>
+                    <nav class="hidden md:ml-10 md:flex space-x-8">
+                        <button onclick="showPage('dashboard')" class="nav-btn text-gray-600 hover:text-mint px-3 py-2 rounded-md text-sm font-medium transition-colors">Tổng quan</button>
+                        <button onclick="showPage('deposit')" class="nav-btn text-gray-600 hover:text-mint px-3 py-2 rounded-md text-sm font-medium transition-colors">Gửi tiền</button>
+                        <button onclick="showPage('borrow')" class="nav-btn text-gray-600 hover:text-mint px-3 py-2 rounded-md text-sm font-medium transition-colors">Vay</button>
+                        <button onclick="showPage('repay')" class="nav-btn text-gray-600 hover:text-mint px-3 py-2 rounded-md text-sm font-medium transition-colors">Trả nợ</button>
+                    </nav>
+                </div>
+                <div class="flex items-center">
+                    <button id="connectWallet" onclick="connectWallet()" class="bg-mint hover:bg-teal-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        Kết nối ví
+                    </button>
+                    <div id="walletInfo" class="hidden ml-4 text-sm text-gray-600">
+                        <span id="walletAddress"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Dashboard Page -->
+    <div id="dashboard" class="page-content max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-navy mb-2">Tổng quan tài khoản</h2>
+            <p class="text-gray-600">Theo dõi số dư và khoản vay của bạn</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Số dư ETH</p>
+                        <p class="text-2xl font-bold text-navy" id="ethBalance">2.45</p>
+                    </div>
+                    <div class="w-12 h-12 bg-mint bg-opacity-10 rounded-lg flex items-center justify-center">
+                        <span class="text-mint font-bold">ETH</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Tài sản thế chấp</p>
+                        <p class="text-2xl font-bold text-navy" id="collateral">1.80</p>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <span class="text-blue-600 font-bold">💎</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Khoản vay USDC</p>
+                        <p class="text-2xl font-bold text-red-600" id="borrowed">1,250.00</p>
+                    </div>
+                    <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                        <span class="text-red-600 font-bold">$</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Sức khỏe khoản vay</p>
+                        <p class="text-2xl font-bold text-green-600" id="healthFactor">1.85</p>
+                    </div>
+                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <span class="text-green-600 font-bold">❤️</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <h3 class="text-lg font-semibold text-navy mb-4">Lịch sử giao dịch</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 bg-mint bg-opacity-10 rounded-full flex items-center justify-center mr-3">
+                                <span class="text-mint text-sm">↓</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-navy">Gửi ETH</p>
+                                <p class="text-sm text-gray-500">2 giờ trước</p>
+                            </div>
+                        </div>
+                        <p class="font-semibold text-mint">+0.5 ETH</p>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                <span class="text-blue-600 text-sm">↑</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-navy">Vay USDC</p>
+                                <p class="text-sm text-gray-500">1 ngày trước</p>
+                            </div>
+                        </div>
+                        <p class="font-semibold text-blue-600">+500 USDC</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <h3 class="text-lg font-semibold text-navy mb-4">Thông tin thị trường</h3>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Giá ETH/USD</span>
+                        <span class="font-semibold text-navy">$2,450.00</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Lãi suất vay USDC</span>
+                        <span class="font-semibold text-navy">5.2% APY</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Lãi suất gửi ETH</span>
+                        <span class="font-semibold text-mint">3.8% APY</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Tỷ lệ thế chấp tối đa</span>
+                        <span class="font-semibold text-navy">75%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deposit Page -->
+    <div id="deposit" class="page-content hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-navy mb-2">Gửi tiền ETH</h2>
+            <p class="text-gray-600">Gửi ETH vào hệ thống để kiếm lãi và sử dụng làm tài sản thế chấp</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                <h3 class="text-xl font-semibold text-navy mb-6">Thông tin gửi tiền</h3>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Số lượng ETH</label>
+                    <div class="relative">
+                        <input type="number" id="depositAmount" placeholder="0.00" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mint focus:border-transparent text-lg">
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <span class="text-gray-500 font-medium">ETH</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1">Số dư khả dụng: <span class="font-medium">2.45 ETH</span></p>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>Lãi suất APY</span>
+                        <span class="font-medium text-mint">3.8%</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>Phí giao dịch (ước tính)</span>
+                        <span class="font-medium">0.002 ETH</span>
+                    </div>
+                </div>
+
+                <button onclick="deposit()" class="w-full bg-mint hover:bg-teal-400 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                    Gửi tiền
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                <h3 class="text-xl font-semibold text-navy mb-6">Lợi ích khi gửi ETH</h3>
+                
+                <div class="space-y-4">
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-mint bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                            <span class="text-mint text-sm">✓</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-navy">Kiếm lãi suất cạnh tranh</h4>
+                            <p class="text-sm text-gray-600">Nhận lãi suất 3.8% APY từ việc cho vay ETH</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-mint bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                            <span class="text-mint text-sm">✓</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-navy">Sử dụng làm tài sản thế chấp</h4>
+                            <p class="text-sm text-gray-600">ETH gửi có thể dùng để vay USDC với tỷ lệ 75%</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-mint bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                            <span class="text-mint text-sm">✓</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-navy">Rút tiền linh hoạt</h4>
+                            <p class="text-sm text-gray-600">Có thể rút ETH bất kỳ lúc nào (trừ phần thế chấp)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 p-4 bg-mint bg-opacity-5 rounded-lg">
+                    <h4 class="font-medium text-navy mb-2">Ước tính thu nhập</h4>
+                    <p class="text-sm text-gray-600">Với 1 ETH gửi trong 1 năm:</p>
+                    <p class="text-lg font-semibold text-mint">+0.038 ETH (~$93)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Borrow Page -->
+    <div id="borrow" class="page-content hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-navy mb-2">Vay USDC</h2>
+            <p class="text-gray-600">Sử dụng ETH làm tài sản thế chấp để vay USDC</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                <h3 class="text-xl font-semibold text-navy mb-6">Thông tin vay</h3>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Số lượng USDC muốn vay</label>
+                    <div class="relative">
+                        <input type="number" id="borrowAmount" placeholder="0.00" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mint focus:border-transparent text-lg">
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <span class="text-gray-500 font-medium">USDC</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1">Khả năng vay tối đa: <span class="font-medium">1,837.50 USDC</span></p>
+                </div>
+
+                <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-medium text-navy mb-3">Tài sản thế chấp</h4>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">ETH đã gửi</span>
+                        <span class="font-medium">1.80 ETH</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-gray-600">Giá trị (~$2,450/ETH)</span>
+                        <span class="font-medium">$4,410.00</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-gray-600">Khả năng vay (75%)</span>
+                        <span class="font-medium text-mint">$3,307.50</span>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>Lãi suất vay</span>
+                        <span class="font-medium text-red-600">5.2% APY</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>Sức khỏe khoản vay sau khi vay</span>
+                        <span class="font-medium" id="newHealthFactor">1.65</span>
+                    </div>
+                </div>
+
+                <button onclick="borrow()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                    Vay USDC
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                <h3 class="text-xl font-semibold text-navy mb-6">Thông tin quan trọng</h3>
+                
+                <div class="space-y-4">
+                    <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <h4 class="font-medium text-yellow-800 mb-2">⚠️ Cảnh báo thanh lý</h4>
+                        <p class="text-sm text-yellow-700">Khoản vay sẽ bị thanh lý nếu sức khỏe khoản vay < 1.0. Theo dõi giá ETH thường xuyên.</p>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tỷ lệ thế chấp tối đa</span>
+                            <span class="font-medium">75%</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Phí thanh lý</span>
+                            <span class="font-medium">10%</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Giá thanh lý ETH</span>
+                            <span class="font-medium text-red-600">~$1,960</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 p-4 bg-blue-50 rounded-lg">
+                    <h4 class="font-medium text-navy mb-2">Ví dụ chi phí vay</h4>
+                    <p class="text-sm text-gray-600">Vay 1,000 USDC trong 1 năm:</p>
+                    <p class="text-lg font-semibold text-blue-600">Chi phí lãi: 52 USDC</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Repay Page -->
+    <div id="repay" class="page-content hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-navy mb-2">Trả nợ USDC</h2>
+            <p class="text-gray-600">Trả khoản vay để giảm rủi ro thanh lý và lấy lại tài sản thế chấp</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                <h3 class="text-xl font-semibold text-navy mb-6">Thông tin trả nợ</h3>
+                
+                <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <h4 class="font-medium text-red-800 mb-2">Khoản nợ hiện tại</h4>
+                    <p class="text-2xl font-bold text-red-600">1,250.00 USDC</p>
+                    <p class="text-sm text-red-600 mt-1">Bao gồm lãi suất tích lũy</p>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Số lượng USDC trả</label>
+                    <div class="relative">
+                        <input type="number" id="repayAmount" placeholder="0.00" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mint focus:border-transparent text-lg">
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <span class="text-gray-500 font-medium">USDC</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between mt-2">
+                        <p class="text-sm text-gray-500">Số dư USDC: <span class="font-medium">850.00 USDC</span></p>
+                        <button onclick="setMaxRepay()" class="text-sm text-mint hover:text-teal-600 font-medium">Trả tối đa</button>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>Nợ còn lại sau khi trả</span>
+                        <span class="font-medium" id="remainingDebt">1,250.00 USDC</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>Sức khỏe khoản vay mới</span>
+                        <span class="font-medium text-green-600" id="newHealthFactorRepay">1.85</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>ETH có thể rút</span>
+                        <span class="font-medium text-mint" id="withdrawableETH">0.00 ETH</span>
+                    </div>
+                </div>
+
+                <button onclick="repay()" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                    Trả nợ
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                <h3 class="text-xl font-semibold text-navy mb-6">Lợi ích khi trả nợ</h3>
+                
+                <div class="space-y-4">
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-1">
+                            <span class="text-green-600 text-sm">✓</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-navy">Giảm rủi ro thanh lý</h4>
+                            <p class="text-sm text-gray-600">Tăng sức khỏe khoản vay, an toàn hơn khi giá ETH giảm</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-1">
+                            <span class="text-green-600 text-sm">✓</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-navy">Tiết kiệm chi phí lãi</h4>
+                            <p class="text-sm text-gray-600">Giảm số tiền phải trả lãi hàng ngày</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-1">
+                            <span class="text-green-600 text-sm">✓</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-navy">Rút ETH thế chấp</h4>
+                            <p class="text-sm text-gray-600">Có thể rút một phần ETH khi trả nợ</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 p-4 bg-green-50 rounded-lg">
+                    <h4 class="font-medium text-navy mb-2">Tình trạng tài khoản</h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tài sản thế chấp</span>
+                            <span class="font-medium">1.80 ETH</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Giá trị thế chấp</span>
+                            <span class="font-medium">$4,410.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tổng nợ</span>
+                            <span class="font-medium text-red-600">$1,250.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Sức khỏe khoản vay</span>
+                            <span class="font-medium text-green-600">1.85</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Wallet connection simulation
+        let isWalletConnected = false;
+        const walletAddress = "0x742d35Cc6634C0532925a3b8D4C9db96590b5b8c";
+
+        function connectWallet() {
+            if (!isWalletConnected) {
+                // Simulate wallet connection
+                isWalletConnected = true;
+                document.getElementById('connectWallet').textContent = 'Đã kết nối';
+                document.getElementById('connectWallet').classList.remove('bg-mint', 'hover:bg-teal-400');
+                document.getElementById('connectWallet').classList.add('bg-green-600', 'hover:bg-green-700');
+                
+                document.getElementById('walletInfo').classList.remove('hidden');
+                document.getElementById('walletAddress').textContent = walletAddress.substring(0, 6) + '...' + walletAddress.substring(38);
+                
+                showNotification('Kết nối ví MetaMask thành công!', 'success');
+            }
+        }
+
+        // Page navigation
+        function showPage(pageId) {
+            // Hide all pages
+            const pages = document.querySelectorAll('.page-content');
+            pages.forEach(page => page.classList.add('hidden'));
+            
+            // Show selected page
+            document.getElementById(pageId).classList.remove('hidden');
+            
+            // Update navigation
+            const navButtons = document.querySelectorAll('.nav-btn');
+            navButtons.forEach(btn => {
+                btn.classList.remove('text-mint', 'bg-mint', 'bg-opacity-10');
+                btn.classList.add('text-gray-600');
+            });
+            
+            event.target.classList.remove('text-gray-600');
+            event.target.classList.add('text-mint');
+        }
+
+        // Transaction functions
+        function deposit() {
+            const amount = document.getElementById('depositAmount').value;
+            if (!amount || amount <= 0) {
+                showNotification('Vui lòng nhập số lượng ETH hợp lệ', 'error');
+                return;
+            }
+            if (!isWalletConnected) {
+                showNotification('Vui lòng kết nối ví trước', 'error');
+                return;
+            }
+            
+            showNotification(`Đang gửi ${amount} ETH...`, 'info');
+            
+            // Simulate transaction
+            setTimeout(() => {
+                showNotification(`Gửi ${amount} ETH thành công!`, 'success');
+                // Update balance
+                const currentBalance = parseFloat(document.getElementById('ethBalance').textContent);
+                document.getElementById('ethBalance').textContent = (currentBalance + parseFloat(amount)).toFixed(2);
+                document.getElementById('depositAmount').value = '';
+            }, 2000);
+        }
+
+        function borrow() {
+            const amount = document.getElementById('borrowAmount').value;
+            if (!amount || amount <= 0) {
+                showNotification('Vui lòng nhập số lượng USDC hợp lệ', 'error');
+                return;
+            }
+            if (!isWalletConnected) {
+                showNotification('Vui lòng kết nối ví trước', 'error');
+                return;
+            }
+            
+            showNotification(`Đang vay ${amount} USDC...`, 'info');
+            
+            setTimeout(() => {
+                showNotification(`Vay ${amount} USDC thành công!`, 'success');
+                // Update borrowed amount
+                const currentBorrowed = parseFloat(document.getElementById('borrowed').textContent.replace(',', ''));
+                document.getElementById('borrowed').textContent = (currentBorrowed + parseFloat(amount)).toLocaleString();
+                document.getElementById('borrowAmount').value = '';
+            }, 2000);
+        }
+
+        function repay() {
+            const amount = document.getElementById('repayAmount').value;
+            if (!amount || amount <= 0) {
+                showNotification('Vui lòng nhập số lượng USDC hợp lệ', 'error');
+                return;
+            }
+            if (!isWalletConnected) {
+                showNotification('Vui lòng kết nối ví trước', 'error');
+                return;
+            }
+            
+            showNotification(`Đang trả ${amount} USDC...`, 'info');
+            
+            setTimeout(() => {
+                showNotification(`Trả ${amount} USDC thành công!`, 'success');
+                // Update borrowed amount
+                const currentBorrowed = parseFloat(document.getElementById('borrowed').textContent.replace(',', ''));
+                const newBorrowed = Math.max(0, currentBorrowed - parseFloat(amount));
+                document.getElementById('borrowed').textContent = newBorrowed.toLocaleString();
+                document.getElementById('repayAmount').value = '';
+            }, 2000);
+        }
+
+        function setMaxRepay() {
+            document.getElementById('repayAmount').value = '850.00';
+        }
+
+        // Notification system
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500 text-white' :
+                type === 'error' ? 'bg-red-500 text-white' :
+                'bg-blue-500 text-white'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Update calculations when input changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const borrowInput = document.getElementById('borrowAmount');
+            const repayInput = document.getElementById('repayAmount');
+            
+            if (borrowInput) {
+                borrowInput.addEventListener('input', function() {
+                    const amount = parseFloat(this.value) || 0;
+                    const currentBorrowed = 1250;
+                    const newTotal = currentBorrowed + amount;
+                    const healthFactor = (4410 * 0.75) / newTotal;
+                    document.getElementById('newHealthFactor').textContent = healthFactor.toFixed(2);
+                });
+            }
+            
+            if (repayInput) {
+                repayInput.addEventListener('input', function() {
+                    const amount = parseFloat(this.value) || 0;
+                    const currentBorrowed = 1250;
+                    const remaining = Math.max(0, currentBorrowed - amount);
+                    document.getElementById('remainingDebt').textContent = remaining.toLocaleString() + ' USDC';
+                    
+                    const healthFactor = remaining > 0 ? (4410 * 0.75) / remaining : '∞';
+                    document.getElementById('newHealthFactorRepay').textContent = 
+                        healthFactor === '∞' ? '∞' : healthFactor.toFixed(2);
+                    
+                    // Calculate withdrawable ETH
+                    const withdrawableValue = remaining > 0 ? Math.max(0, 4410 - (remaining / 0.75)) : 4410;
+                    const withdrawableETH = withdrawableValue / 2450;
+                    document.getElementById('withdrawableETH').textContent = withdrawableETH.toFixed(3) + ' ETH';
+                });
+            }
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c09614b32b852e',t:'MTc1NDY3MjU5Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

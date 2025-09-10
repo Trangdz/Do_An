@@ -126,7 +126,7 @@ const LendState = (props) => {
               metamaskDetails.provider
             );
             tok = await tokenContract.balanceOf(metamaskDetails.currentAccount);
-            tok = token ? ethers.utils.formatUnits(tok, token.decimal) : 0;
+            tok = tok ? ethers.utils.formatUnits(tok, token.decimal) : 0;
           } else {
             tok = await metamaskDetails.provider.getBalance(
               metamaskDetails.currentAccount
@@ -526,10 +526,12 @@ const LendState = (props) => {
   const getYourBorrows = async () => {
     console.log("4. Getting Your Borrows");
     try {
-      const contract = await getContract(LendingPoolAddress, LendingPoolABI);
-      const yourBorrows = await contract
-        .connect(metamaskDetails.signer)
-        .getBorrowerAssets(metamaskDetails.currentAccount);
+      const contract = new ethers.Contract(
+        LendingPoolAddress,
+        LendingPoolABI.abi,
+        metamaskDetails.provider
+      );
+      const yourBorrows = await contract.getBorrowerAssets(metamaskDetails.currentAccount);
 
       // console.log("*** calling objectifyBorrowedAssets from getYourBorrows");
       const yourBorrowsObject = await objectifyBorrowedAssets(yourBorrows);
