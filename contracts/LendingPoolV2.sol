@@ -3,6 +3,7 @@ pragma solidity ^0.8.6;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./RiskManager.sol";
@@ -40,6 +41,7 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
     event Withdrawn(address indexed user, address indexed token, uint256 amount);
     event Borrowed(address indexed user, address indexed token, uint256 amount);
     event Repaid(address indexed user, address indexed token, uint256 amount);
+    event Liquidated(address indexed liquidator, address indexed user, address indexed debtAsset, address collateralAsset, uint256 repayAmount, uint256 collateralAmount);
     event InterestUpdated(address indexed token, uint256 supplyRate, uint256 borrowRate);
     
     constructor(address _riskManager) {
@@ -344,5 +346,129 @@ contract LendingPoolV2 is ReentrancyGuard, Ownable {
         // Console log for debugging
         console.log("HF after withdraw:", hfAfter);
         console.log("Min HF required:", riskManager.MIN_HEALTH_FACTOR());
+    }
+    
+    // Liquidation functions
+    function liquidate(
+        address user,
+        address debtAsset,
+        address collateralAsset,
+        uint256 repayAmount
+    ) external nonReentrant onlySupportedToken(debtAsset) onlySupportedToken(collateralAsset) {
+        require(repayAmount > 0, "Repay amount must be positive");
+        require(user != msg.sender, "Cannot liquidate yourself");
+        
+        // Check if user is liquidatable
+        uint256 currentHF = healthFactor(user);
+        require(currentHF < riskManager.MIN_HEALTH_FACTOR(), "User is not liquidatable");
+        
+        // Check if user has debt in debtAsset
+        require(userBorrows[user][debtAsset] > 0, "User has no debt in this asset");
+        
+        // Check if user has collateral in collateralAsset
+        require(userSupplies[user][collateralAsset] > 0, "User has no collateral in this asset");
+        
+        // Get liquidation bonus from RiskManager
+        RiskManager.TokenConfig memory collateralConfig = riskManager.getTokenConfig(collateralAsset);
+        require(collateralConfig.isCollateral, "Asset is not collateral");
+        uint256 bonusBP = collateralConfig.bonusBP;
+        
+        // Calculate liquidation amounts
+        uint256 repayUSD = _toUsd1e8(debtAsset, repayAmount);
+        uint256 collateralUSD_withBonus = (repayUSD * (10000 + bonusBP)) / 10000;
+        uint256 collateralAmount = _usdToTokenAmount(collateralAsset, collateralUSD_withBonus);
+        
+        // Check if user has enough collateral
+        require(userSupplies[user][collateralAsset] >= collateralAmount, "Insufficient collateral");
+        
+        // Check if repay amount doesn't exceed outstanding debt
+        uint256 outstandingDebt = userBorrows[user][debtAsset];
+        if (repayAmount > outstandingDebt) {
+            repayAmount = outstandingDebt;
+            // Recalculate collateral amount for actual repay amount
+            repayUSD = _toUsd1e8(debtAsset, repayAmount);
+            collateralUSD_withBonus = (repayUSD * (10000 + bonusBP)) / 10000;
+            collateralAmount = _usdToTokenAmount(collateralAsset, collateralUSD_withBonus);
+        }
+        
+        // Transfer debt asset from liquidator to pool
+        IERC20(debtAsset).safeTransferFrom(msg.sender, address(this), repayAmount);
+        
+        // Update user debt
+        userBorrows[user][debtAsset] -= repayAmount;
+        totalBorrowed[debtAsset] -= repayAmount;
+        
+        // Update user collateral
+        userSupplies[user][collateralAsset] -= collateralAmount;
+        totalSupplied[collateralAsset] -= collateralAmount;
+        
+        // Update pool reserves
+        reserves[debtAsset] += repayAmount;
+        reserves[collateralAsset] -= collateralAmount;
+        
+        // Transfer collateral to liquidator
+        IERC20(collateralAsset).safeTransfer(msg.sender, collateralAmount);
+        
+        // Update interest rates
+        _updateInterestRates(debtAsset);
+        _updateInterestRates(collateralAsset);
+        
+        // Log liquidation details
+        console.log("Liquidation executed:");
+        console.log("  User:", user);
+        console.log("  Liquidator:", msg.sender);
+        console.log("  Debt asset:", debtAsset);
+        console.log("  Collateral asset:", collateralAsset);
+        console.log("  Repay amount:", repayAmount);
+        console.log("  Collateral amount:", collateralAmount);
+        console.log("  Bonus BP:", bonusBP);
+        
+        // Check new health factor
+        uint256 newHF = healthFactor(user);
+        console.log("  Health factor before:", currentHF);
+        console.log("  Health factor after:", newHF);
+        
+        emit Liquidated(msg.sender, user, debtAsset, collateralAsset, repayAmount, collateralAmount);
+    }
+    
+    function _toUsd1e8(address token, uint256 amount) internal view returns (uint256) {
+        int256 price = riskManager.getTokenPrice(token);
+        require(price > 0, "Invalid price");
+        return (amount * uint256(price)) / (10 ** IERC20Metadata(token).decimals());
+    }
+    
+    function _usdToTokenAmount(address token, uint256 usdAmount) internal view returns (uint256) {
+        int256 price = riskManager.getTokenPrice(token);
+        require(price > 0, "Invalid price");
+        return (usdAmount * (10 ** IERC20Metadata(token).decimals())) / uint256(price);
+    }
+    
+    function isLiquidatable(address user) external view returns (bool) {
+        uint256 currentHF = healthFactor(user);
+        return currentHF < riskManager.MIN_HEALTH_FACTOR();
+    }
+    
+    function calculateLiquidationAmounts(
+        address user,
+        address debtAsset,
+        address collateralAsset,
+        uint256 repayAmount
+    ) external view returns (uint256 actualRepayAmount, uint256 collateralAmount, uint256 bonusBP) {
+        require(userBorrows[user][debtAsset] > 0, "User has no debt in this asset");
+        require(userSupplies[user][collateralAsset] > 0, "User has no collateral in this asset");
+        
+        RiskManager.TokenConfig memory collateralConfig = riskManager.getTokenConfig(collateralAsset);
+        require(collateralConfig.isCollateral, "Asset is not collateral");
+        
+        bonusBP = collateralConfig.bonusBP;
+        
+        // Check if repay amount exceeds outstanding debt
+        uint256 outstandingDebt = userBorrows[user][debtAsset];
+        actualRepayAmount = repayAmount > outstandingDebt ? outstandingDebt : repayAmount;
+        
+        // Calculate collateral amount
+        uint256 repayUSD = _toUsd1e8(debtAsset, actualRepayAmount);
+        uint256 collateralUSD_withBonus = (repayUSD * (10000 + bonusBP)) / 10000;
+        collateralAmount = _usdToTokenAmount(collateralAsset, collateralUSD_withBonus);
     }
 }
