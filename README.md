@@ -1,57 +1,141 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# LendHub v2 (Aave-Lite, Ganache + MetaMask)
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+## 1. Prerequisites
+- Node 18+
+- Ganache (RPC: http://127.0.0.1:7545, ChainId: 1337/5777)
+- MetaMask (đã add network Ganache)
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
-
-## Project Overview
-
-This example project includes:
-
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
-
-## Usage
-
-### Running Tests
-
-To run all the tests in the project, execute the following command:
-
-```shell
-npx hardhat test
+## 2. Install
+```bash
+npm install
 ```
 
-You can also selectively run the Solidity or `mocha` tests:
+## 3. Networks
 
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
+`hardhat.config.cjs` đã có cấu hình ganache.
+
+Đảm bảo GANACHE_MNEMONIC trong .env (hoặc dán mnemonic trực tiếp).
+
+## 4. Deploy mocks & oracle
+```bash
+npx hardhat run scripts/00_deploy_mocks.ts --network ganache
+# Ghi lại địa chỉ DAI, USDC, (WETH nếu bạn thêm), ETH/USD, DAI/USD, USDC/USD
+npx hardhat run scripts/01_deploy_oracle.ts --network ganache
+# Paste địa chỉ đã deploy vào 01_deploy_oracle.ts trước khi chạy
 ```
 
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+## 5. Deploy pool & init reserves
+```bash
+npx hardhat run scripts/02_deploy_pool_enhanced.cjs --network ganache
+# Lệnh này in ra địa chỉ LendingPool. Paste địa chỉ này vào các script Day 4-7.
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+## 6. Bảng lãi suất động (nghe event)
+```bash
+npx hardhat run scripts/03_show_rates_fixed.cjs --network ganache
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+## 7. Demo E2E
+```bash
+npx hardhat run scripts/07_scenario_e2e.cjs --network ganache
 ```
+
+## 8. Giá oracle
+
+Tăng/giảm giá ETH để mô phỏng rủi ro:
+
+```bash
+npx hardhat run scripts/07b_update_eth_price.cjs --network ganache
+```
+
+## 9. Tham số gợi ý
+
+- optimalU = 80%
+- baseAPR ≈ 0.1%/y, slope1 ≈ 0.2%/y, slope2 ≈ 1%/y
+- reserveFactor = 10%, LTV = 75%, Threshold = 80%, Bonus = 5%, closeFactor = 50%
+- Giá mock: ETH=1600$, DAI=1$, USDC=1$
+
+## 10. Công thức (chuẩn Aave)
+
+- U = debt / (cash + debt)
+- 2-slope borrow rate:
+  - U ≤ U*: base + slope1 * (U/U*)
+  - U > U*: base + slope1 + slope2 * ((U-U*)/(1-U*))
+- Supply ≈ Borrow * U * (1 - reserveFactor)
+- Index(t+dt) = Index(t) * (1 + rate/sec * dt)
+- HF = Σ(supply*price*threshold) / Σ(debt*price)
+- Withdraw limit x_max theo HF
+
+## 11. Ghi chú
+
+- HF, withdraw-limit, liquidation dùng market price từ oracle (giống Aave).
+- Event ReserveDataUpdated phát sau mỗi accrue/giao dịch → script 03_show_rates_fixed.cjs hiển thị bảng lãi suất động.
+- Guardrails: ReentrancyGuard, SafeERC20 (FoT-aware), Pausable, oracle price=0/stale guard.
+
+## 12. Contract Addresses (Latest Deployment)
+
+```
+LendingPool: 0x773d2D3f945fD63b1997EF0E22D98dBad952eC7c
+InterestRateModel: 0xE53d1DC0051077B7658c2466432190DEc7De826a
+PriceOracle: 0xDD0635A53fdAeb1AdE00E627f791d2AB128F016f
+
+DAI: 0x273a58F2D2D00DfAdB0eD8C71c7286fa0b4A740c
+USDC: 0x256863b3473280f88e9B93488BB5964350b216a2
+WETH: 0x84f07E0FC4883Aa96101c41af8c197E794434FfF
+
+DAI/USD Feed: 0xD15E79143F29549feea97E46922a8ad7E6A10781
+USDC/USD Feed: 0x5a2D2759F370ad5181416D002B98c44cF10594a5
+ETH/USD Feed: 0x991f6635F152445Bbf97E3694a5306BC89Cc402b
+```
+
+## 13. Features
+
+### ✅ Core Functions
+- **Supply/Lend**: Deposit assets as collateral
+- **Withdraw**: Withdraw supplied assets (with health factor checks)
+- **Borrow**: Borrow assets against collateral
+- **Repay**: Repay borrowed assets
+- **Liquidation**: Liquidate undercollateralized positions
+
+### ✅ Security Features
+- **ReentrancyGuard**: Protection against reentrancy attacks
+- **Pausable**: Emergency pause functionality
+- **SafeERC20**: Fee-on-transfer token support
+- **Health Factor**: Collateralization ratio monitoring
+
+### ✅ Interest Rate Model
+- **2-slope curve**: Base rate + slope1 + slope2
+- **Dynamic rates**: Based on utilization
+- **High precision**: RAY (1e27) precision for rates
+
+### ✅ Multi-Asset Support
+- **DAI**: 18 decimals, borrowable
+- **USDC**: 6 decimals, borrowable  
+- **WETH**: 18 decimals, collateral only
+
+## 14. Quick Start
+
+1. **Start Ganache**
+2. **Deploy everything:**
+   ```bash
+   npx hardhat run scripts/02_deploy_pool_enhanced.cjs --network ganache
+   ```
+3. **Start event listener:**
+   ```bash
+   npx hardhat run scripts/03_show_rates_fixed.cjs --network ganache
+   ```
+4. **Run E2E demo:**
+   ```bash
+   npx hardhat run scripts/07_scenario_e2e.cjs --network ganache
+   ```
+
+## 15. Troubleshooting
+
+- **"AssetNotInitialized"**: Run deployment script first
+- **"Insufficient liquidity"**: Check if assets are supplied to pool
+- **"Health factor too low"**: Reduce borrow amount or add more collateral
+- **"FeedNotSet"**: Ensure price feeds are set in oracle
+
+---
+
+**🎉 LendHub v2 - A complete DeFi lending protocol!**

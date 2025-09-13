@@ -63,6 +63,11 @@ async function main() {
   await priceOracle.setAssetPrice(await usdc.getAddress(), ethers.parseEther("1"));
   await priceOracle.setAssetPrice(await weth.getAddress(), ethers.parseEther("1600"));
   console.log("✅ Prices set in oracle");
+  
+  // Also set prices for the hardcoded addresses in contract
+  await priceOracle.setAssetPrice("0x5826c4fCc65e8C06ec754DAC5cB2EF6Fd9a1d3E8", ethers.parseEther("1600"));
+  await priceOracle.setAssetPrice("0x86c834af339Fb89372a9D93cA2EBdBDb99Cc2f6d", ethers.parseEther("1"));
+  console.log("✅ Hardcoded addresses prices set");
 
   // ==== Deploy Core Contracts ====
   console.log("\n🏦 Deploying Core Contracts...");

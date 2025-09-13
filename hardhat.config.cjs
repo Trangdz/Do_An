@@ -18,7 +18,7 @@ const config = {
       type: "http",
       chainId: 1337,                // hoặc 5777 tùy phiên bản Ganache
       accounts: {
-        mnemonic: "say post later service honey shiver cave title actual blue mention scan",
+        mnemonic: "super review elevator helmet vote waste cycle gentle diet step ladder polar",
       },
     },
   },

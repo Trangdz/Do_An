@@ -29,6 +29,11 @@ contract LendingPool is ReentrancyGuard, Pausable {
     using RayMath for uint256;
     using SafeERC20 for IERC20;
     address public owner = msg.sender;
+    
+    // Hardcoded addresses for demo (in production, these would be configurable)
+    // Note: These addresses will be set during deployment
+    address public WETH;
+    address public DAI;
     // asset => ReserveData
     mapping(address => ReserveUserModels.ReserveData) public reserves;
 
@@ -38,9 +43,11 @@ contract LendingPool is ReentrancyGuard, Pausable {
     InterestRateModel public immutable interestRateModel;
     PriceOracle public immutable oracle;
 
-    constructor(address irm, address _oracle) {
+    constructor(address irm, address _oracle, address _weth, address _dai) {
         interestRateModel = InterestRateModel(irm);
         oracle = PriceOracle(_oracle);
+        WETH = _weth;
+        DAI = _dai;
     }
 
     /// @notice Cập nhật index & rates cho asset
@@ -157,11 +164,22 @@ function _getAccountData(address user) internal view returns (
     uint256 debtValue1e18,
     uint256 healthFactor1e18
 ) {
-    // For demo purposes, always allow withdraw by returning max values
-    // In production, you would implement proper health factor calculation
-    collateralValue1e18 = type(uint256).max;
-    debtValue1e18 = 0;
-    healthFactor1e18 = type(uint256).max;
+    // Calculate collateral value (WETH only for now)
+    uint256 wethSupply = _currentSupply(user, WETH);
+    uint256 wethPrice = oracle.getAssetPrice1e18(WETH);
+    collateralValue1e18 = (wethSupply * wethPrice) / 1e18;
+    
+    // Calculate debt value (DAI only for now)
+    uint256 daiDebt = _currentDebt(user, DAI);
+    uint256 daiPrice = oracle.getAssetPrice1e18(DAI);
+    debtValue1e18 = (daiDebt * daiPrice) / 1e18;
+    
+    // Calculate health factor
+    if (debtValue1e18 == 0) {
+        healthFactor1e18 = type(uint256).max;
+    } else {
+        healthFactor1e18 = (collateralValue1e18 * 1e18) / debtValue1e18;
+    }
 }
 
 // x_max theo công thức bạn chốt: tối đa rút được của 1 asset khi vẫn HF_after>=1
@@ -245,6 +263,90 @@ function withdraw(address asset, uint256 requested) external returns (uint256 am
     return amt; // 1e18 (chuẩn 1e18, tiện test/hiển thị)
 }
 
+function borrow(address asset, uint256 amount) external nonReentrant whenNotPaused {
+    if (amount == 0) revert InvalidAmount();
+    _requireInited(asset);
+    
+    ReserveUserModels.ReserveData storage r = reserves[asset];
+    if (!r.isBorrowable) revert InvalidAmount();
+    
+    _accrue(asset);
+    
+    ReserveUserModels.UserReserveData storage u = userReserves[msg.sender][asset];
+    
+    // Check health factor before borrow
+    (uint256 col, uint256 debt, uint256 hf) = _getAccountData(msg.sender);
+    uint256 borrowAmount1e18 = _to1e18(amount, r.decimals);
+    uint256 newDebt = debt + borrowAmount1e18;
+    
+    // Simple health factor check: collateral must be >= debt * 1.1 (10% buffer)
+    require(col >= newDebt * 110 / 100, "Health factor too low");
+    
+    // Check liquidity
+    require(r.reserveCash >= borrowAmount1e18, "Insufficient liquidity");
+    
+    // Update user debt position
+    uint256 currentDebt = _currentDebt(msg.sender, asset);
+    uint256 newDebtTotal = currentDebt + borrowAmount1e18;
+    u.borrow.principal = uint128(newDebtTotal);
+    u.borrow.index = r.variableBorrowIndex;
+    
+    // Update reserve
+    r.reserveCash = uint128(uint256(r.reserveCash) - borrowAmount1e18);
+    r.totalDebtPrincipal = uint128(uint256(r.totalDebtPrincipal) + borrowAmount1e18);
+    
+    // Transfer tokens to user
+    uint256 transferAmount = _from1e18(borrowAmount1e18, r.decimals);
+    IERC20(asset).safeTransfer(msg.sender, transferAmount);
+    
+    emit Borrowed(msg.sender, asset, borrowAmount1e18);
+}
+
+function repay(address asset, uint256 amount, address onBehalfOf) external nonReentrant whenNotPaused returns (uint256) {
+    _requireInited(asset);
+    _accrue(asset);
+    
+    ReserveUserModels.ReserveData storage r = reserves[asset];
+    ReserveUserModels.UserReserveData storage u = userReserves[onBehalfOf][asset];
+    
+    uint256 currentDebt = _currentDebt(onBehalfOf, asset);
+    if (currentDebt == 0) return 0;
+    
+    uint256 repayAmount1e18 = _to1e18(amount, r.decimals);
+    if (repayAmount1e18 > currentDebt) repayAmount1e18 = currentDebt;
+    
+    // Transfer tokens from user
+    uint256 transferAmount = _from1e18(repayAmount1e18, r.decimals);
+    uint256 balBefore = IERC20(asset).balanceOf(address(this));
+    IERC20(asset).safeTransferFrom(msg.sender, address(this), transferAmount);
+    uint256 received = IERC20(asset).balanceOf(address(this)) - balBefore;
+    uint256 received1e18 = _to1e18(received, r.decimals);
+    
+    if (received1e18 < repayAmount1e18) repayAmount1e18 = received1e18;
+    
+    // Update user debt position
+    uint256 newDebt = currentDebt - repayAmount1e18;
+    u.borrow.principal = uint128(newDebt);
+    u.borrow.index = r.variableBorrowIndex;
+    
+    // Update reserve
+    r.reserveCash = uint128(uint256(r.reserveCash) + repayAmount1e18);
+    r.totalDebtPrincipal = uint128(uint256(r.totalDebtPrincipal) - repayAmount1e18);
+    
+    emit Repaid(msg.sender, onBehalfOf, asset, repayAmount1e18);
+    return repayAmount1e18;
+}
+
+function getAccountData(address user) external view returns (
+    uint256 collateralValue1e18,
+    uint256 debtValue1e18,
+    uint256 healthFactor1e18
+) {
+    return _getAccountData(user);
+}
+
+event Borrowed(address indexed user, address indexed asset, uint256 amount);
+event Repaid(address indexed user, address indexed onBehalfOf, address indexed asset, uint256 amount);
 
 address[] private _allAssets;
 
