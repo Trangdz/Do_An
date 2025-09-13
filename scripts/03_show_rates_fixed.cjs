@@ -5,7 +5,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   // Địa chỉ LendingPool bạn đã deploy ở Day 3
-  const LENDING_POOL = "0xe1b0569a2B0627EB7CAb1196361681E2242284Ca";
+  const LENDING_POOL = "0x773d2D3f945fD63b1997EF0E22D98dBad952eC7c";
 
   // ABI tối thiểu chỉ cần event
   const abi = [
