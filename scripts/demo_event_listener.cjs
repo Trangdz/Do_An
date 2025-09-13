@@ -1,30 +1,43 @@
-import { ethers } from "hardhat";
+const { ethers } = require("hardhat");
 
 async function main() {
-  // Lấy provider và signer (ganache)
+  console.log("🎧 LendHub v2 - Event Listener Demo");
+  console.log("=" .repeat(50));
+  
   const [deployer] = await ethers.getSigners();
-
-  // Địa chỉ LendingPool bạn đã deploy ở Day 3
-  const LENDING_POOL = "0xCA06292bec157877D20B424fDB88f742cd3D0946";
-
-  // ABI tối thiểu chỉ cần event
+  console.log("👤 Deployer:", deployer.address);
+  
+  // Contract addresses
+  const LENDING_POOL = "0xD898096173C48c8bFef6677DBCC87343c4fEaD19";
+  const DAI = "0x78608d72b50ebC71089C30bdf6bACe5265AA9aa3";
+  const USDC = "0x695c9dF29c5a800a3e311A2C9f3f5818703aA899";
+  
+  console.log("📋 Contract Addresses:");
+  console.log("LendingPool:", LENDING_POOL);
+  console.log("DAI:", DAI);
+  console.log("USDC:", USDC);
+  
+  // ABI for ReserveDataUpdated event
   const abi = [
     "event ReserveDataUpdated(address indexed asset,uint256 utilizationWad,uint256 liquidityRateRayPerSec,uint256 variableBorrowRateRayPerSec,uint256 liquidityIndexRay,uint256 variableBorrowIndexRay)"
   ];
-
+  
   const pool = new ethers.Contract(LENDING_POOL, abi, deployer);
-
-  console.log("Listening ReserveDataUpdated events...");
-
+  
+  console.log("\n🎧 Listening for ReserveDataUpdated events...");
+  console.log("Note: Events will only be emitted when _accrue() is called internally");
+  console.log("This happens when supply/borrow/repay functions are implemented");
+  console.log("\nPress Ctrl+C to stop\n");
+  
   pool.on(
     "ReserveDataUpdated",
     (
-      asset: string,
-      utilizationWad: bigint,
-      liquidityRateRayPerSec: bigint,
-      variableBorrowRateRayPerSec: bigint,
-      liquidityIndexRay: bigint,
-      variableBorrowIndexRay: bigint
+      asset,
+      utilizationWad,
+      liquidityRateRayPerSec,
+      variableBorrowRateRayPerSec,
+      liquidityIndexRay,
+      variableBorrowIndexRay
     ) => {
       const WAD = 1e18;
       const RAY = 1e27;
@@ -46,6 +59,17 @@ async function main() {
       console.log("BorrowIndex:    ", variableBorrowIndexRay.toString());
     }
   );
+  
+  // Keep the script running
+  process.on('SIGINT', () => {
+    console.log('\n👋 Stopping event listener...');
+    process.exit(0);
+  });
+  
+  // Keep alive
+  setInterval(() => {
+    // Do nothing, just keep the process alive
+  }, 1000);
 }
 
 main().catch(console.error);

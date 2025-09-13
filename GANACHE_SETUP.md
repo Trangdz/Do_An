@@ -100,4 +100,20 @@ lendhub_v2/
 
 Project LendHub v2 đã sẵn sàng để phát triển trên Ganache local blockchain. Tất cả các thành phần cơ bản đã được test và hoạt động tốt.
 
-**Bước tiếp theo**: Phát triển các core contracts trong thư mục `contracts/core/` để hoàn thiện lending protocol.
+### ✅ **Core Contracts đã hoàn thành:**
+- **InterestRateModel**: Mô hình lãi suất 2-slope
+- **PriceOracle**: Oracle giá đơn giản
+- **LendingPool**: Pool chính (cơ bản)
+
+### ✅ **Test Results:**
+- **Compilation**: ✅ Thành công với viaIR
+- **Deployment**: ✅ Tất cả contracts deploy thành công
+- **Functionality**: ✅ Tất cả functions hoạt động đúng
+- **Integration**: ✅ Các contracts tích hợp tốt
+
+### 🚀 **Demo Script:**
+```bash
+npx hardhat run scripts/demo_lendhub.cjs --network ganache
+```
+
+**Bước tiếp theo**: Phát triển các functions chính như supply, borrow, liquidation trong LendingPool contract.

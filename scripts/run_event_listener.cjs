@@ -1,39 +1,49 @@
-import { ethers } from "hardhat";
+const { ethers } = require("hardhat");
 
 async function main() {
-  // Lấy provider và signer (ganache)
+  console.log("🎧 LendHub v2 - Event Listener");
+  console.log("=" .repeat(40));
+  
   const [deployer] = await ethers.getSigners();
-
-  // Địa chỉ LendingPool bạn đã deploy ở Day 3
+  console.log("👤 Deployer:", deployer.address);
+  
+  // Contract addresses from previous deployment
   const LENDING_POOL = "0xCA06292bec157877D20B424fDB88f742cd3D0946";
-
-  // ABI tối thiểu chỉ cần event
+  const DAI = "0xf877004dC804Bd501a2627bB3b1379247B1D4950";
+  const USDC = "0x8fAcF8BAb86D86C5E30CA90ba25B7E0e13342FF2";
+  
+  console.log("📋 Contract Addresses:");
+  console.log("LendingPool:", LENDING_POOL);
+  console.log("DAI:", DAI);
+  console.log("USDC:", USDC);
+  
+  // ABI for ReserveDataUpdated event
   const abi = [
     "event ReserveDataUpdated(address indexed asset,uint256 utilizationWad,uint256 liquidityRateRayPerSec,uint256 variableBorrowRateRayPerSec,uint256 liquidityIndexRay,uint256 variableBorrowIndexRay)"
   ];
-
+  
   const pool = new ethers.Contract(LENDING_POOL, abi, deployer);
-
-  console.log("Listening ReserveDataUpdated events...");
-
+  
+  console.log("\n🎧 Listening for ReserveDataUpdated events...");
+  console.log("Note: Events will only be emitted when _accrue() is called internally");
+  console.log("This happens when supply/borrow/repay functions are implemented");
+  console.log("\nPress Ctrl+C to stop\n");
+  
   pool.on(
     "ReserveDataUpdated",
     (
-      asset: string,
-      utilizationWad: bigint,
-      liquidityRateRayPerSec: bigint,
-      variableBorrowRateRayPerSec: bigint,
-      liquidityIndexRay: bigint,
-      variableBorrowIndexRay: bigint
+      asset,
+      utilizationWad,
+      liquidityRateRayPerSec,
+      variableBorrowRateRayPerSec,
+      liquidityIndexRay,
+      variableBorrowIndexRay
     ) => {
       const WAD = 1e18;
       const RAY = 1e27;
       const SECONDS_PER_YEAR = 365 * 24 * 3600;
 
-      // Convert U
       const Upercent = Number(utilizationWad) / WAD * 100;
-
-      // Convert rates to APR%
       const borrowAPR = Number(variableBorrowRateRayPerSec) * SECONDS_PER_YEAR / RAY * 100;
       const supplyAPR = Number(liquidityRateRayPerSec) * SECONDS_PER_YEAR / RAY * 100;
 
@@ -46,6 +56,17 @@ async function main() {
       console.log("BorrowIndex:    ", variableBorrowIndexRay.toString());
     }
   );
+  
+  // Keep the script running
+  process.on('SIGINT', () => {
+    console.log('\n👋 Stopping event listener...');
+    process.exit(0);
+  });
+  
+  // Keep alive
+  setInterval(() => {
+    // Do nothing, just keep the process alive
+  }, 1000);
 }
 
 main().catch(console.error);

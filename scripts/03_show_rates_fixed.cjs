@@ -1,11 +1,11 @@
-import { ethers } from "hardhat";
+const { ethers } = require("hardhat");
 
 async function main() {
   // Lấy provider và signer (ganache)
   const [deployer] = await ethers.getSigners();
 
   // Địa chỉ LendingPool bạn đã deploy ở Day 3
-  const LENDING_POOL = "0xCA06292bec157877D20B424fDB88f742cd3D0946";
+  const LENDING_POOL = "0xe1b0569a2B0627EB7CAb1196361681E2242284Ca";
 
   // ABI tối thiểu chỉ cần event
   const abi = [
@@ -14,17 +14,19 @@ async function main() {
 
   const pool = new ethers.Contract(LENDING_POOL, abi, deployer);
 
-  console.log("Listening ReserveDataUpdated events...");
+  console.log("🎧 Listening ReserveDataUpdated events...");
+  console.log("LendingPool:", LENDING_POOL);
+  console.log("Press Ctrl+C to stop\n");
 
   pool.on(
     "ReserveDataUpdated",
     (
-      asset: string,
-      utilizationWad: bigint,
-      liquidityRateRayPerSec: bigint,
-      variableBorrowRateRayPerSec: bigint,
-      liquidityIndexRay: bigint,
-      variableBorrowIndexRay: bigint
+      asset,
+      utilizationWad,
+      liquidityRateRayPerSec,
+      variableBorrowRateRayPerSec,
+      liquidityIndexRay,
+      variableBorrowIndexRay
     ) => {
       const WAD = 1e18;
       const RAY = 1e27;
@@ -46,6 +48,12 @@ async function main() {
       console.log("BorrowIndex:    ", variableBorrowIndexRay.toString());
     }
   );
+
+  // Keep the script running
+  process.on('SIGINT', () => {
+    console.log('\n👋 Stopping event listener...');
+    process.exit(0);
+  });
 }
 
 main().catch(console.error);

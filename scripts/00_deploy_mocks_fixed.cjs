@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+const { ethers } = require("hardhat");
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -35,4 +35,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

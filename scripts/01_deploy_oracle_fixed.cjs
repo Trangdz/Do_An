@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+const { ethers } = require("hardhat");
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -11,7 +11,6 @@ async function main() {
   console.log("PriceOracle:", await oracle.getAddress());
 
   // 2) Nhập địa chỉ token từ bước 00_deploy_mocks.ts
-  // Bạn dán lại các địa chỉ log ra lúc trước:
   const DAI = "0xf877004dC804Bd501a2627bB3b1379247B1D4950";
   const USDC = "0x8fAcF8BAb86D86C5E30CA90ba25B7E0e13342FF2";
 
@@ -26,4 +25,7 @@ async function main() {
   console.log("ETH: $1600");
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => { 
+  console.error(e); 
+  process.exit(1); 
+});
