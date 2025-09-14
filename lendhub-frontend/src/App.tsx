@@ -1,8 +1,8 @@
 import React from 'react';
-import { ModernDashboard } from './components/ModernDashboard';
+import { SimpleDashboard } from './components/SimpleDashboard';
 
 function App() {
-  return <ModernDashboard />;
+  return <SimpleDashboard />;
 }
 
 export default App;
