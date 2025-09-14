@@ -18,7 +18,7 @@ const config = {
       type: "http",
       chainId: 1337,                // hoặc 5777 tùy phiên bản Ganache
       accounts: {
-        mnemonic: "super review elevator helmet vote waste cycle gentle diet step ladder polar",
+        mnemonic: "ensure believe rigid craft they alcohol sorry gravity demise physical fault define",
       },
     },
   },

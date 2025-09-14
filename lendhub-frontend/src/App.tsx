@@ -1,8 +1,12 @@
-import React from 'react';
 import { SimpleDashboard } from './components/SimpleDashboard';
+import { ToastProvider } from './components/ui/Toast';
 
 function App() {
-  return <SimpleDashboard />;
+  return (
+    <ToastProvider>
+      <SimpleDashboard />
+    </ToastProvider>
+  );
 }
 
 export default App;

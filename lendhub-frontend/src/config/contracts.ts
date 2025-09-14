@@ -5,13 +5,23 @@ export const CONFIG = {
   CHAIN_ID_HEX: import.meta.env.VITE_CHAIN_ID_HEX || '0x539',
   
   // Contract addresses
-  LENDING_POOL: import.meta.env.VITE_POOL || '0x0F1ebc6539925818AEfAB5fA3F907a49dDa6112B',
-  PRICE_ORACLE: import.meta.env.VITE_ORACLE || '0x16386a69239723c62356E0D48625A599bEdc1D90',
+  LENDING_POOL: import.meta.env.VITE_POOL || '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
+  PRICE_ORACLE: import.meta.env.VITE_ORACLE || '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9',
+  WETH: import.meta.env.VITE_WETH || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
   
   // Token configuration
   TOKENS: [
     {
-      address: import.meta.env.VITE_WETH || '0xc6Be86871C74dd0e26a40EBE4a0fFbA50912dCE7',
+      address: '0x0000000000000000000000000000000000000000', // ETH native token
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      isBorrowable: false,
+      isCollateral: false,
+      isNative: true,
+    },
+    {
+      address: import.meta.env.VITE_WETH || '0x5FbDB2315678afecb367f032d93F642f64180aa3', // Use correct WETH address
       symbol: 'WETH',
       name: 'Wrapped Ethereum',
       decimals: 18,
@@ -19,7 +29,7 @@ export const CONFIG = {
       isCollateral: true,
     },
     {
-      address: import.meta.env.VITE_DAI || '0x871F08ecD57077234CF86e02f212A405554EDABf',
+      address: import.meta.env.VITE_DAI || '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
       symbol: 'DAI',
       name: 'Dai Stablecoin',
       decimals: 18,

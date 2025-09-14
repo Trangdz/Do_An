@@ -1,8 +1,15 @@
-import React from 'react';
+import { useState } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { useAccountData } from '../hooks/useAccountData';
 import { usePoolDataSimple } from '../hooks/usePoolDataSimple';
+import { useInterestRateChart } from '../hooks/useInterestRateChart';
 import { WalletButton } from './WalletButton';
+import { LendModal } from './LendModal';
+import { WrapEthModal } from './WrapEthModal';
+import { WithdrawModal } from './WithdrawModal';
+import { BorrowModal } from './BorrowModal';
+import { RepayModal } from './RepayModal';
+import { CONFIG } from '../config/contracts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { 
@@ -10,11 +17,25 @@ import {
   formatPercentage, 
   formatNumber
 } from '../lib/math';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export function SimpleDashboard() {
   const { provider, signer, address, isConnected, isCorrectNetwork } = useWallet();
   const { collateralValue, debtValue, healthFactor, isLoading: accountLoading } = useAccountData(provider, address);
-  const { tokens, isLoading: poolLoading } = usePoolDataSimple(provider, signer, address);
+  const { tokens, ethBalance, isLoading: poolLoading, refresh: refreshPoolData, addSimulatedWeth } = usePoolDataSimple(provider, signer, address);
+  
+  // Get real WETH balance from tokens data (loaded from blockchain)
+  const realWethBalance = tokens.find(t => t.symbol === 'WETH')?.userBalance || 0;
+  const realWethSupply = tokens.find(t => t.symbol === 'WETH')?.userSupply || 0;
+  const { data: rateChartData, isLoading: rateChartLoading } = useInterestRateChart(provider);
+  
+  // Modal state
+  const [lendModalOpen, setLendModalOpen] = useState(false);
+  const [wrapEthModalOpen, setWrapEthModalOpen] = useState(false);
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [borrowModalOpen, setBorrowModalOpen] = useState(false);
+  const [repayModalOpen, setRepayModalOpen] = useState(false);
+  const [selectedToken, setSelectedToken] = useState<any>(null);
 
   if (!isConnected) {
     return (
@@ -66,6 +87,62 @@ export function SimpleDashboard() {
   const canLiquidate = healthFactor < 1;
   const totalSupply = tokens.reduce((sum, token) => sum + token.totalSupply, 0);
   const totalBorrow = tokens.reduce((sum, token) => sum + token.totalBorrow, 0);
+
+  const handleSupplyClick = (token: any) => {
+    setSelectedToken(token);
+    setLendModalOpen(true);
+  };
+
+  const handleLendSuccess = () => {
+    // Refresh data after successful lend
+    refreshPoolData();
+  };
+
+  const handleWrapEthClick = () => {
+    setLendModalOpen(false);
+    setWrapEthModalOpen(true);
+  };
+
+  const handleWrapEthSuccess = (amount: number) => {
+    setWrapEthModalOpen(false);
+    setLendModalOpen(true);
+    // Refresh data after successful wrap to update both ETH and WETH balances
+    refreshPoolData();
+    console.log('✅ Wrap successful! Refreshing balances...');
+  };
+
+  const handleWithdrawClick = (token: any) => {
+    setSelectedToken(token);
+    setWithdrawModalOpen(true);
+  };
+
+  const handleWithdrawSuccess = () => {
+    setWithdrawModalOpen(false);
+    setSelectedToken(null);
+    refreshPoolData();
+  };
+
+  const handleBorrowClick = (token: any) => {
+    setSelectedToken(token);
+    setBorrowModalOpen(true);
+  };
+
+  const handleBorrowSuccess = () => {
+    setBorrowModalOpen(false);
+    setSelectedToken(null);
+    refreshPoolData();
+  };
+
+  const handleRepayClick = (token: any) => {
+    setSelectedToken(token);
+    setRepayModalOpen(true);
+  };
+
+  const handleRepaySuccess = () => {
+    setRepayModalOpen(false);
+    setSelectedToken(null);
+    refreshPoolData();
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -218,6 +295,10 @@ export function SimpleDashboard() {
                 </div>
                 <div className="flex space-x-4 text-sm">
                   <div className="text-center">
+                    <div className="font-bold text-purple-600">{ethBalance.toFixed(4)} ETH</div>
+                    <div className="text-gray-500">Your ETH Balance</div>
+                  </div>
+                  <div className="text-center">
                     <div className="font-bold text-green-600">{formatCurrency(totalSupply)}</div>
                     <div className="text-gray-500">Total Supply</div>
                   </div>
@@ -228,6 +309,92 @@ export function SimpleDashboard() {
                 </div>
               </div>
             </CardHeader>
+          </Card>
+
+          {/* Interest Rate Chart */}
+          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold text-gray-900">Live Interest Rates</CardTitle>
+              <CardDescription className="text-gray-600">
+                Real-time supply and borrow rates across all assets (updates every 5s)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {rateChartLoading ? (
+                <div className="h-80 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-gray-600">Loading interest rate data...</p>
+                  </div>
+                </div>
+              ) : rateChartData.length === 0 ? (
+                <div className="h-80 flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <div className="text-4xl mb-4">📊</div>
+                    <p>No interest rate data available</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={rateChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis 
+                        dataKey="time" 
+                        tick={{ fontSize: 12, fill: '#6b7280' }}
+                        interval="preserveStartEnd"
+                        axisLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12, fill: '#6b7280' }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                        domain={[0, 'dataMax * 1.1']}
+                        tickFormatter={(value) => `${value.toFixed(2)}%`}
+                      />
+                      <Tooltip 
+                        formatter={(value, name) => [
+                          `${Number(value).toFixed(4)}%`, 
+                          name.toString().replace('_', ' ')
+                        ]}
+                        labelFormatter={(label) => `Time: ${label}`}
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                      />
+                      {CONFIG.TOKENS.map((token: any, index: number) => [
+                        <Line
+                          key={`${token.symbol}_Supply`}
+                          type="monotone"
+                          dataKey={`${token.symbol}_Supply`}
+                          stroke={`hsl(${index * 120}, 70%, 50%)`}
+                          strokeWidth={3}
+                          dot={false}
+                          connectNulls={false}
+                          name={`${token.symbol} Supply Rate`}
+                        />,
+                        <Line
+                          key={`${token.symbol}_Borrow`}
+                          type="monotone"
+                          dataKey={`${token.symbol}_Borrow`}
+                          stroke={`hsl(${index * 120}, 70%, 50%)`}
+                          strokeWidth={2}
+                          strokeDasharray="5 5"
+                          dot={false}
+                          connectNulls={false}
+                          name={`${token.symbol} Borrow Rate`}
+                        />
+                      ]).flat()}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
           </Card>
 
           {/* Market Assets */}
@@ -273,11 +440,44 @@ export function SimpleDashboard() {
                         
                         <div className="text-right">
                           <div className="text-2xl font-bold text-gray-900">
-                            {formatCurrency(token.price)}
+                            ${token.price.toLocaleString()}
                           </div>
                           <div className="text-sm text-gray-500">Current Price</div>
                         </div>
                       </div>
+
+                      {/* User Position */}
+                      {(token.userBalance > 0 || token.userSupply > 0 || token.userBorrow > 0) && (
+                        <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
+                          <div className="text-sm font-semibold text-indigo-800 mb-2">Your Position</div>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-blue-600">
+                                {formatNumber(token.userBalance || 0, 4)} {token.symbol}
+                              </div>
+                              <div className="text-xs text-blue-600/70">
+                                Wallet (${formatCurrency(token.userBalanceUSD || 0)})
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-green-600">
+                                {formatNumber(token.userSupply || 0, 4)} {token.symbol}
+                              </div>
+                              <div className="text-xs text-green-600/70">
+                                Supplied (${formatCurrency(token.userSupplyUSD || 0)})
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-red-600">
+                                {formatNumber(token.userBorrow || 0, 4)} {token.symbol}
+                              </div>
+                              <div className="text-xs text-red-600/70">
+                                Borrowed (${formatCurrency(token.userBorrowUSD || 0)})
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Stats Grid */}
                       <div className="grid grid-cols-2 gap-4 mb-6">
@@ -310,11 +510,30 @@ export function SimpleDashboard() {
                       {/* Quick Actions */}
                       <div className="space-y-2">
                         <div className="grid grid-cols-2 gap-2">
-                          <Button className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg">
-                            💰 Supply {token.symbol}
-                          </Button>
-                          {token.symbol !== 'WETH' ? (
-                            <Button className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg">
+                          {token.symbol === 'ETH' ? (
+                            <Button 
+                              className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg"
+                              onClick={() => handleWrapEthClick()}
+                            >
+                              🔄 Wrap ETH
+                            </Button>
+                          ) : (
+                            <Button 
+                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
+                              onClick={() => handleSupplyClick(token)}
+                            >
+                              💰 Supply {token.symbol}
+                            </Button>
+                          )}
+                          {token.symbol === 'ETH' ? (
+                            <Button disabled className="w-full bg-gray-300 text-gray-500">
+                              💸 Not Borrowable
+                            </Button>
+                          ) : token.symbol !== 'WETH' ? (
+                            <Button 
+                              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg"
+                              onClick={() => handleBorrowClick(token)}
+                            >
                               💸 Borrow {token.symbol}
                             </Button>
                           ) : (
@@ -324,11 +543,31 @@ export function SimpleDashboard() {
                           )}
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          <Button variant="outline" className="w-full border-blue-200 text-blue-600 hover:bg-blue-50">
-                            📤 Withdraw
-                          </Button>
-                          {token.symbol !== 'WETH' ? (
-                            <Button variant="outline" className="w-full border-green-200 text-green-600 hover:bg-green-50">
+                          {token.symbol === 'ETH' ? (
+                            <Button disabled variant="outline" className="w-full border-gray-200 text-gray-400">
+                              📤 N/A
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
+                              onClick={() => handleWithdrawClick(token)}
+                              disabled={token.userSupply <= 0}
+                            >
+                              📤 Withdraw
+                            </Button>
+                          )}
+                          {token.symbol === 'ETH' ? (
+                            <Button disabled variant="outline" className="w-full border-gray-200 text-gray-400">
+                              💳 N/A
+                            </Button>
+                          ) : token.symbol !== 'WETH' ? (
+                            <Button 
+                              variant="outline" 
+                              className="w-full border-green-200 text-green-600 hover:bg-green-50"
+                              onClick={() => handleRepayClick(token)}
+                              disabled={token.userBorrow <= 0}
+                            >
                               💳 Repay
                             </Button>
                           ) : (
@@ -356,6 +595,109 @@ export function SimpleDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Lend Modal */}
+      {selectedToken && (
+        <LendModal
+          open={lendModalOpen}
+          onClose={() => {
+            setLendModalOpen(false);
+            setSelectedToken(null);
+          }}
+          token={{
+            address: selectedToken.address,
+            symbol: selectedToken.symbol,
+            decimals: 18
+          }}
+          poolAddress={CONFIG.LENDING_POOL}
+          signer={signer}
+          provider={provider}
+          onSuccess={handleLendSuccess}
+          onWrapEth={handleWrapEthClick}
+          simulatedBalance={realWethBalance}
+        />
+      )}
+
+      {/* Wrap ETH Modal */}
+      <WrapEthModal
+        open={wrapEthModalOpen}
+        onClose={() => setWrapEthModalOpen(false)}
+        signer={signer}
+        onSuccess={handleWrapEthSuccess}
+        onBalanceUpdate={refreshPoolData}
+      />
+
+      {/* Withdraw Modal */}
+      {selectedToken && (
+        <WithdrawModal
+          open={withdrawModalOpen}
+          onClose={() => {
+            setWithdrawModalOpen(false);
+            setSelectedToken(null);
+          }}
+          token={{
+            address: selectedToken.address,
+            symbol: selectedToken.symbol,
+            decimals: 18
+          }}
+          poolAddress={CONFIG.LENDING_POOL}
+          signer={signer}
+          provider={provider}
+          userSupply={selectedToken.userSupply || '0'}
+          poolLiquidity={selectedToken.availableLiquidity || '0'}
+          price={selectedToken.price || 0}
+          liquidationThreshold={selectedToken.liquidationThreshold || 8000}
+          collateralUSD={collateralValue || 0}
+          debtUSD={debtValue || 0}
+          onSuccess={handleWithdrawSuccess}
+        />
+      )}
+
+      {/* Borrow Modal */}
+      {selectedToken && (
+        <BorrowModal
+          open={borrowModalOpen}
+          onClose={() => {
+            setBorrowModalOpen(false);
+            setSelectedToken(null);
+          }}
+          token={{
+            address: selectedToken.address,
+            symbol: selectedToken.symbol,
+            decimals: 18
+          }}
+          poolAddress={CONFIG.LENDING_POOL}
+          signer={signer}
+          provider={provider}
+          price={selectedToken.price || 0}
+          poolLiquidity={selectedToken.availableLiquidity || '0'}
+          collateralUSD={collateralValue || 0}
+          debtUSD={debtValue || 0}
+          onSuccess={handleBorrowSuccess}
+        />
+      )}
+
+      {/* Repay Modal */}
+      {selectedToken && (
+        <RepayModal
+          open={repayModalOpen}
+          onClose={() => {
+            setRepayModalOpen(false);
+            setSelectedToken(null);
+          }}
+          token={{
+            address: selectedToken.address,
+            symbol: selectedToken.symbol,
+            decimals: 18
+          }}
+          poolAddress={CONFIG.LENDING_POOL}
+          signer={signer}
+          provider={provider}
+          userDebt={selectedToken.userBorrow || '0'}
+          price={selectedToken.price || 0}
+          onSuccess={handleRepaySuccess}
+        />
+      )}
     </div>
   );
 }
