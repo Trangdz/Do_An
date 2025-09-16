@@ -1,10 +1,13 @@
 import { SimpleDashboard } from './components/SimpleDashboard';
 import { ToastProvider } from './components/ui/Toast';
+import LendState from './context/LendState';
 
 function App() {
   return (
     <ToastProvider>
-      <SimpleDashboard />
+      <LendState>
+        <SimpleDashboard />
+      </LendState>
     </ToastProvider>
   );
 }

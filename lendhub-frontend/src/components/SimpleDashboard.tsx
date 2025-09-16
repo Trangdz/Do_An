@@ -1,9 +1,5 @@
-import { useState } from 'react';
-import { useWallet } from '../hooks/useWallet';
-import { useAccountData } from '../hooks/useAccountData';
-import { usePoolDataSimple } from '../hooks/usePoolDataSimple';
-import { useInterestRateChart } from '../hooks/useInterestRateChart';
-import { WalletButton } from './WalletButton';
+import { useState, useEffect } from 'react';
+import useLendContext from '../context/useLendContext';
 import { LendModal } from './LendModal';
 import { WrapEthModal } from './WrapEthModal';
 import { WithdrawModal } from './WithdrawModal';
@@ -20,14 +16,63 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export function SimpleDashboard() {
-  const { provider, signer, address, isConnected, isCorrectNetwork } = useWallet();
-  const { collateralValue, debtValue, healthFactor, isLoading: accountLoading } = useAccountData(provider, address);
-  const { tokens, ethBalance, isLoading: poolLoading, refresh: refreshPoolData, addSimulatedWeth } = usePoolDataSimple(provider, signer, address);
+  const {
+    // State
+    metamaskDetails,
+    userAssets,
+    supplyAssets,
+    yourBorrows,
+    accountData,
+    
+    // Functions
+    connectWallet,
+    refresh,
+  } = useLendContext();
+
+  // Derived state
+  const isConnected = !!metamaskDetails.currentAccount;
+  const isCorrectNetwork = metamaskDetails.chainId === 1337; // Ganache
+  const provider = metamaskDetails.provider;
+  const signer = metamaskDetails.signer;
   
-  // Get real WETH balance from tokens data (loaded from blockchain)
-  const realWethBalance = tokens.find(t => t.symbol === 'WETH')?.userBalance || 0;
-  const realWethSupply = tokens.find(t => t.symbol === 'WETH')?.userSupply || 0;
-  const { data: rateChartData, isLoading: rateChartLoading } = useInterestRateChart(provider);
+  // Account data
+  const collateralValue = parseFloat(accountData.collateralUSD || '0');
+  const debtValue = parseFloat(accountData.debtUSD || '0');
+  const healthFactor = parseFloat(accountData.healthFactor || '0');
+  
+  // ETH balance from user assets
+  const ethBalance = parseFloat(userAssets.find((a: any) => a.symbol === 'ETH')?.balance || '0');
+  const realWethBalance = parseFloat(userAssets.find((a: any) => a.symbol === 'WETH')?.balance || '0');
+  
+  // Create tokens array for display (combine user assets with supply/borrow data)
+  const tokens = userAssets.map((asset: any) => {
+    const supply = supplyAssets.find((s: any) => s.address === asset.address);
+    const borrow = yourBorrows.find((b: any) => b.address === asset.address);
+    
+    return {
+      address: asset.address,
+      symbol: asset.symbol,
+      name: asset.name,
+      decimals: asset.decimals,
+      isNative: asset.isNative,
+      price: parseFloat(asset.priceUSD || '0'),
+      userBalance: parseFloat(asset.balance || '0'),
+      userBalanceUSD: asset.balanceUSD || 0,
+      userSupply: supply ? parseFloat(supply.supplyPrincipal || '0') : 0,
+      userSupplyUSD: supply ? supply.balanceUSD || 0 : 0,
+      userBorrow: borrow ? parseFloat(borrow.borrowPrincipal || '0') : 0,
+      userBorrowUSD: borrow ? borrow.balanceUSD || 0 : 0,
+      supplyAPR: 0, // TODO: Get from reserve data
+      borrowAPR: 0, // TODO: Get from reserve data
+      utilization: 0, // TODO: Calculate
+      availableLiquidity: 0, // TODO: Get from reserve data
+      liquidationThreshold: 8000, // Default
+    };
+  });
+
+  // Mock rate chart data (TODO: Implement real rate chart)
+  const rateChartData: any[] = [];
+  const rateChartLoading = false;
   
   // Modal state
   const [lendModalOpen, setLendModalOpen] = useState(false);
@@ -36,6 +81,13 @@ export function SimpleDashboard() {
   const [borrowModalOpen, setBorrowModalOpen] = useState(false);
   const [repayModalOpen, setRepayModalOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState<any>(null);
+
+  // Load data when connected
+  useEffect(() => {
+    if (isConnected && provider) {
+      refresh();
+    }
+  }, [isConnected, provider, refresh]);
 
   if (!isConnected) {
     return (
@@ -53,7 +105,9 @@ export function SimpleDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <WalletButton />
+            <Button onClick={connectWallet} className="w-full">
+              Connect Wallet
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -76,7 +130,9 @@ export function SimpleDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <WalletButton />
+            <Button onClick={connectWallet} className="w-full">
+              Connect Wallet
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -85,8 +141,8 @@ export function SimpleDashboard() {
 
   const isHealthy = healthFactor >= 1;
   const canLiquidate = healthFactor < 1;
-  const totalSupply = tokens.reduce((sum, token) => sum + token.totalSupply, 0);
-  const totalBorrow = tokens.reduce((sum, token) => sum + token.totalBorrow, 0);
+  const totalSupply = tokens.reduce((sum: number, token: any) => sum + (token.totalSupply || 0), 0);
+  const totalBorrow = tokens.reduce((sum: number, token: any) => sum + (token.totalBorrow || 0), 0);
 
   const handleSupplyClick = (token: any) => {
     setSelectedToken(token);
@@ -95,7 +151,7 @@ export function SimpleDashboard() {
 
   const handleLendSuccess = () => {
     // Refresh data after successful lend
-    refreshPoolData();
+    refresh();
   };
 
   const handleWrapEthClick = () => {
@@ -103,11 +159,11 @@ export function SimpleDashboard() {
     setWrapEthModalOpen(true);
   };
 
-  const handleWrapEthSuccess = (amount: number) => {
+  const handleWrapEthSuccess = () => {
     setWrapEthModalOpen(false);
     setLendModalOpen(true);
     // Refresh data after successful wrap to update both ETH and WETH balances
-    refreshPoolData();
+    refresh();
     console.log('✅ Wrap successful! Refreshing balances...');
   };
 
@@ -119,7 +175,7 @@ export function SimpleDashboard() {
   const handleWithdrawSuccess = () => {
     setWithdrawModalOpen(false);
     setSelectedToken(null);
-    refreshPoolData();
+    refresh();
   };
 
   const handleBorrowClick = (token: any) => {
@@ -130,7 +186,7 @@ export function SimpleDashboard() {
   const handleBorrowSuccess = () => {
     setBorrowModalOpen(false);
     setSelectedToken(null);
-    refreshPoolData();
+    refresh();
   };
 
   const handleRepayClick = (token: any) => {
@@ -141,7 +197,7 @@ export function SimpleDashboard() {
   const handleRepaySuccess = () => {
     setRepayModalOpen(false);
     setSelectedToken(null);
-    refreshPoolData();
+    refresh();
   };
 
   return (
@@ -166,7 +222,12 @@ export function SimpleDashboard() {
                 <div className="text-sm text-gray-600">Connected to</div>
                 <div className="font-medium text-green-600">Ganache Network</div>
               </div>
-              <WalletButton />
+              <Button onClick={connectWallet}>
+                {metamaskDetails.currentAccount ? 
+                  `${metamaskDetails.currentAccount.slice(0, 6)}...${metamaskDetails.currentAccount.slice(-4)}` : 
+                  'Connect Wallet'
+                }
+              </Button>
             </div>
           </div>
         </div>
@@ -201,7 +262,7 @@ export function SimpleDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-green-600 mb-1">
-                  {accountLoading ? (
+                  {!accountData.collateralUSD ? (
                     <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
                   ) : (
                     formatCurrency(collateralValue)
@@ -227,7 +288,7 @@ export function SimpleDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-red-600 mb-1">
-                  {accountLoading ? (
+                  {!accountData.debtUSD ? (
                     <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
                   ) : (
                     formatCurrency(debtValue)
@@ -265,7 +326,7 @@ export function SimpleDashboard() {
                 <div className={`text-3xl font-bold mb-1 ${
                   isHealthy ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {accountLoading ? (
+                  {!accountData.healthFactor ? (
                     <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : healthFactor === Number.MAX_SAFE_INTEGER ? (
                     '∞'
@@ -406,7 +467,7 @@ export function SimpleDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {poolLoading ? (
+              {userAssets.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">
                     <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -415,7 +476,7 @@ export function SimpleDashboard() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {tokens.map((token, index) => (
+                  {tokens.map((token: any, index: number) => (
                     <div
                       key={token.address}
                       className="group p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 bg-white/50 backdrop-blur-sm"
@@ -624,7 +685,7 @@ export function SimpleDashboard() {
         onClose={() => setWrapEthModalOpen(false)}
         signer={signer}
         onSuccess={handleWrapEthSuccess}
-        onBalanceUpdate={refreshPoolData}
+        onBalanceUpdate={refresh}
       />
 
       {/* Withdraw Modal */}
