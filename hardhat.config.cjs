@@ -18,7 +18,7 @@ const config = {
       type: "http",
       chainId: 1337,                // hoặc 5777 tùy phiên bản Ganache
       accounts: {
-        mnemonic: "local remove narrow brother around bike dawn scrap absurd economy wide blind",
+        mnemonic: "ready worth thought picture cigar alone scatter pattern bundle above galaxy maid",
       },
     },
   },

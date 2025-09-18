@@ -33,14 +33,19 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
         const address = await signer.getAddress();
         const balance = await signer.provider!.getBalance(address);
         setEthBalance(formatEther(balance));
-        
+
         // Load ETH price from oracle
-        const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, ORACLE_ABI, signer.provider);
-        const priceWei = await oracle.getAssetPrice1e18(CONFIG.WETH);
-        const price = parseFloat(formatEther(priceWei));
-        setEthPrice(price);
-        
-        console.log('ETH Price loaded:', price);
+        try {
+          const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, ORACLE_ABI, signer.provider);
+          const priceWei = await oracle.getAssetPrice1e18(CONFIG.WETH);
+          const price = parseFloat(formatEther(priceWei));
+          setEthPrice(price);
+        } catch (oracleError) {
+          console.log('Oracle price failed, using fallback:', oracleError.message);
+          setEthPrice(1600); // Fallback price
+        }
+
+        console.log('ETH Price loaded:', ethPrice);
       } catch (error) {
         console.error('Error loading data:', error);
         // Fallback price
@@ -69,30 +74,30 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
 
     try {
       const amountWei = parseEther(amount);
-      
+
       // REAL TRANSACTION: Create actual ETH wrap transaction
       console.log('🔄 REAL TRANSACTION: Wrapping ETH to WETH');
       console.log('Amount:', amount, 'ETH');
       console.log('Amount (wei):', amountWei.toString());
-      
+
       // Create real transaction to wrap ETH
       console.log('🔍 CONFIG.WETH address:', CONFIG.WETH);
-      
+
       const tx = {
         to: CONFIG.WETH,
         value: amountWei,
         data: '0xd0e30db0' // deposit() function selector
       };
-      
+
       console.log('📋 Transaction object:', tx);
-      
+
       console.log('📤 Sending transaction to MetaMask...');
       const txResponse = await signer.sendTransaction(tx);
       setTxHash(txResponse.hash);
-      
+
       console.log('⏳ Waiting for transaction confirmation...');
       const receipt = await txResponse.wait();
-      
+
       console.log('✅ REAL TRANSACTION: Wrap successful!');
       console.log('TX Hash:', txResponse.hash);
       console.log('Gas Used:', receipt?.gasUsed?.toString());
@@ -135,7 +140,7 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
             Convert your ETH to WETH to use as collateral
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
           {/* ETH Balance */}
           <div className="bg-gray-50 p-4 rounded-lg">
@@ -159,7 +164,7 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 placeholder="0.00"
-                className="pr-20 text-lg"
+                className="pr-20 text-lg text-black"
                 disabled={isLoading}
               />
               <Button
@@ -175,9 +180,10 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
             </div>
             <div className="text-right">
               <span className="text-sm text-gray-500">
-                ≈ {formatCurrency(parseFloat(amount) * ethPrice)} USD
+                ≈ {formatCurrency((parseFloat(amount) || 0) * ethPrice)} USD
               </span>
             </div>
+
           </div>
 
           {/* Transaction Status */}
@@ -198,7 +204,7 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
             <Button
               variant="outline"
               onClick={onClose}
-              className="flex-1"
+              className="flex-1 text-gray-700"
               disabled={isLoading}
             >
               Cancel

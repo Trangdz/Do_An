@@ -190,13 +190,15 @@ export function LendModal({
                   }
                 </p>
                 {token.symbol === 'WETH' && onWrapEth && (
-                  <Button
-                    size="sm"
-                    onClick={onWrapEth}
-                    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
-                  >
-                    🔄 Wrap ETH to WETH
-                  </Button>
+                 <Button
+                 size="sm"
+                 onClick={onWrapEth}
+                 className="w-full bg-gradient-to-r from-purple-500 to-purple-600 
+                            hover:from-purple-600 hover:to-purple-700 text-black"
+               >
+                 🔄 Wrap ETH to WETH
+               </Button>
+               
                 )}
               </div>
             )}

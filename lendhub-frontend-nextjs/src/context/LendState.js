@@ -3,7 +3,7 @@ import lendContext from "./lendContext";
 import { ethers } from "ethers";
 import { CONFIG } from "../config/contracts";
 import { getTokenBalance, getTokenAllowance, approveIfNeeded, lend as lendTx, withdraw as withdrawTx, borrow as borrowTx, repay as repayTx } from "../lib/tx";
-import { ETHAddress, LendingPoolAddress, LendingHelperAddress } from "../addresses";
+import { ETHAddress, LendingPoolAddress, LendingHelperAddress, WETHAddress } from "../addresses";
 import { TokenABI, LendingPoolABI, LendingHelperABI } from "../abis";
 
 // Utility functions
@@ -379,7 +379,18 @@ const LendState = (props) => {
 
       const pool = new ethers.Contract(LendingPoolAddress, LendingPoolABI.abi, metamaskDetails.provider);
       const wallet = user || metamaskDetails.currentAccount || ethers.ZeroAddress;
-      const [col, debt, hf] = await pool.getAccountData(wallet);
+      
+      // Add error handling for empty response
+      let col, debt, hf;
+      try {
+        [col, debt, hf] = await pool.getAccountData(wallet);
+      } catch (contractError) {
+        console.log('Contract getAccountData failed, using defaults:', contractError.message);
+        // Return default values for new users
+        col = ethers.parseUnits("0", 18);
+        debt = ethers.parseUnits("0", 18);
+        hf = ethers.parseUnits("115792089237316195423570985008687907853269984665640564039457.584007913129639935", 18); // Max uint256
+      }
       
       const accountData = {
         collateralUSD: ethers.formatUnits(col, 18),
@@ -390,8 +401,15 @@ const LendState = (props) => {
       setAccountData(accountData);
       return accountData;
     } catch (error) {
-      reportError(error);
-      return null;
+      console.log('getAccountData error, using defaults:', error.message);
+      // Return default values on any error
+      const accountData = {
+        collateralUSD: "0",
+        debtUSD: "0", 
+        healthFactor: "115792089237316195423570985008687907853269984665640564039457.584007913129639935"
+      };
+      setAccountData(accountData);
+      return accountData;
     }
   }, [metamaskDetails.provider, metamaskDetails.currentAccount]);
 
@@ -581,8 +599,9 @@ const LendState = (props) => {
 
     try {
       const data = '0xd0e30db0'; // deposit()
+      console.log('wrapEth → using WETH address:', WETHAddress);
       const tx = await metamaskDetails.signer.sendTransaction({
-        to: CONFIG.WETH,
+        to: WETHAddress,
         value: ethers.parseEther(amountEth),
         data
       });
@@ -603,7 +622,8 @@ const LendState = (props) => {
 
     try {
       const abi = ['function withdraw(uint256 wad)'];
-      const weth = new ethers.Contract(CONFIG.WETH, abi, metamaskDetails.signer);
+      console.log('unwrapWeth → using WETH address:', WETHAddress);
+      const weth = new ethers.Contract(WETHAddress, abi, metamaskDetails.signer);
       const tx = await weth.withdraw(ethers.parseEther(amountEth));
       await tx.wait();
       console.log("WETH unwrapped to ETH:", amountEth);
