@@ -1,0 +1,70 @@
+name: Deploy LendHub v2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        npm install
+        cd lendhub-frontend-nextjs
+        npm install
+        
+    - name: Build frontend
+      run: |
+        cd lendhub-frontend-nextjs
+        npm run build
+        
+    - name: Deploy to Vercel
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.ORG_ID }}
+        vercel-project-id: ${{ secrets.PROJECT_ID }}
+        working-directory: ./lendhub-frontend-nextjs
+
+  deploy-contracts:
+    name: Deploy Smart Contracts
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Compile contracts
+      run: npx hardhat compile
+      
+    - name: Deploy to testnet
+      run: |
+        echo "Deploying to testnet..."
+        # Add your deployment script here
+        # npx hardhat run scripts/deploy.js --network goerli
+      env:
+        PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        INFURA_API_KEY: ${{ secrets.INFURA_API_KEY }}
