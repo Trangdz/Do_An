@@ -634,6 +634,46 @@ const LendState = (props) => {
     }
   }, [metamaskDetails.signer]);
 
+  // Withdraw token to ETH (for all tokens with withdraw function)
+  const withdrawToken = useCallback(async (tokenAddress, amount) => {
+    if (!metamaskDetails.signer) {
+      throw new Error("No signer available");
+    }
+
+    try {
+      const abi = ['function withdraw(uint256 amount)'];
+      console.log('withdrawToken → using address:', tokenAddress);
+      const token = new ethers.Contract(tokenAddress, abi, metamaskDetails.signer);
+      const tx = await token.withdraw(ethers.parseEther(amount));
+      await tx.wait();
+      console.log("Token withdrawn to ETH:", amount);
+      return { status: 200, message: "Withdraw Successful...", hash: tx.hash };
+    } catch (error) {
+      reportError(error);
+      return { status: 500, message: error.message || error.reason };
+    }
+  }, [metamaskDetails.signer]);
+
+  // Deposit ETH to get token (for all tokens with deposit function)
+  const depositToToken = useCallback(async (tokenAddress, amountEth) => {
+    if (!metamaskDetails.signer) {
+      throw new Error("No signer available");
+    }
+
+    try {
+      const abi = ['function deposit() payable'];
+      console.log('depositToToken → using address:', tokenAddress);
+      const token = new ethers.Contract(tokenAddress, abi, metamaskDetails.signer);
+      const tx = await token.deposit({ value: ethers.parseEther(amountEth) });
+      await tx.wait();
+      console.log("ETH deposited to token:", amountEth);
+      return { status: 200, message: "Deposit Successful...", hash: tx.hash };
+    } catch (error) {
+      reportError(error);
+      return { status: 500, message: error.message || error.reason };
+    }
+  }, [metamaskDetails.signer]);
+
   // Refresh all data
   const refresh = useCallback(async () => {
     try {
@@ -815,6 +855,10 @@ const LendState = (props) => {
 
     // Interest functions
     updateInterests,
+
+    // Token withdraw/deposit functions
+    withdrawToken,
+    depositToToken,
   }), [
     metamaskDetails,
     userAssets,
