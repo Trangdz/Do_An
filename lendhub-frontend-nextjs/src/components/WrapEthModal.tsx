@@ -7,7 +7,8 @@ import { Label } from './ui/Label';
 import { formatEther, parseEther } from 'ethers';
 import { formatCurrency, formatNumber } from '../lib/math';
 import { CONFIG } from '../config/contracts';
-import { ORACLE_ABI } from '../config/abis';
+import { ORACLE_ABI, WETH_ABI } from '../config/abis';
+import { useToast } from './ui/Toast';
 
 interface WrapEthModalProps {
   open: boolean;
@@ -23,6 +24,7 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
   const [ethPrice, setEthPrice] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   // Load ETH balance and price
   useEffect(() => {
@@ -79,20 +81,13 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
       console.log('🔄 REAL TRANSACTION: Wrapping ETH to WETH');
       console.log('Amount:', amount, 'ETH');
       console.log('Amount (wei):', amountWei.toString());
-
-      // Create real transaction to wrap ETH
       console.log('🔍 CONFIG.WETH address:', CONFIG.WETH);
 
-      const tx = {
-        to: CONFIG.WETH,
-        value: amountWei,
-        data: '0xd0e30db0' // deposit() function selector
-      };
+      // Create WETH contract instance
+      const wethContract = new ethers.Contract(CONFIG.WETH, WETH_ABI, signer);
 
-      console.log('📋 Transaction object:', tx);
-
-      console.log('📤 Sending transaction to MetaMask...');
-      const txResponse = await signer.sendTransaction(tx);
+      console.log('📤 Calling deposit() function on WETH contract...');
+      const txResponse = await wethContract.deposit({ value: amountWei });
       setTxHash(txResponse.hash);
 
       console.log('⏳ Waiting for transaction confirmation...');
@@ -101,6 +96,28 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
       console.log('✅ REAL TRANSACTION: Wrap successful!');
       console.log('TX Hash:', txResponse.hash);
       console.log('Gas Used:', receipt?.gasUsed?.toString());
+
+      // Check if Deposit event was emitted
+      const depositEvent = receipt.logs.find(log => {
+        try {
+          const parsed = wethContract.interface.parseLog(log);
+          return parsed.name === 'Deposit';
+        } catch {
+          return false;
+        }
+      });
+
+      if (depositEvent) {
+        console.log('✅ Deposit event found in transaction logs');
+      }
+
+      // Show success toast
+      showToast({
+        type: 'success',
+        title: 'ETH Wrapped Successfully!',
+        message: `${amount} ETH has been wrapped to WETH`,
+        hash: txResponse.hash
+      });
 
       // Success - update balances
       setTimeout(() => {
@@ -119,7 +136,13 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
         reason: error.reason,
         data: error.data
       });
-      alert(`Error: ${error.message}\n\nCheck console for details.`);
+      
+      // Show error toast
+      showToast({
+        type: 'error',
+        title: 'Wrap ETH Failed',
+        message: error.message || 'An unexpected error occurred'
+      });
     } finally {
       setIsLoading(false);
     }

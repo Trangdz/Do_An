@@ -61,3 +61,27 @@ export const INTEREST_RATE_MODEL_ABI = [
   'function getBorrowRate(uint256 cash, uint256 borrows, uint256 reserves) external view returns (uint256)',
   'function getSupplyRate(uint256 cash, uint256 borrows, uint256 reserves, uint256 reserveFactorMantissa) external view returns (uint256)',
 ] as const;
+
+// WETH ABI for wrapping ETH
+export const WETH_ABI = [
+  // View functions
+  'function balanceOf(address owner) external view returns (uint256)',
+  'function allowance(address owner, address spender) external view returns (uint256)',
+  'function decimals() external view returns (uint8)',
+  'function symbol() external view returns (string)',
+  'function name() external view returns (string)',
+  'function totalSupply() external view returns (uint256)',
+  
+  // Write functions
+  'function deposit() external payable',
+  'function withdraw(uint256 amount) external',
+  'function approve(address spender, uint256 amount) external returns (bool)',
+  'function transfer(address to, uint256 amount) external returns (bool)',
+  'function transferFrom(address from, address to, uint256 amount) external returns (bool)',
+  
+  // Events
+  'event Deposit(address indexed dst, uint256 wad)',
+  'event Withdrawal(address indexed src, uint256 wad)',
+  'event Transfer(address indexed from, address indexed to, uint256 value)',
+  'event Approval(address indexed owner, address indexed spender, uint256 value)',
+] as const;
