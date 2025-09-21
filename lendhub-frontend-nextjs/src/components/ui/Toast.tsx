@@ -63,8 +63,8 @@ export function Toast({ id, type, title, message, hash, onClose, duration = 5000
 
   return (
     <div
-      className={`fixed top-4 right-4 z-50 transform transition-all duration-300 ${
-        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+      className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ${
+        isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
       }`}
     >
       <Card className={`w-80 shadow-lg border-l-4 ${getTypeStyles()}`}>
