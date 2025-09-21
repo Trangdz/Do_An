@@ -52,7 +52,8 @@ contract TokenWithWithdraw is ERC20 {
     function deposit() external payable {
         require(msg.value > 0, "Must send ETH");
         
-        // Mint tokens equal to ETH sent (1 ETH = 1 token)
+        // Mint tokens equal to ETH sent (1 ETH = 1 token with proper decimals)
+        // Convert wei to token units: 1 ETH = 1e18 wei = 1e18 tokens
         _mint(msg.sender, msg.value);
         
         emit Deposit(msg.sender, msg.value);

@@ -8,13 +8,15 @@ async function main() {
   
   console.log("📦 Deploying all available contracts...");
   
-  // Deploy ERC20 tokens
+  // Deploy ERC20 tokens with withdraw functionality
+  const TokenWithWithdraw = await ethers.getContractFactory("TokenWithWithdraw");
   const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
   
-  const weth = await ERC20Mock.deploy("Wrapped ETH", "WETH", 18);
-  const dai = await ERC20Mock.deploy("Dai Stablecoin", "DAI", 18);
-  const usdc = await ERC20Mock.deploy("USD Coin", "USDC", 6);
-  const link = await ERC20Mock.deploy("Chainlink Token", "LINK", 18);
+  // WETH uses TokenWithWithdraw for deposit/withdraw functionality
+  const weth = await TokenWithWithdraw.deploy("Wrapped ETH", "WETH", 18, 1000000); // 1M initial supply
+  const dai = await TokenWithWithdraw.deploy("Dai Stablecoin", "DAI", 18, 1000000);
+  const usdc = await TokenWithWithdraw.deploy("USD Coin", "USDC", 6, 1000000);
+  const link = await TokenWithWithdraw.deploy("Chainlink Token", "LINK", 18, 1000000);
   
   await weth.waitForDeployment();
   await dai.waitForDeployment();

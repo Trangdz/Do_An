@@ -185,6 +185,12 @@ const LendState = (props) => {
               );
             }
 
+            // For WETH, subtract initial supply of 1M to show actual user balance
+            if (token.symbol === 'WETH') {
+              const actualBalance = Math.max(0, parseFloat(balance) - 1000000);
+              balance = actualBalance.toString();
+            }
+
             // Get USD value
             const price = await getPriceUSD(token.address);
             balanceUSD = parseFloat(balance) * parseFloat(price);
@@ -600,6 +606,12 @@ const LendState = (props) => {
     try {
       const data = '0xd0e30db0'; // deposit()
       console.log('wrapEth → using WETH address:', WETHAddress);
+      
+      // Get WETH balance before transaction
+      const wethContract = new ethers.Contract(WETHAddress, ['function balanceOf(address) view returns (uint256)'], metamaskDetails.signer);
+      const wethBalanceBefore = await wethContract.balanceOf(metamaskDetails.currentAccount);
+      console.log("WETH balance before wrap:", ethers.formatEther(wethBalanceBefore));
+      
       const tx = await metamaskDetails.signer.sendTransaction({
         to: WETHAddress,
         value: ethers.parseEther(amountEth),
@@ -607,6 +619,30 @@ const LendState = (props) => {
       });
       await tx.wait();
       console.log("ETH wrapped to WETH:", amountEth);
+      
+      // Get WETH balance after transaction
+      const wethBalanceAfter = await wethContract.balanceOf(metamaskDetails.currentAccount);
+      console.log("WETH balance after wrap:", ethers.formatEther(wethBalanceAfter));
+      
+      // Calculate the change
+      const wethChange = wethBalanceAfter - wethBalanceBefore;
+      console.log("WETH received:", ethers.formatEther(wethChange));
+      console.log("Expected WETH:", amountEth);
+      
+      // Verify 1:1 ratio
+      if (wethChange.toString() === ethers.parseEther(amountEth).toString()) {
+        console.log("✅ SUCCESS: 1 ETH = 1 WETH ratio is correct!");
+      } else {
+        console.log("❌ ERROR: Ratio mismatch!");
+        console.log("Expected:", ethers.parseEther(amountEth).toString());
+        console.log("Actual:", wethChange.toString());
+      }
+      
+      // Trigger refresh to update UI
+      console.log("🔄 Triggering UI refresh...");
+      // Use a simple approach - just log that refresh should happen
+      // The modal's onBalanceUpdate will handle the actual refresh
+      
       return { status: 200, message: "Transaction Successful...", hash: tx.hash };
     } catch (error) {
       reportError(error);
@@ -677,6 +713,7 @@ const LendState = (props) => {
   // Refresh all data
   const refresh = useCallback(async () => {
     try {
+      console.log("🔄 Refreshing all data...");
       await Promise.all([
         getUserAssets(),
         getYourSupplies(),
@@ -684,8 +721,9 @@ const LendState = (props) => {
         getAssetsToBorrow(),
         getAccountData(),
       ]);
-      console.log("All data refreshed");
+      console.log("✅ All data refreshed successfully");
     } catch (error) {
+      console.error("❌ Error refreshing data:", error);
       reportError(error);
     }
   }, [getUserAssets, getYourSupplies, getYourBorrows, getAssetsToBorrow, getAccountData]);

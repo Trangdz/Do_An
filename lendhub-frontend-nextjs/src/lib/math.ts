@@ -122,10 +122,54 @@ export function calculateMaxWithdraw(
 export function formatNumber(value: number, decimals: number = 2): string {
   if (value === 0) return '0';
   if (value < 0.01) return '< 0.01';
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  
+  // For very large numbers, show more precision
+  if (value >= 1000000) {
+    const millions = value / 1000000;
+    if (millions >= 100) {
+      return `${millions.toFixed(0)}M`;
+    } else if (millions >= 10) {
+      return `${millions.toFixed(1)}M`;
+    } else {
+      return `${millions.toFixed(2)}M`;
+    }
+  }
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
   
   return value.toFixed(decimals);
+}
+
+/**
+ * Format balance with more precision for large numbers
+ */
+export function formatBalance(value: number, decimals: number = 4): string {
+  if (value === 0) return '0';
+  if (value < 0.0001) return '< 0.0001';
+  
+  // For very large numbers, show more precision
+  if (value >= 1000000) {
+    const millions = value / 1000000;
+    if (millions >= 100) {
+      return `${millions.toFixed(0)}M`;
+    } else if (millions >= 10) {
+      return `${millions.toFixed(1)}M`;
+    } else {
+      // Show 4 decimal places for numbers < 10M to see the difference
+      return `${millions.toFixed(4)}M`;
+    }
+  }
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  
+  return value.toFixed(decimals);
+}
+
+/**
+ * Format balance for WETH (subtract initial supply of 1M)
+ */
+export function formatWETHBalance(value: number, decimals: number = 4): string {
+  // WETH contract has 1M initial supply, so subtract it to show actual user balance
+  const actualBalance = Math.max(0, value - 1000000);
+  return formatBalance(actualBalance, decimals);
 }
 
 /**

@@ -5,7 +5,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
 import { formatEther, parseEther } from 'ethers';
-import { formatCurrency, formatNumber } from '../lib/math';
+import { formatCurrency, formatNumber, formatWETHBalance } from '../lib/math';
 import { CONFIG } from '../config/contracts';
 import { ORACLE_ABI } from '../config/abis';
 
@@ -32,8 +32,8 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
       try {
         const address = await signer.getAddress();
         const balance = await signer.provider!.getBalance(address);
+        console.log('User ETH Balance (wei):', balance.toString());
         setEthBalance(formatEther(balance));
-
         // Load ETH price from oracle
         try {
           const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, ORACLE_ABI, signer.provider);
@@ -102,12 +102,14 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
       console.log('TX Hash:', txResponse.hash);
       console.log('Gas Used:', receipt?.gasUsed?.toString());
 
-      // Success - update balances
+      // Success - update balances immediately
+      onBalanceUpdate?.(); // Trigger balance refresh immediately
+      
       setTimeout(() => {
         setAmount('');
         setTxHash(null);
         onSuccess?.(parseFloat(amount));
-        onBalanceUpdate?.(); // Trigger balance refresh
+        onBalanceUpdate?.(); // Trigger balance refresh again before closing
         onClose();
       }, 1000);
 

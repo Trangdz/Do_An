@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
-import { formatCurrency, formatNumber } from '../lib/math';
+import { formatCurrency, formatNumber, formatBalance, formatWETHBalance } from '../lib/math';
 import { lend, getTokenBalance, getTokenAllowance, parseTokenAmount } from '../lib/tx';
 import { useToast } from './ui/Toast';
 
@@ -16,6 +16,7 @@ interface LendModalProps {
     address: string;
     symbol: string;
     decimals: number;
+    userBalance?: number;
   };
   poolAddress: string;
   signer: ethers.Signer | null;
@@ -53,11 +54,14 @@ export function LendModal({
         const userAddress = await signer.getAddress();
         
         if (token.symbol === 'WETH') {
-          // Use real balance for WETH if available, otherwise simulate
-          if (simulatedBalance > 0) {
-            setBalance(simulatedBalance.toString());
+          // Use token.userBalance if available, otherwise use simulatedBalance
+          const userBalance = token.userBalance || simulatedBalance || 0;
+          const formattedBalance = formatCurrency(userBalance);
+          
+          if (userBalance > 0) {
+            setBalance(formattedBalance);
             setAllowance('1000000'); // High allowance for simulation
-            console.log('✅ REAL: WETH balance set to', simulatedBalance);
+            console.log('✅ WETH balance set to', formattedBalance);
           } else {
             // Try to load real balance
             try {
@@ -86,7 +90,9 @@ export function LendModal({
         console.error('Error loading token data:', error);
         // Fallback to simulation for WETH
         if (token.symbol === 'WETH') {
-          setBalance(simulatedBalance.toString());
+          const userBalance = token.userBalance || simulatedBalance || 0;
+          const formattedBalance = formatCurrency(userBalance);
+          setBalance(formattedBalance);
           setAllowance('1000000');
         }
       }
@@ -96,7 +102,9 @@ export function LendModal({
   }, [open, signer, provider, token.address, token.decimals, poolAddress, simulatedBalance]);
 
   const handleMaxClick = () => {
-    setAmount(balance);
+    // Use the original userBalance value for max amount
+    const originalBalance = token.userBalance || simulatedBalance || 0;
+    setAmount(originalBalance.toString());
   };
 
   const handleAmountChange = (value: string) => {
@@ -172,7 +180,7 @@ export function LendModal({
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-gray-600">Your Balance</span>
               <span className="text-sm font-mono text-gray-900">
-                {formatNumber(parseFloat(balance), 4)} {token.symbol}
+                {balance} {token.symbol}
               </span>
             </div>
             <div className="flex justify-between items-center">

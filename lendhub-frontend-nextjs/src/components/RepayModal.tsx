@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
-import { formatCurrency, formatNumber } from '../lib/math';
+import { formatCurrency, formatNumber, formatBalance, formatWETHBalance } from '../lib/math';
 import { repay, getTokenBalance, parseTokenAmount } from '../lib/tx';
 import { useToast } from './ui/Toast';
 
@@ -141,13 +141,13 @@ export function RepayModal({
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Your Balance</span>
               <span className="text-sm font-mono text-gray-900">
-                {formatNumber(balanceNum, 4)} {token.symbol}
+                {token.symbol === 'WETH' ? formatWETHBalance(balanceNum, 4) : formatBalance(balanceNum, 4)} {token.symbol}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Max Repay</span>
               <span className="text-sm font-mono text-blue-600">
-                {formatNumber(Math.min(debtNum, balanceNum), 4)} {token.symbol}
+                {token.symbol === 'WETH' ? formatWETHBalance(Math.min(debtNum, balanceNum), 4) : formatBalance(Math.min(debtNum, balanceNum), 4)} {token.symbol}
               </span>
             </div>
           </div>
@@ -160,7 +160,7 @@ export function RepayModal({
                 <div>
                   <p className="text-sm font-medium text-yellow-800">Insufficient Balance</p>
                   <p className="text-xs text-yellow-600 mt-1">
-                    You need {formatNumber(debtNum - balanceNum, 4)} more {token.symbol} to repay in full.
+                    You need {token.symbol === 'WETH' ? formatWETHBalance(debtNum - balanceNum, 4) : formatBalance(debtNum - balanceNum, 4)} more {token.symbol} to repay in full.
                   </p>
                 </div>
               </div>

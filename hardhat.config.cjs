@@ -18,7 +18,7 @@ const config = {
       type: "http",
       chainId: 1337,                // hoặc 5777 tùy phiên bản Ganache
       accounts: {
-        mnemonic: "dad slush toilet forget quantum abandon example void swarm glove carpet donate",
+        mnemonic: "flee keep end explain van another slide source curve oppose course sign",
       },
     },
   },
