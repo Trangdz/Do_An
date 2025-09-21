@@ -8,6 +8,7 @@ import { RepayModal } from './RepayModal';
 import { CONFIG } from '../config/contracts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
+import { useToast } from './ui/Toast';
 import { 
   formatCurrency, 
   formatPercentage, 
@@ -72,6 +73,9 @@ export function SimpleDashboard() {
   // Mock rate chart data (TODO: Implement real rate chart)
   const rateChartData: any[] = [];
   const rateChartLoading = false;
+  
+  // Toast hook
+  const { showToast } = useToast();
   
   // Modal state
   const [lendModalOpen, setLendModalOpen] = useState(false);
@@ -144,11 +148,28 @@ export function SimpleDashboard() {
   const totalBorrow = tokens.reduce((sum: number, token: any) => sum + (token.totalBorrow || 0), 0);
 
   const handleSupplyClick = (token: any) => {
+    // Format user balance
+    const userBalance = formatCurrency(token.userBalance || 0);
+    
+    // Show info toast with balance
+    showToast({
+      type: 'info',
+      title: 'Supply Token',
+      message: `Opening supply modal for ${token.symbol}. Your balance: ${userBalance}`
+    });
+    
     setSelectedToken(token);
     setLendModalOpen(true);
   };
 
   const handleLendSuccess = () => {
+    // Show success toast
+    showToast({
+      type: 'success',
+      title: 'Supply Successful!',
+      message: 'Your tokens have been supplied successfully'
+    });
+    
     // Refresh data after successful lend
     refresh();
   };
@@ -159,6 +180,13 @@ export function SimpleDashboard() {
   };
 
   const handleWrapEthSuccess = () => {
+    // Show success toast
+    showToast({
+      type: 'success',
+      title: 'ETH Wrapped!',
+      message: 'ETH has been successfully wrapped to WETH'
+    });
+    
     setWrapEthModalOpen(false);
     setLendModalOpen(true);
     // Refresh data after successful wrap to update both ETH and WETH balances
@@ -167,36 +195,97 @@ export function SimpleDashboard() {
   };
 
   const handleWithdrawClick = (token: any) => {
+    // Format user balance
+    const userBalance = formatCurrency(token.userBalance || 0);
+    
+    // Show info toast with balance
+    showToast({
+      type: 'info',
+      title: 'Withdraw Token',
+      message: `Opening withdraw modal for ${token.symbol}. Your balance: ${userBalance}`
+    });
+    
     setSelectedToken(token);
     setWithdrawModalOpen(true);
   };
 
   const handleWithdrawSuccess = () => {
+    // Show success toast
+    showToast({
+      type: 'success',
+      title: 'Withdraw Successful!',
+      message: 'Your tokens have been withdrawn successfully'
+    });
+    
     setWithdrawModalOpen(false);
     setSelectedToken(null);
     refresh();
   };
 
   const handleBorrowClick = (token: any) => {
+    // Format user balance
+    const userBalance = formatCurrency(token.userBalance || 0);
+    
+    // Show info toast with balance
+    showToast({
+      type: 'info',
+      title: 'Borrow Token',
+      message: `Opening borrow modal for ${token.symbol}. Your balance: ${userBalance}`
+    });
+    
     setSelectedToken(token);
     setBorrowModalOpen(true);
   };
 
   const handleBorrowSuccess = () => {
+    // Show success toast
+    showToast({
+      type: 'success',
+      title: 'Borrow Successful!',
+      message: 'You have successfully borrowed tokens'
+    });
+    
     setBorrowModalOpen(false);
     setSelectedToken(null);
     refresh();
   };
 
   const handleRepayClick = (token: any) => {
+    // Format user balance
+    const userBalance = formatCurrency(token.userBalance || 0);
+    
+    // Show info toast with balance
+    showToast({
+      type: 'info',
+      title: 'Repay Token',
+      message: `Opening repay modal for ${token.symbol}. Your balance: ${userBalance}`
+    });
+    
     setSelectedToken(token);
     setRepayModalOpen(true);
   };
 
   const handleRepaySuccess = () => {
+    // Show success toast
+    showToast({
+      type: 'success',
+      title: 'Repay Successful!',
+      message: 'Your debt has been repaid successfully'
+    });
+    
     setRepayModalOpen(false);
     setSelectedToken(null);
     refresh();
+  };
+
+  // Error handling function
+  const handleError = (error: any, action: string) => {
+    console.error(`Error in ${action}:`, error);
+    showToast({
+      type: 'error',
+      title: `${action} Failed`,
+      message: error.message || 'An unexpected error occurred'
+    });
   };
 
   return (
@@ -668,7 +757,8 @@ export function SimpleDashboard() {
           token={{
             address: selectedToken.address,
             symbol: selectedToken.symbol,
-            decimals: 18
+            decimals: 18,
+            userBalance: selectedToken.userBalance
           }}
           poolAddress={CONFIG.LENDING_POOL}
           signer={signer}
