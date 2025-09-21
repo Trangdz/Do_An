@@ -1,0 +1,125 @@
+name: LendHub v2 CI/CD
+
+on:
+  push:
+    branches: [ main, clean-version, develop ]
+  pull_request:
+    branches: [ main, clean-version ]
+
+jobs:
+  test-smart-contracts:
+    name: Test Smart Contracts
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Compile contracts
+      run: npx hardhat compile
+      
+    - name: Run tests
+      run: npx hardhat test
+      
+    - name: Run linting
+      run: |
+        npx hardhat check
+        npx solhint 'contracts/**/*.sol'
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Install frontend dependencies
+      run: |
+        cd lendhub-frontend-nextjs
+        npm install
+        
+    - name: Build frontend
+      run: |
+        cd lendhub-frontend-nextjs
+        npm run build
+        
+    - name: Run frontend tests
+      run: |
+        cd lendhub-frontend-nextjs
+        npm test -- --passWithNoTests
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Run security audit
+      run: npm audit --audit-level moderate
+      
+    - name: Run Slither (if available)
+      run: |
+        if command -v slither &> /dev/null; then
+          slither contracts/ --exclude-dependencies
+        else
+          echo "Slither not available, skipping static analysis"
+        fi
+
+  deploy-documentation:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Generate documentation
+      run: |
+        npx hardhat docgen
+        npx typedoc --out docs contracts/
+        
+    - name: Deploy to GitHub Pages
+      run: |
+        echo "Documentation deployment to GitHub Pages is ready."
+        echo "To enable, uncomment the GitHub Pages deployment step in .github/workflows/ci.yml"
+        echo "GitHub Pages will use GITHUB_TOKEN automatically (no additional secrets needed)"

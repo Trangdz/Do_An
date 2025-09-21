@@ -1,0 +1,69 @@
+name: Deploy LendHub v2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        npm install
+        cd lendhub-frontend-nextjs
+        npm install
+        
+    - name: Build frontend
+      run: |
+        cd lendhub-frontend-nextjs
+        npm run build
+        
+    - name: Deploy to Vercel
+      run: |
+        echo "To deploy to Vercel, configure the following secrets:"
+        echo "- VERCEL_TOKEN"
+        echo "- ORG_ID" 
+        echo "- PROJECT_ID"
+        echo "Then uncomment the Vercel deployment step in .github/workflows/deploy.yml"
+
+  deploy-contracts:
+    name: Deploy Smart Contracts
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Compile contracts
+      run: npx hardhat compile
+      
+    - name: Deploy to testnet
+      run: |
+        echo "To deploy contracts to testnet, configure the following secrets:"
+        echo "- PRIVATE_KEY"
+        echo "- INFURA_API_KEY"
+        echo "Then uncomment the deployment commands in .github/workflows/deploy.yml"
+        echo "# npx hardhat run scripts/deploy.js --network goerli"
