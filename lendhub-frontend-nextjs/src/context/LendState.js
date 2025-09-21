@@ -177,17 +177,22 @@ const LendState = (props) => {
               balance = ethers.formatEther(bal);
             } else {
               // ERC20 token balance
+              console.log(`Loading balance for ${token.symbol} (${token.address})`);
               balance = await getTokenBalance(
                 metamaskDetails.provider,
                 token.address,
                 metamaskDetails.currentAccount,
                 token.decimals
               );
+              console.log(`${token.symbol} balance:`, balance);
             }
 
             // Get USD value
+            console.log(`Loading price for ${token.symbol} (${token.address})`);
             const price = await getPriceUSD(token.address);
+            console.log(`${token.symbol} price:`, price);
             balanceUSD = parseFloat(balance) * parseFloat(price);
+            console.log(`${token.symbol} balanceUSD:`, balanceUSD);
 
             return {
               address: token.address,
@@ -231,9 +236,51 @@ const LendState = (props) => {
       const abi = ['function getAssetPrice1e18(address asset) view returns (uint256)'];
       const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, abi, metamaskDetails.provider);
       const price = await oracle.getAssetPrice1e18(asset);
-      return ethers.formatUnits(price, 18);
+      const formattedPrice = ethers.formatUnits(price, 18);
+      
+      // If price is 0 or very small, use fallback prices
+      if (parseFloat(formattedPrice) < 0.01) {
+        const token = CONFIG.TOKENS.find(t => t.address.toLowerCase() === asset.toLowerCase());
+        if (token) {
+          switch (token.symbol) {
+            case 'WETH':
+              console.log('Using fallback price for WETH: 1600 USD');
+              return "1600"; // Fallback price for WETH
+            case 'ETH':
+              console.log('Using fallback price for ETH: 1600 USD');
+              return "1600"; // Fallback price for ETH
+            case 'DAI':
+              console.log('Using fallback price for DAI: 1 USD');
+              return "1"; // Fallback price for DAI
+            case 'USDC':
+              console.log('Using fallback price for USDC: 1 USD');
+              return "1"; // Fallback price for USDC
+            default:
+              console.log(`Using fallback price for ${token.symbol}: 1 USD`);
+              return "1"; // Default fallback
+          }
+        }
+      }
+      
+      return formattedPrice;
     } catch (error) {
       console.warn(`Error getting price for ${asset}:`, error);
+      
+      // Fallback prices on error
+      const token = CONFIG.TOKENS.find(t => t.address.toLowerCase() === asset.toLowerCase());
+      if (token) {
+        switch (token.symbol) {
+          case 'WETH':
+          case 'ETH':
+            return "1600";
+          case 'DAI':
+          case 'USDC':
+            return "1";
+          default:
+            return "1";
+        }
+      }
+      
       return "0";
     }
   }, [metamaskDetails.provider]);

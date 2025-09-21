@@ -120,12 +120,17 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
       });
 
       // Success - update balances
-      setTimeout(() => {
+      setTimeout(async () => {
         setAmount('');
         setTxHash(null);
         onSuccess?.(parseFloat(amount));
         onBalanceUpdate?.(); // Trigger balance refresh
         onClose();
+        
+        // Force refresh after a short delay to ensure balance is updated
+        setTimeout(() => {
+          onBalanceUpdate?.();
+        }, 2000);
       }, 1000);
 
     } catch (error: any) {
