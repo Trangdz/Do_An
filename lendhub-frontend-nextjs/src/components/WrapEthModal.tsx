@@ -8,6 +8,9 @@ import { formatEther, parseEther } from 'ethers';
 import { formatCurrency, formatNumber } from '../lib/math';
 import { CONFIG } from '../config/contracts';
 import { ORACLE_ABI } from '../config/abis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - import JS addresses file
+import { WETHAddress } from '../addresses';
 
 interface WrapEthModalProps {
   open: boolean;

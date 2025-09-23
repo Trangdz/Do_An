@@ -8,10 +8,12 @@ async function main() {
   
   console.log("📦 Deploying all available contracts...");
   
-  // Deploy ERC20 tokens
+  // Deploy tokens
   const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
+  const TokenWithWithdraw = await ethers.getContractFactory("TokenWithWithdraw");
   
-  const weth = await ERC20Mock.deploy("Wrapped ETH", "WETH", 18);
+  // WETH must be TokenWithWithdraw to support deposit()/withdraw()
+  const weth = await TokenWithWithdraw.deploy("Wrapped Ether", "WETH", 18, 0);
   const dai = await ERC20Mock.deploy("Dai Stablecoin", "DAI", 18);
   const usdc = await ERC20Mock.deploy("USD Coin", "USDC", 6);
   const link = await ERC20Mock.deploy("Chainlink Token", "LINK", 18);
@@ -128,8 +130,9 @@ async function main() {
   
   console.log("✅ All contracts deployed and configured!");
   
-  // Mint tokens to users
-  await (await weth.mint(user.address, ethers.parseUnits("100", 18))).wait();
+  // Mint/seed tokens to users
+  // For WETH we prefer users wrap ETH; but keep owner-mint small amount for testing if needed
+  await (await weth.mint(deployer.address, ethers.parseUnits("1", 18))).wait();
   await (await dai.mint(liquidator.address, ethers.parseUnits("200000", 18))).wait();
   await (await dai.mint(deployer.address, ethers.parseUnits("100000", 18))).wait();
   await (await usdc.mint(liquidator.address, ethers.parseUnits("200000", 6))).wait();

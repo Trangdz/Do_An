@@ -160,70 +160,185 @@ const LendState = (props) => {
   }, [metamaskDetails.provider]);
 
   // Get user assets (balances)
-  const getUserAssets = useCallback(async () => {
-    console.log("2. Getting user assets...");
-    try {
-      if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
+  // const getUserAssets = useCallback(async () => {
+  //   console.log("2. Getting user assets...");
+  //   try {
+  //     if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
 
-      const assets = await Promise.all(
-        CONFIG.TOKENS.map(async (token) => {
-          let balance = "0";
-          let balanceUSD = 0;
+  //     const assets = await Promise.all(
+  //       CONFIG.TOKENS.map(async (token) => {
+  //         // Ensure we always read WETH balance from the single source of truth
+  //         const tokenAddress = token.symbol === 'WETH' ? WETHAddress : token.address;
+  //         let balance = "0";
+  //         let balanceUSD = 0;
 
-          try {
-            if (token.isNative) {
-              // ETH native balance
-              const bal = await metamaskDetails.provider.getBalance(metamaskDetails.currentAccount);
-              balance = ethers.formatEther(bal);
-            } else {
-              // ERC20 token balance
-              balance = await getTokenBalance(
-                metamaskDetails.provider,
-                token.address,
-                metamaskDetails.currentAccount,
-                token.decimals
-              );
-            }
+  //         try {
+  //           if (token.isNative) {
+  //             // ETH native balance
+  //             const bal = await metamaskDetails.provider.getBalance(metamaskDetails.currentAccount);
+  //             balance = ethers.formatEther(bal);
+  //             console.log('Native ETH balance:', balance);
+  //           } else {
+  //             // ERC20 token balance
+  //             // Debug: verify code exists at address to catch wrong-network issues
+  //             try {
+  //               const code = await metamaskDetails.provider.getCode(tokenAddress);
+  //               if (!code || code === '0x') {
+  //                 console.warn(`No contract code at ${token.symbol} address`, tokenAddress, '(wrong network or address)');
+  //               }
+  //             } catch {}
 
-            // Get USD value
-            const price = await getPriceUSD(token.address);
-            balanceUSD = parseFloat(balance) * parseFloat(price);
+  //             balance = await getTokenBalance(
+  //               metamaskDetails.provider,
+  //               tokenAddress,
+  //               metamaskDetails.currentAccount,
+  //               token.decimals
+  //             );
+  //             if (token.symbol === 'WETH') {
+  //               console.log('WETH balance read from', tokenAddress, '→', balance);
+  //             }
+  //           }
 
-            return {
-              address: token.address,
-              symbol: token.symbol,
-              name: token.name,
-              decimals: token.decimals,
-              isNative: token.isNative,
-              balance: balance,
-              balanceUSD: balanceUSD,
-              priceUSD: price,
-            };
-          } catch (error) {
-            console.warn(`Error getting balance for ${token.symbol}:`, error);
-            return {
-              address: token.address,
-              symbol: token.symbol,
-              name: token.name,
-              decimals: token.decimals,
-              isNative: token.isNative,
-              balance: "0",
-              balanceUSD: 0,
-              priceUSD: "0",
-            };
-          }
-        })
-      );
+  //           // Get USD value
+  //           const price = await getPriceUSD(tokenAddress);
+  //           balanceUSD = parseFloat(balance) * parseFloat(price);
 
-      setUserAssets(assets);
-      console.log("Got user assets:", assets);
-      return assets;
-    } catch (error) {
-      reportError(error);
+  //           return {
+  //             address: tokenAddress,
+  //             symbol: token.symbol,
+  //             name: token.name,
+  //             decimals: token.decimals,
+  //             isNative: token.isNative,
+  //             balance: balance,
+  //             balanceUSD: balanceUSD,
+  //             priceUSD: price,
+  //           };
+  //         } catch (error) {
+  //           console.warn(`Error getting balance for ${token.symbol}:`, error);
+  //           return {
+  //             address: token.address,
+  //             symbol: token.symbol,
+  //             name: token.name,
+  //             decimals: token.decimals,
+  //             isNative: token.isNative,
+  //             balance: "0",
+  //             balanceUSD: 0,
+  //             priceUSD: "0",
+  //           };
+  //         }
+  //       })
+  //     );
+
+  //     setUserAssets(assets);
+  //     console.log("Got user assets:", assets);
+  //     return assets;
+  //   } catch (error) {
+  //     reportError(error);
+  //     return [];
+  //   }
+  // }, [metamaskDetails.provider, metamaskDetails.currentAccount]);
+const getUserAssets = useCallback(async () => {
+  console.log("2. Getting user assets...");
+  try {
+    if (!metamaskDetails.provider || !metamaskDetails.currentAccount) {
+      console.warn('Provider or currentAccount missing:', {
+        provider: metamaskDetails.provider,
+        currentAccount: metamaskDetails.currentAccount,
+      });
       return [];
     }
-  }, [metamaskDetails.provider, metamaskDetails.currentAccount]);
 
+    // Log network details
+    const network = await metamaskDetails.provider.getNetwork();
+    console.log('Network:', network.name, 'ChainId:', Number(network.chainId));
+    console.log('WETH Address:', WETHAddress);
+    console.log('WETH Config:', CONFIG.TOKENS.find((token) => token.symbol === 'WETH'));
+
+    const assets = await Promise.all(
+      CONFIG.TOKENS.map(async (token) => {
+        const tokenAddress = token.symbol === 'WETH' ? WETHAddress : token.address;
+        console.log(`Fetching balance for ${token.symbol} at ${tokenAddress}`);
+        let balance = "0";
+        let balanceUSD = 0;
+
+        try {
+          if (token.isNative) {
+            const bal = await metamaskDetails.provider.getBalance(metamaskDetails.currentAccount);
+            balance = ethers.formatEther(bal);
+            console.log(`Native ${token.symbol} balance:`, balance);
+          } else {
+            // Check contract code
+            try {
+              const code = await metamaskDetails.provider.getCode(tokenAddress);
+              if (!code || code === '0x') {
+                console.warn(`No contract code at ${token.symbol} address ${tokenAddress} (wrong network or address)`);
+                return {
+                  address: token.address,
+                  symbol: token.symbol,
+                  name: token.name,
+                  decimals: token.decimals,
+                  isNative: token.isNative,
+                  balance: "0",
+                  balanceUSD: 0,
+                  priceUSD: "0",
+                };
+              }
+            } catch (codeErr) {
+              console.error(`Error checking contract code for ${token.symbol} at ${tokenAddress}:`, codeErr);
+            }
+
+            balance = await getTokenBalance(
+              metamaskDetails.provider,
+              tokenAddress,
+              metamaskDetails.currentAccount,
+              token.decimals
+            );
+            console.log(`${token.symbol} balance:`, balance, 'from', tokenAddress);
+          }
+
+          const price = await getPriceUSD(tokenAddress);
+          balanceUSD = parseFloat(balance) * parseFloat(price);
+
+          return {
+            address: tokenAddress,
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+            isNative: token.isNative,
+            balance,
+            balanceUSD,
+            priceUSD: price,
+          };
+        } catch (error) {
+          console.error(`Error getting balance for ${token.symbol}:`, {
+            message: error.message,
+            code: error.code,
+            reason: error.reason,
+            data: error.data,
+          });
+          return {
+            address: token.address,
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+            isNative: token.isNative,
+            balance: "0",
+            balanceUSD: 0,
+            priceUSD: "0",
+          };
+        }
+      })
+    );
+
+    setUserAssets(assets);
+    console.log("Got user assets:", assets);
+    return assets;
+  } catch (error) {
+    console.error('Error in getUserAssets:', error);
+    reportError(error);
+    return [];
+  }
+}, [metamaskDetails.provider, metamaskDetails.currentAccount]);
   // Get price in USD
   const getPriceUSD = useCallback(async (asset) => {
     if (!metamaskDetails.provider) return "0";
@@ -598,21 +713,34 @@ const LendState = (props) => {
     }
 
     try {
-      const data = '0xd0e30db0'; // deposit()
+      // Use contract call for clarity and to avoid provider quirks
+      const WETH_ABI = ['function deposit() payable', 'function symbol() view returns (string)'];
       console.log('wrapEth → using WETH address:', WETHAddress);
-      const tx = await metamaskDetails.signer.sendTransaction({
-        to: WETHAddress,
-        value: ethers.parseEther(amountEth),
-        data
-      });
+
+      // Sanity checks: correct network and code present
+      const network = await metamaskDetails.signer.provider.getNetwork();
+      console.log('wrapEth → chainId:', Number(network.chainId));
+      const code = await metamaskDetails.signer.provider.getCode(WETHAddress);
+      if (!code || code === '0x') {
+        throw new Error(`No contract code at WETHAddress ${WETHAddress}. Wrong network or address.`);
+      }
+
+      const weth = new ethers.Contract(WETHAddress, WETH_ABI, metamaskDetails.signer);
+      try { console.log('wrapEth → symbol:', await weth.symbol()); } catch {}
+
+      const tx = await weth.deposit({ value: ethers.parseEther(amountEth) });
       await tx.wait();
       console.log("ETH wrapped to WETH:", amountEth);
+
+      // Force-refresh balances immediately after wrap
+      try { await getUserAssets(); } catch {}
+
       return { status: 200, message: "Transaction Successful...", hash: tx.hash };
     } catch (error) {
       reportError(error);
       return { status: 500, message: error.message || error.reason };
     }
-  }, [metamaskDetails.signer]);
+  }, [metamaskDetails.signer, getUserAssets]);
 
   // Unwrap WETH to ETH
   const unwrapWeth = useCallback(async (amountEth) => {
