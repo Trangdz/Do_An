@@ -69,7 +69,7 @@ export function SimpleDashboard() {
       });
     }
     
-    return {
+    const base = {
       address: asset.address,
       symbol: asset.symbol,
       name: asset.name,
@@ -87,7 +87,15 @@ export function SimpleDashboard() {
       utilization: 0, // TODO: Calculate
       availableLiquidity: 0, // TODO: Get from reserve data
       liquidationThreshold: 8000, // Default
-    };
+    } as any;
+
+    // UI rule: WETH is not borrowable → never show borrowed > 0 for WETH card
+    if (asset.symbol === 'WETH') {
+      base.userBorrow = 0;
+      base.userBorrowUSD = 0;
+    }
+
+    return base;
   });
 
   // Mock rate chart data (TODO: Implement real rate chart)
@@ -654,7 +662,14 @@ export function SimpleDashboard() {
                           <div className="grid grid-cols-3 gap-4">
                             <div className="text-center">
                               <div className="text-lg font-bold text-blue-600">
-                                {token.symbol === 'WETH' ? formatWETHBalance(token.userBalance || 0) : formatBalance(token.userBalance || 0, 4)} {token.symbol}
+                                {(() => {
+                                  const bal = token.userBalance || 0;
+                                  if (token.symbol === 'WETH') {
+                                    const adjusted = bal > 1000000 ? bal - 1000000 : bal;
+                                    return `${formatBalance(adjusted, 4)} ${token.symbol}`;
+                                  }
+                                  return `${formatBalance(bal, 4)} ${token.symbol}`;
+                                })()}
                               </div>
                               <div className="text-xs text-blue-600/70">
                                 Wallet (${formatCurrency(token.userBalanceUSD || 0)})
@@ -730,7 +745,7 @@ export function SimpleDashboard() {
                             <Button disabled className="w-full bg-gray-300 text-gray-500">
                               💸 Not Borrowable
                             </Button>
-                          ) : token.symbol !== 'WETH' ? (
+                          ) : token.symbol !== 'ETH' ? (
                             <Button 
                               className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg"
                               onClick={() => handleBorrowClick(token)}
@@ -762,7 +777,7 @@ export function SimpleDashboard() {
                             <Button disabled variant="outline" className="w-full border-gray-200 text-gray-400">
                               💳 N/A
                             </Button>
-                          ) : token.symbol !== 'WETH' ? (
+                          ) : (
                             <Button 
                               variant="outline" 
                               className="w-full border-green-200 text-green-600 hover:bg-green-50"
@@ -770,10 +785,6 @@ export function SimpleDashboard() {
                               disabled={token.userBorrow <= 0}
                             >
                               💳 Repay
-                            </Button>
-                          ) : (
-                            <Button disabled variant="outline" className="w-full border-gray-200 text-gray-400">
-                              💳 N/A
                             </Button>
                           )}
                         </div>

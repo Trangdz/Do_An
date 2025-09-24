@@ -56,7 +56,7 @@ export function LendModal({
         if (token.symbol === 'WETH') {
           // Use token.userBalance if available, otherwise use simulatedBalance
           const userBalance = token.userBalance || simulatedBalance || 0;
-           const formattedBalance = formatWETHBalance(userBalance);
+           const formattedBalance = formatCurrency(userBalance);
           
           if (userBalance > 0) {
             setBalance(formattedBalance);
