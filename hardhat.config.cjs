@@ -18,7 +18,7 @@ const config = {
       type: "http",
       chainId: 1337,                // hoặc 5777 tùy phiên bản Ganache
       accounts: {
-        mnemonic: "sponsor desert enter giggle rescue praise garbage essay group satisfy cliff opera",
+        mnemonic: "noodle bargain mystery voice aware drink toast practice grape actress hungry problem",
       },
     },
   },
