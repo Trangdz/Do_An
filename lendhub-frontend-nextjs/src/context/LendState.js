@@ -292,6 +292,11 @@ const LendState = (props) => {
       
       if (tx) {
         console.log("Asset lent successfully:", token, supplyAmount);
+        // Refresh data after successful supply
+        setTimeout(() => {
+          console.log("🔄 Refreshing after supply...");
+          refresh();
+        }, 2000);
         return { status: 200, message: "Transaction Successful...", hash: tx.hash };
       }
       throw new Error("Transaction failed");
@@ -316,6 +321,11 @@ const LendState = (props) => {
       
       if (tx) {
         console.log("Asset withdrawn successfully:", tokenAddress, withdrawAmount);
+        // Refresh data after successful withdraw
+        setTimeout(() => {
+          console.log("🔄 Refreshing after withdraw...");
+          refresh();
+        }, 2000);
         return { status: 200, message: "Transaction Successful...", hash: tx.hash };
       }
       throw new Error("Transaction failed");
@@ -340,6 +350,11 @@ const LendState = (props) => {
       
       if (tx) {
         console.log("Asset borrowed successfully:", token, borrowAmount);
+        // Refresh data after successful borrow
+        setTimeout(() => {
+          console.log("🔄 Refreshing after borrow...");
+          refresh();
+        }, 2000);
         return { status: 200, message: "Transaction Successful...", hash: tx.hash };
       }
       throw new Error("Transaction failed");
@@ -364,6 +379,11 @@ const LendState = (props) => {
       
       if (tx) {
         console.log("Asset repaid successfully:", tokenAddress, repayAmount);
+        // Refresh data after successful repay
+        setTimeout(() => {
+          console.log("🔄 Refreshing after repay...");
+          refresh();
+        }, 2000);
         return { status: 200, message: "Transaction Successful...", hash: tx.hash };
       }
       throw new Error("Transaction failed");
@@ -421,20 +441,30 @@ const LendState = (props) => {
       if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
 
       const abi = [
-        'function getUserReserve(address user, address asset) view returns (tuple(uint128 principal,uint128 index) supply, tuple(uint128 principal,uint128 index) borrow)'
+        'function userReserves(address user, address asset) view returns (uint256 supplyBalance1e18, uint256 borrowBalance1e18, bool isCollateral)'
       ];
       const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
 
       const supplies = await Promise.all(
         CONFIG.TOKENS.filter(t => !t.isNative).map(async (token) => {
           try {
-            const userReserve = await pool.getUserReserve(metamaskDetails.currentAccount, token.address);
-            const supplyPrincipal = ethers.formatUnits(userReserve.supply.principal, 18);
-            const supplyIndex = userReserve.supply.index.toString();
+            console.log(`🔍 Checking supply for ${token.symbol} (${token.address})`);
+            const userReserve = await pool.userReserves(metamaskDetails.currentAccount, token.address);
+            const supplyPrincipal = ethers.formatUnits(userReserve.supplyBalance1e18, 18);
+            const borrowPrincipal = ethers.formatUnits(userReserve.borrowBalance1e18, 18);
+            
+            console.log(`📊 ${token.symbol} supply:`, {
+              supplyBalance: supplyPrincipal,
+              borrowBalance: borrowPrincipal,
+              isCollateral: userReserve.isCollateral,
+              user: metamaskDetails.currentAccount
+            });
             
             if (parseFloat(supplyPrincipal) > 0) {
               const price = await getPriceUSD(token.address);
               const balanceUSD = parseFloat(supplyPrincipal) * parseFloat(price);
+              
+              console.log(`✅ Found supply for ${token.symbol}:`, supplyPrincipal);
               
               return {
                 address: token.address,
@@ -442,11 +472,13 @@ const LendState = (props) => {
                 name: token.name,
                 decimals: token.decimals,
                 supplyPrincipal: supplyPrincipal,
-                supplyIndex: supplyIndex,
+                supplyBalance: supplyPrincipal,
                 balanceUSD: balanceUSD,
                 priceUSD: price,
+                isCollateral: userReserve.isCollateral,
               };
             }
+            console.log(`❌ No supply found for ${token.symbol}`);
             return null;
           } catch (error) {
             console.warn(`Error getting supply for ${token.symbol}:`, error);
@@ -485,20 +517,30 @@ const LendState = (props) => {
       if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
 
       const abi = [
-        'function getUserReserve(address user, address asset) view returns (tuple(uint128 principal,uint128 index) supply, tuple(uint128 principal,uint128 index) borrow)'
+        'function userReserves(address user, address asset) view returns (uint256 supplyBalance1e18, uint256 borrowBalance1e18, bool isCollateral)'
       ];
       const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
 
       const borrows = await Promise.all(
         CONFIG.TOKENS.filter(t => !t.isNative).map(async (token) => {
           try {
-            const userReserve = await pool.getUserReserve(metamaskDetails.currentAccount, token.address);
-            const borrowPrincipal = ethers.formatUnits(userReserve.borrow.principal, 18);
-            const borrowIndex = userReserve.borrow.index.toString();
+            console.log(`🔍 Checking borrow for ${token.symbol} (${token.address})`);
+            const userReserve = await pool.userReserves(metamaskDetails.currentAccount, token.address);
+            const borrowPrincipal = ethers.formatUnits(userReserve.borrowBalance1e18, 18);
+            const supplyPrincipal = ethers.formatUnits(userReserve.supplyBalance1e18, 18);
+            
+            console.log(`📊 ${token.symbol} borrow:`, {
+              borrowBalance: borrowPrincipal,
+              supplyBalance: supplyPrincipal,
+              isCollateral: userReserve.isCollateral,
+              user: metamaskDetails.currentAccount
+            });
             
             if (parseFloat(borrowPrincipal) > 0) {
               const price = await getPriceUSD(token.address);
               const balanceUSD = parseFloat(borrowPrincipal) * parseFloat(price);
+              
+              console.log(`✅ Found borrow for ${token.symbol}:`, borrowPrincipal);
               
               return {
                 address: token.address,
@@ -506,11 +548,13 @@ const LendState = (props) => {
                 name: token.name,
                 decimals: token.decimals,
                 borrowPrincipal: borrowPrincipal,
-                borrowIndex: borrowIndex,
+                borrowBalance: borrowPrincipal,
                 balanceUSD: balanceUSD,
                 priceUSD: price,
+                isCollateral: userReserve.isCollateral,
               };
             }
+            console.log(`❌ No borrow found for ${token.symbol}`);
             return null;
           } catch (error) {
             console.warn(`Error getting borrow for ${token.symbol}:`, error);
@@ -638,6 +682,7 @@ const LendState = (props) => {
   // Refresh all data
   const refresh = useCallback(async () => {
     try {
+      console.log("🔄 Starting refresh...");
       await Promise.all([
         getUserAssets(),
         getYourSupplies(),
@@ -645,8 +690,9 @@ const LendState = (props) => {
         getAssetsToBorrow(),
         getAccountData(),
       ]);
-      console.log("All data refreshed");
+      console.log("✅ All data refreshed");
     } catch (error) {
+      console.error("❌ Error during refresh:", error);
       reportError(error);
     }
   }, [getUserAssets, getYourSupplies, getYourBorrows, getAssetsToBorrow, getAccountData]);

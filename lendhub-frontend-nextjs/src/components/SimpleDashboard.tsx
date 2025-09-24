@@ -51,6 +51,24 @@ export function SimpleDashboard() {
     const supply = supplyAssets.find((s: any) => s.address === asset.address);
     const borrow = yourBorrows.find((b: any) => b.address === asset.address);
     
+    // Debug log for WETH supply
+    if (asset.symbol === 'WETH' && supply) {
+      console.log("🔍 WETH Supply found:", {
+        symbol: supply.symbol,
+        principal: supply.supplyPrincipal,
+        balanceUSD: supply.balanceUSD
+      });
+    }
+    
+    // Debug log for WETH borrow
+    if (asset.symbol === 'WETH' && borrow) {
+      console.log("🔍 WETH Borrow found:", {
+        symbol: borrow.symbol,
+        principal: borrow.borrowPrincipal,
+        balanceUSD: borrow.balanceUSD
+      });
+    }
+    
     return {
       address: asset.address,
       symbol: asset.symbol,
@@ -93,6 +111,34 @@ export function SimpleDashboard() {
       refresh();
     }
   }, [isConnected, provider, refresh]);
+
+  // Debug log for supplyAssets
+  useEffect(() => {
+    console.log("📊 SupplyAssets updated:", supplyAssets);
+    if (supplyAssets.length > 0) {
+      console.log("✅ Found supplies:", supplyAssets.map(s => ({
+        symbol: s.symbol,
+        principal: s.supplyPrincipal,
+        balanceUSD: s.balanceUSD
+      })));
+    } else {
+      console.log("❌ No supplies found");
+    }
+  }, [supplyAssets]);
+
+  // Debug log for yourBorrows
+  useEffect(() => {
+    console.log("📊 YourBorrows updated:", yourBorrows);
+    if (yourBorrows.length > 0) {
+      console.log("✅ Found borrows:", yourBorrows.map(b => ({
+        symbol: b.symbol,
+        principal: b.borrowPrincipal,
+        balanceUSD: b.balanceUSD
+      })));
+    } else {
+      console.log("❌ No borrows found");
+    }
+  }, [yourBorrows]);
 
   if (!isConnected) {
     return (
@@ -165,6 +211,8 @@ export function SimpleDashboard() {
   };
 
   const handleLendSuccess = () => {
+    console.log("🎉 Lend success callback triggered!");
+    
     // Show success toast
     showToast({
       type: 'success',
@@ -173,6 +221,7 @@ export function SimpleDashboard() {
     });
     
     // Refresh data after successful lend
+    console.log("🔄 Calling refresh after lend success...");
     refresh();
   };
 

@@ -56,7 +56,7 @@ export function LendModal({
         if (token.symbol === 'WETH') {
           // Use token.userBalance if available, otherwise use simulatedBalance
           const userBalance = token.userBalance || simulatedBalance || 0;
-          const formattedBalance = formatWETHBalance(userBalance);
+           const formattedBalance = formatWETHBalance(userBalance);
           
           if (userBalance > 0) {
             setBalance(formattedBalance);
@@ -137,13 +137,13 @@ export function LendModal({
       
       // Reset form and close
       setAmount('');
-      onSuccess?.();
       onClose();
       
-      // Refresh balances after successful transaction
+      // Call onSuccess to trigger refresh
       setTimeout(() => {
-        window.location.reload(); // Force refresh to update all balances
-      }, 2000);
+        console.log("🔄 Refreshing data after supply...");
+        onSuccess?.();
+      }, 1000);
 
     } catch (error: any) {
       console.error('Error lending:', error);
