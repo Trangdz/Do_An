@@ -602,23 +602,22 @@ const LendState = (props) => {
           try {
             const reserve = await pool.reserves(token.address);
             const isBorrowable = Boolean(reserve.isBorrowable);
-            const reserveCash = ethers.formatUnits(reserve.reserveCash, 18);
+            const reserveDecimals = Number(reserve.decimals ?? token.decimals ?? 18);
+            const reserveCash = ethers.formatUnits(reserve.reserveCash, reserveDecimals);
             const price = await getPriceUSD(token.address);
-            
-            if (isBorrowable && parseFloat(reserveCash) > 0) {
-              return {
-                address: token.address,
-                symbol: token.symbol,
-                name: token.name,
-                decimals: token.decimals,
-                reserveCash: reserveCash,
-                isBorrowable: isBorrowable,
-                priceUSD: price,
-                ltvBps: Number(reserve.ltvBps),
-                liqThresholdBps: Number(reserve.liqThresholdBps),
-              };
-            }
-            return null;
+
+            // Always return the reserve (even if not borrowable or 0 cash) so UI shows total pool
+            return {
+              address: token.address,
+              symbol: token.symbol,
+              name: token.name,
+              decimals: token.decimals,
+              reserveCash: reserveCash,
+              isBorrowable: isBorrowable,
+              priceUSD: price,
+              ltvBps: Number(reserve.ltvBps),
+              liqThresholdBps: Number(reserve.liqThresholdBps),
+            };
           } catch (error) {
             console.warn(`Error getting borrow asset ${token.symbol}:`, error);
             return null;

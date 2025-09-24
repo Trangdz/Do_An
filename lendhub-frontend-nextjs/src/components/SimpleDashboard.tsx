@@ -24,6 +24,7 @@ export function SimpleDashboard() {
     metamaskDetails,
     userAssets,
     supplyAssets,
+    assetsToBorrow,
     yourBorrows,
     accountData, 
     // Functions
@@ -50,6 +51,7 @@ export function SimpleDashboard() {
   const tokens = userAssets.map((asset: any) => {
     const supply = supplyAssets.find((s: any) => s.address === asset.address);
     const borrow = yourBorrows.find((b: any) => b.address === asset.address);
+    const borrowCfg = (assetsToBorrow || []).find((a: any) => a.address === asset.address);
     
     // Debug log for WETH supply
     if (asset.symbol === 'WETH' && supply) {
@@ -85,7 +87,7 @@ export function SimpleDashboard() {
       supplyAPR: 0, // TODO: Get from reserve data
       borrowAPR: 0, // TODO: Get from reserve data
       utilization: 0, // TODO: Calculate
-      availableLiquidity: 0, // TODO: Get from reserve data
+      availableLiquidity: borrowCfg ? parseFloat(borrowCfg.reserveCash || '0') : 0,
       liquidationThreshold: 8000, // Default
     } as any;
 
@@ -819,7 +821,7 @@ export function SimpleDashboard() {
           token={{
             address: selectedToken.address,
             symbol: selectedToken.symbol,
-            decimals: 18,
+            decimals: selectedToken.decimals ?? 18,
             userBalance: selectedToken.userBalance
           }}
           poolAddress={CONFIG.LENDING_POOL}

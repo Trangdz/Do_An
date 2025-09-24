@@ -55,7 +55,10 @@ export function BorrowModal({
 
   const hfAfter = calculateHFAfter(parseFloat(amount) || 0);
   const isHealthyAfter = hfAfter >= 1;
-  const maxBorrow = Math.min(parseFloat(poolLiquidity), collateralUSD * 0.8 / price); // 80% of collateral
+  // Protect against empty or zero liquidity
+  const poolLiquidityNum = Math.max(0, parseFloat(poolLiquidity || '0'));
+  const collateralCap = price > 0 ? (collateralUSD * 0.8) / price : 0; // 80% LTV cap for UI
+  const maxBorrow = Math.max(0, Math.min(poolLiquidityNum, collateralCap));
 
   const handleAmountChange = (value: string) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
@@ -139,7 +142,7 @@ export function BorrowModal({
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Pool Liquidity</span>
               <span className="text-sm font-mono text-gray-900">
-                {formatNumber(parseFloat(poolLiquidity), 0)} {token.symbol}
+                {formatNumber(poolLiquidityNum, 0)} {token.symbol}
               </span>
             </div>
             <div className="flex justify-between items-center">

@@ -52,40 +52,15 @@ export function LendModal({
     const loadData = async () => {
       try {
         const userAddress = await signer.getAddress();
-        
-        if (token.symbol === 'WETH') {
-          // Use token.userBalance if available, otherwise use simulatedBalance
-          const userBalance = token.userBalance || simulatedBalance || 0;
-           const formattedBalance = formatCurrency(userBalance);
-          
-          if (userBalance > 0) {
-            setBalance(formattedBalance);
-            setAllowance('1000000'); // High allowance for simulation
-            console.log('✅ WETH balance set to', formattedBalance);
-          } else {
-            // Try to load real balance
-            try {
-              const balanceStr = await getTokenBalance(provider, token.address, userAddress, token.decimals);
-              const formattedRealBalance = formatWETHBalance(parseFloat(balanceStr));
-              setBalance(formattedRealBalance);
-              setAllowance('1000000');
-              console.log('✅ REAL: WETH balance loaded from contract:', formattedRealBalance);
-            } catch (error) {
-              setBalance('0');
-              setAllowance('0');
-              console.log('❌ WETH contract not found, balance set to 0');
-            }
-          }
-        } else {
-          // Load real balance for other tokens
-          const [balanceStr, allowanceStr] = await Promise.all([
-            getTokenBalance(provider, token.address, userAddress, token.decimals),
-            getTokenAllowance(provider, token.address, userAddress, poolAddress, token.decimals)
-          ]);
-          
-          setBalance(balanceStr);
-          setAllowance(allowanceStr);
-        }
+        // Load real on-chain balance and allowance for ALL tokens (including WETH)
+        const [balanceStr, allowanceStr] = await Promise.all([
+          getTokenBalance(provider, token.address, userAddress, token.decimals),
+          getTokenAllowance(provider, token.address, userAddress, poolAddress, token.decimals)
+        ]);
+
+        // Store raw numeric string for calculations; avoid currency formatting here
+        setBalance(balanceStr);
+        setAllowance(allowanceStr);
         
       } catch (error) {
         console.error('Error loading token data:', error);
