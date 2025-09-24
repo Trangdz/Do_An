@@ -1,11 +1,11 @@
 // Contract addresses (auto-updated by deploy script)
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
-export const LendingPoolAddress = "0x0e2c7a0Bb0D09e55EFdACB7f2DF608604Fe4FFe0";
-export const InterestRateModelAddress = "0xffc1f5D5d1BeA5D36e6e398d733c0600e4027192";
+export const LendingPoolAddress = "0x6db3E7149CB3EA28902Af49F1c2b2e4682C30F29";
+export const InterestRateModelAddress = "0x4f392538CD965A89585a5FC3876d772984349d60";
 export const LendingHelperAddress = "0x0000000000000000000000000000000000000000"; // Not deployed
-export const WETHAddress = "0x3Fad14264eFA9D28D3bf7AE2D4e852B858eBEd0e";
-export const DAIAddress = "0x3677d4502b7A1A177c9a6F21Ada558Ee0848c67c";
-export const USDCAddress = "0x13739031FF32fF33BDB2856372d30d690BC45C98";
-export const LINKAddress = "0xeDd1Da729eAE2028C20D7E354fFF3fe01201dfC1";
-export const PriceOracleAddress = "0x7A045A1D0C1cdcC9DA1934d7fBbd5A44Dd2B94f0";
-export const MockV3AggregatorAddress = "0x02507423579417181faBd7f455224F6c6943C17F";
+export const WETHAddress = "0x658b05043C8d2da0A9C81931A6e404AAb1ACc55C";
+export const DAIAddress = "0x10626CCAa4857076890A543300b48dEF961B9Cb4";
+export const USDCAddress = "0xaA64D43BAb91131764509dc58ad06a0233488F72";
+export const LINKAddress = "0xA367365Ccd260Cd6814B1d11ecA00737F68415a9";
+export const PriceOracleAddress = "0x7c8E63Ab01E6777AD75506A5b2999DA44Fa1C89b";
+export const MockV3AggregatorAddress = "0xd79686e79CEAa658F2b3B5157aC9eD7400cf95BE";

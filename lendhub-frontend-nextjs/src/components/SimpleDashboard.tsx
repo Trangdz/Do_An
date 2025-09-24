@@ -605,7 +605,7 @@ export function SimpleDashboard() {
                           <div className="grid grid-cols-3 gap-4">
                             <div className="text-center">
                               <div className="text-lg font-bold text-blue-600">
-                                {token.symbol === 'WETH' ? formatCurrency(token.userBalance  || 0) : formatBalance(token.userBalance || 0, 4)} {token.symbol}
+                                {token.symbol === 'WETH' ? formatWETHBalance(token.userBalance || 0) : formatBalance(token.userBalance || 0, 4)} {token.symbol}
                               </div>
                               <div className="text-xs text-blue-600/70">
                                 Wallet (${formatCurrency(token.userBalanceUSD || 0)})

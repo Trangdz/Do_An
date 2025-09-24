@@ -175,6 +175,7 @@ const LendState = (props) => {
               // ETH native balance
               const bal = await metamaskDetails.provider.getBalance(metamaskDetails.currentAccount);
               balance = ethers.formatEther(bal);
+              console.log('Native ETH balance:', balance);
             } else {
               // ERC20 token balance
               balance = await getTokenBalance(
@@ -183,12 +184,6 @@ const LendState = (props) => {
                 metamaskDetails.currentAccount,
                 token.decimals
               );
-            }
-
-            // For WETH, subtract initial supply of 1M to show actual user balance
-            if (token.symbol === 'WETH') {
-              const actualBalance = Math.max(0, parseFloat(balance) - 1000000);
-              balance = actualBalance.toString();
             }
 
             // Get USD value
@@ -606,12 +601,6 @@ const LendState = (props) => {
     try {
       const data = '0xd0e30db0'; // deposit()
       console.log('wrapEth → using WETH address:', WETHAddress);
-      
-      // Get WETH balance before transaction
-      const wethContract = new ethers.Contract(WETHAddress, ['function balanceOf(address) view returns (uint256)'], metamaskDetails.signer);
-      const wethBalanceBefore = await wethContract.balanceOf(metamaskDetails.currentAccount);
-      console.log("WETH balance before wrap:", ethers.formatEther(wethBalanceBefore));
-      
       const tx = await metamaskDetails.signer.sendTransaction({
         to: WETHAddress,
         value: ethers.parseEther(amountEth),
@@ -619,30 +608,6 @@ const LendState = (props) => {
       });
       await tx.wait();
       console.log("ETH wrapped to WETH:", amountEth);
-      
-      // Get WETH balance after transaction
-      const wethBalanceAfter = await wethContract.balanceOf(metamaskDetails.currentAccount);
-      console.log("WETH balance after wrap:", ethers.formatEther(wethBalanceAfter));
-      
-      // Calculate the change
-      const wethChange = wethBalanceAfter - wethBalanceBefore;
-      console.log("WETH received:", ethers.formatEther(wethChange));
-      console.log("Expected WETH:", amountEth);
-      
-      // Verify 1:1 ratio
-      if (wethChange.toString() === ethers.parseEther(amountEth).toString()) {
-        console.log("✅ SUCCESS: 1 ETH = 1 WETH ratio is correct!");
-      } else {
-        console.log("❌ ERROR: Ratio mismatch!");
-        console.log("Expected:", ethers.parseEther(amountEth).toString());
-        console.log("Actual:", wethChange.toString());
-      }
-      
-      // Trigger refresh to update UI
-      console.log("🔄 Triggering UI refresh...");
-      // Use a simple approach - just log that refresh should happen
-      // The modal's onBalanceUpdate will handle the actual refresh
-      
       return { status: 200, message: "Transaction Successful...", hash: tx.hash };
     } catch (error) {
       reportError(error);
@@ -670,50 +635,9 @@ const LendState = (props) => {
     }
   }, [metamaskDetails.signer]);
 
-  // Withdraw token to ETH (for all tokens with withdraw function)
-  const withdrawToken = useCallback(async (tokenAddress, amount) => {
-    if (!metamaskDetails.signer) {
-      throw new Error("No signer available");
-    }
-
-    try {
-      const abi = ['function withdraw(uint256 amount)'];
-      console.log('withdrawToken → using address:', tokenAddress);
-      const token = new ethers.Contract(tokenAddress, abi, metamaskDetails.signer);
-      const tx = await token.withdraw(ethers.parseEther(amount));
-      await tx.wait();
-      console.log("Token withdrawn to ETH:", amount);
-      return { status: 200, message: "Withdraw Successful...", hash: tx.hash };
-    } catch (error) {
-      reportError(error);
-      return { status: 500, message: error.message || error.reason };
-    }
-  }, [metamaskDetails.signer]);
-
-  // Deposit ETH to get token (for all tokens with deposit function)
-  const depositToToken = useCallback(async (tokenAddress, amountEth) => {
-    if (!metamaskDetails.signer) {
-      throw new Error("No signer available");
-    }
-
-    try {
-      const abi = ['function deposit() payable'];
-      console.log('depositToToken → using address:', tokenAddress);
-      const token = new ethers.Contract(tokenAddress, abi, metamaskDetails.signer);
-      const tx = await token.deposit({ value: ethers.parseEther(amountEth) });
-      await tx.wait();
-      console.log("ETH deposited to token:", amountEth);
-      return { status: 200, message: "Deposit Successful...", hash: tx.hash };
-    } catch (error) {
-      reportError(error);
-      return { status: 500, message: error.message || error.reason };
-    }
-  }, [metamaskDetails.signer]);
-
   // Refresh all data
   const refresh = useCallback(async () => {
     try {
-      console.log("🔄 Refreshing all data...");
       await Promise.all([
         getUserAssets(),
         getYourSupplies(),
@@ -721,9 +645,8 @@ const LendState = (props) => {
         getAssetsToBorrow(),
         getAccountData(),
       ]);
-      console.log("✅ All data refreshed successfully");
+      console.log("All data refreshed");
     } catch (error) {
-      console.error("❌ Error refreshing data:", error);
       reportError(error);
     }
   }, [getUserAssets, getYourSupplies, getYourBorrows, getAssetsToBorrow, getAccountData]);
@@ -893,10 +816,6 @@ const LendState = (props) => {
 
     // Interest functions
     updateInterests,
-
-    // Token withdraw/deposit functions
-    withdrawToken,
-    depositToToken,
   }), [
     metamaskDetails,
     userAssets,

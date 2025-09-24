@@ -56,7 +56,7 @@ export function LendModal({
         if (token.symbol === 'WETH') {
           // Use token.userBalance if available, otherwise use simulatedBalance
           const userBalance = token.userBalance || simulatedBalance || 0;
-          const formattedBalance = formatCurrency(userBalance);
+          const formattedBalance = formatWETHBalance(userBalance);
           
           if (userBalance > 0) {
             setBalance(formattedBalance);
@@ -66,9 +66,10 @@ export function LendModal({
             // Try to load real balance
             try {
               const balanceStr = await getTokenBalance(provider, token.address, userAddress, token.decimals);
-              setBalance(balanceStr);
+              const formattedRealBalance = formatWETHBalance(parseFloat(balanceStr));
+              setBalance(formattedRealBalance);
               setAllowance('1000000');
-              console.log('✅ REAL: WETH balance loaded from contract:', balanceStr);
+              console.log('✅ REAL: WETH balance loaded from contract:', formattedRealBalance);
             } catch (error) {
               setBalance('0');
               setAllowance('0');
