@@ -88,6 +88,7 @@ export function SimpleDashboard() {
       borrowAPR: 0, // TODO: Get from reserve data
       utilization: 0, // TODO: Calculate
       availableLiquidity: borrowCfg ? parseFloat(borrowCfg.reserveCash || '0') : 0,
+      isBorrowable: borrowCfg ? Boolean(borrowCfg.isBorrowable) : true,
       liquidationThreshold: 8000, // Default
     } as any;
 
@@ -284,6 +285,14 @@ export function SimpleDashboard() {
   };
 
   const handleBorrowClick = (token: any) => {
+    // Debug log for borrow token
+    console.log('🔍 Borrow token selected:', {
+      symbol: token.symbol,
+      address: token.address,
+      isNative: token.isNative,
+      availableLiquidity: token.availableLiquidity
+    });
+    
     // Format user balance
     const userBalance = formatCurrency(token.userBalance || 0);
     
@@ -743,20 +752,16 @@ export function SimpleDashboard() {
                               💰 Supply {token.symbol}
                             </Button>
                           )}
-                          {token.symbol === 'ETH' ? (
+                          {token.symbol === 'ETH' || token.symbol === 'WETH' ? (
                             <Button disabled className="w-full bg-gray-300 text-gray-500">
                               💸 Not Borrowable
                             </Button>
-                          ) : token.symbol !== 'ETH' ? (
+                          ) : (
                             <Button 
                               className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg"
                               onClick={() => handleBorrowClick(token)}
                             >
                               💸 Borrow {token.symbol}
-                            </Button>
-                          ) : (
-                            <Button disabled className="w-full bg-gray-300 text-gray-500">
-                              💸 Not Borrowable
                             </Button>
                           )}
                         </div>

@@ -41,7 +41,22 @@ export function BorrowModal({
 }: BorrowModalProps) {
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [poolValid, setPoolValid] = useState<boolean>(true);
   const { showToast } = useToast();
+  // Validate pool address is a contract to avoid CALL_EXCEPTION from wrong address
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!provider) return;
+        const code = await provider.getCode(poolAddress);
+        if (mounted) setPoolValid(!!code && code !== '0x');
+      } catch {
+        if (mounted) setPoolValid(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [provider, poolAddress]);
 
   // Calculate HF_after
   const calculateHFAfter = (borrowAmount: number) => {
@@ -97,18 +112,43 @@ export function BorrowModal({
     } catch (error: any) {
       console.error('Error borrowing:', error);
       
+      // Enhanced error handling with specific messages
+      let errorMessage = error.message || 'Transaction failed';
+      
+      // Provide user-friendly error messages
+      if (errorMessage.includes('not borrowable')) {
+        errorMessage = 'This asset is not available for borrowing. Please select a borrowable asset.';
+      } else if (errorMessage.includes('no liquidity')) {
+        errorMessage = 'Pool has no liquidity for this asset. Please try another asset or add liquidity first.';
+      } else if (errorMessage.includes('exceeds available')) {
+        errorMessage = 'Amount exceeds available liquidity. Please reduce the amount.';
+      } else if (errorMessage.includes('No collateral')) {
+        errorMessage = 'No collateral provided. Please supply assets first to use as collateral.';
+      } else if (errorMessage.includes('Health factor')) {
+        errorMessage = 'Health factor too low. Please supply more collateral or reduce borrow amount.';
+      } else if (errorMessage.includes('not a contract')) {
+        errorMessage = 'Invalid contract address. Please check your network connection.';
+      }
+      
       // Show error toast
       showToast({
         type: 'error',
         title: 'Borrow Failed',
-        message: error.message || 'Transaction failed'
+        message: errorMessage
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isDisabled = !signer || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > maxBorrow || !isHealthyAfter;
+  const isEth = token.symbol === 'ETH' || token.symbol === 'WETH' || token.address === ethers.ZeroAddress;
+  const noLiquidity = poolLiquidityNum <= 0;
+  const bannerText = !poolValid
+    ? 'LendingPool address is not a contract on the current network. Update addresses.js.'
+    : isEth
+      ? 'Cannot borrow native ETH or WETH. Borrow DAI/USDC instead.'
+      : (noLiquidity ? 'Pool has zero liquidity for this asset.' : undefined);
+  const isDisabled = !signer || isEth || !poolValid || noLiquidity || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > maxBorrow || !isHealthyAfter;
 
   if (!open) return null;
 
@@ -222,6 +262,13 @@ export function BorrowModal({
               </div>
             </div>
           </div>
+
+          {/* Banner for pool issues */}
+          {bannerText && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+              {bannerText}
+            </div>
+          )}
 
           {/* Warning for unhealthy position */}
           {!isHealthyAfter && parseFloat(amount) > 0 && (

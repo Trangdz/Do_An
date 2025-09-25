@@ -99,6 +99,24 @@ export async function lend(
   tokenAddress: string,
   amount: bigint
 ): Promise<TxResult> {
+  const provider = signer.provider as ethers.Provider;
+  if (!provider) throw new Error('No provider');
+
+  // Disallow native ETH here. To supply ETH, wrap to WETH first using wrapEth().
+  if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
+    throw new Error('Cannot supply native ETH via LendingPool. Wrap to WETH first.');
+  }
+
+  // Preflight: verify addresses are real contracts
+  const poolCode = await provider.getCode(CONFIG.LENDING_POOL);
+  if (!poolCode || poolCode === '0x') {
+    throw new Error('LendingPool address is not a contract on this network. Check CONFIG.LENDING_POOL and network.');
+  }
+  const tokenCode = await provider.getCode(tokenAddress);
+  if (!tokenCode || tokenCode === '0x') {
+    throw new Error('Token address is not a contract on this network.');
+  }
+
   const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, signer);
   
   // Approve if needed
@@ -141,14 +159,114 @@ export async function borrow(
   tokenAddress: string,
   amount: bigint
 ): Promise<TxResult> {
+  // Block invalid asset: native ETH cannot be borrowed
+  if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
+    throw new Error('Cannot borrow native ETH. Select an ERC20 asset (e.g., DAI).');
+  }
+  
+  // Block WETH borrowing (not allowed in this protocol)
+  if (tokenAddress.toLowerCase() === CONFIG.WETH.toLowerCase()) {
+    throw new Error('Cannot borrow WETH. Borrow DAI/USDC instead.');
+  }
+  
+  // Preflight: verify addresses point to real contracts on current network
+  const provider = signer.provider as ethers.Provider;
+  if (!provider) throw new Error('No provider');
+  
+  const poolCode = await provider.getCode(CONFIG.LENDING_POOL);
+  if (!poolCode || poolCode === '0x') {
+    throw new Error('LendingPool address is not a contract on this network. Check CONFIG.LENDING_POOL and network.');
+  }
+  
+  const tokenCode = await provider.getCode(tokenAddress);
+  if (!tokenCode || tokenCode === '0x') {
+    throw new Error('Token address is not a contract on this network.');
+  }
+
   const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, signer);
   
-  const txPromise = poolContract.borrow(tokenAddress, amount);
+  // Enhanced validation before borrowing
+  try {
+    const reserve = await poolContract.reserves(tokenAddress);
+    const isBorrowable = Boolean(reserve.isBorrowable);
+    const reserveDecimals = Number(reserve.decimals ?? 18);
+    const reserveCash = Number(ethers.formatUnits(reserve.reserveCash, reserveDecimals));
+    
+    if (!isBorrowable) {
+      throw new Error('This asset is not borrowable. Please select a borrowable asset.');
+    }
+    
+    if (reserveCash <= 0) {
+      throw new Error('Pool has no liquidity for this asset. Please try another asset or add liquidity first.');
+    }
+    
+    // Check if amount is reasonable (not exceeding available liquidity)
+    const availableLiquidity = ethers.parseUnits(reserveCash.toString(), reserveDecimals);
+    if (amount > availableLiquidity) {
+      throw new Error(`Amount exceeds available liquidity. Max: ${ethers.formatUnits(availableLiquidity, reserveDecimals)}`);
+    }
+    
+    // Check user account data for health factor
+    const userAddress = await signer.getAddress();
+    const accountData = await poolContract.getAccountData(userAddress);
+    const collateralUSD = parseFloat(ethers.formatEther(accountData.collateralValue1e18));
+    const debtUSD = parseFloat(ethers.formatEther(accountData.debtValue1e18));
+    const healthFactor = parseFloat(ethers.formatEther(accountData.healthFactor1e18));
+    
+    if (collateralUSD <= 0) {
+      throw new Error('No collateral provided. Please supply assets first to use as collateral.');
+    }
+    
+    if (healthFactor < 1.1) { // Allow some buffer
+      throw new Error(`Health factor too low (${healthFactor.toFixed(2)}). Please supply more collateral or reduce borrow amount.`);
+    }
+    
+    console.log('✅ Borrow validation passed:', {
+      isBorrowable,
+      reserveCash: ethers.formatUnits(reserve.reserveCash, reserveDecimals),
+      collateralUSD,
+      debtUSD,
+      healthFactor
+    });
+    
+  } catch (error: any) {
+    if (error.message.includes('not borrowable') || 
+        error.message.includes('no liquidity') || 
+        error.message.includes('exceeds available') ||
+        error.message.includes('No collateral') ||
+        error.message.includes('Health factor')) {
+      throw error; // Re-throw validation errors
+    }
+    console.warn('[borrow] Could not validate reserve data:', error.message);
+  }
+
+  // Gas estimate with safe headroom
+  let overrides: any = {};
+  try {
+    const gas = await poolContract.borrow.estimateGas(tokenAddress, amount);
+    const gasBig = BigInt(gas.toString());
+    overrides = { gasLimit: (gasBig * BigInt(12)) / BigInt(10) };
+  } catch {
+    // Fallback fixed gasLimit to bypass provider estimateGas issues
+    overrides = { gasLimit: BigInt(1200000) };
+  }
+
+  // Ensure we're calling the correct function with proper encoding
+  console.log('🔍 Borrow transaction details:');
+  console.log(`   Token: ${tokenAddress}`);
+  console.log(`   Amount: ${amount.toString()}`);
+  console.log(`   Pool: ${CONFIG.LENDING_POOL}`);
   
+  const txPromise = poolContract.borrow(tokenAddress, amount, overrides);
+
   return await sendWithToast(txPromise, {
     pending: 'Borrowing tokens...',
     success: 'Tokens borrowed successfully!',
     error: 'Borrow failed'
+  }).catch((e) => {
+    const raw = (e?.shortMessage || e?.message || '').toString();
+    // Surface revert reason if present from provider
+    throw new Error(raw.replace(/\n.*/, ''));
   });
 }
 
@@ -253,4 +371,32 @@ export function parseTokenAmount(amount: string, decimals: number): bigint {
  */
 export function formatTokenAmount(amount: bigint, decimals: number): string {
   return formatUnits(amount, decimals);
+}
+
+/**
+ * Wrap native ETH to WETH via deposit() payable
+ */
+export async function wrapEth(
+  signer: ethers.Signer,
+  wethAddress: string,
+  amountEth: string
+): Promise<TxResult> {
+  const provider = signer.provider as ethers.Provider;
+  if (!provider) throw new Error('No provider');
+  const code = await provider.getCode(wethAddress);
+  if (!code || code === '0x') {
+    throw new Error('WETH address is not a contract on this network.');
+  }
+
+  const WETH_ABI = ['function deposit() payable', 'function balanceOf(address) view returns (uint256)'];
+  const weth = new ethers.Contract(wethAddress, WETH_ABI, signer);
+
+  const value = ethers.parseEther(amountEth);
+  const txPromise = weth.deposit({ value });
+
+  return await sendWithToast(txPromise, {
+    pending: 'Wrapping ETH to WETH...',
+    success: 'ETH wrapped to WETH successfully!',
+    error: 'Wrap ETH failed'
+  });
 }
