@@ -10,7 +10,7 @@ export const POOL_ABI = [
   
   // Write functions
   'function lend(address asset, uint256 amount) external',
-  'function withdraw(address asset, uint256 amount) external',
+  'function withdraw(address asset, uint256 requested) external returns (uint256 amount1e18)',
   'function borrow(address asset, uint256 amount) external',
   'function repay(address asset, uint256 amount, address onBehalfOf) external returns (uint256)',
   'function liquidationCall(address debtAsset, address collateralAsset, address user, uint256 debtAmount) external',

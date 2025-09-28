@@ -497,4 +497,17 @@ function liquidationCall(
     // (optional) bạn có thể re-check HF(user) sau khi thanh lý để đảm bảo >1
 }
 
+// Function to set asset as collateral
+function setAsCollateral(address asset, bool useAsCollateral) external {
+    _requireInited(asset);
+    
+    ReserveUserModels.UserReserveData storage u = userReserves[msg.sender][asset];
+    u.useAsCollateral = useAsCollateral;
+    
+    emit CollateralSet(msg.sender, asset, useAsCollateral);
+}
+
+// Event for collateral setting
+event CollateralSet(address indexed user, address indexed asset, bool useAsCollateral);
+
 }
