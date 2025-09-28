@@ -161,7 +161,7 @@ export function formatBalance(value: number, decimals: number = 4): string {
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
   
   return value.toFixed(decimals);
-}
+} 
 
 /**
  * Format balance for WETH (subtract initial supply of 1M)

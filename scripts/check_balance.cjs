@@ -9,7 +9,7 @@ async function main() {
     console.log("ETH Balance:", ethers.formatEther(ethBalance), "ETH");
     
     // Check WETH balance
-    const wethAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+    const wethAddress = "0x58E8D7188AcC7F49c2326476e5C34878eba951d2";
     const wethContract = new ethers.Contract(wethAddress, [
         "function balanceOf(address) view returns (uint256)",
         "function totalSupply() view returns (uint256)"

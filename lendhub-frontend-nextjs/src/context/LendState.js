@@ -441,7 +441,7 @@ const LendState = (props) => {
       if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
 
       const abi = [
-        'function userReserves(address user, address asset) view returns (uint256 supplyBalance1e18, uint256 borrowBalance1e18, bool isCollateral)'
+        'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
       ];
       const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
 
@@ -450,13 +450,13 @@ const LendState = (props) => {
           try {
             console.log(`🔍 Checking supply for ${token.symbol} (${token.address})`);
             const userReserve = await pool.userReserves(metamaskDetails.currentAccount, token.address);
-            const supplyPrincipal = ethers.formatUnits(userReserve.supplyBalance1e18, 18);
-            const borrowPrincipal = ethers.formatUnits(userReserve.borrowBalance1e18, 18);
+            const supplyPrincipal = ethers.formatUnits(userReserve.supply.principal, 18);
+            const borrowPrincipal = ethers.formatUnits(userReserve.borrow.principal, 18);
             
             console.log(`📊 ${token.symbol} supply:`, {
               supplyBalance: supplyPrincipal,
               borrowBalance: borrowPrincipal,
-              isCollateral: userReserve.isCollateral,
+              isCollateral: userReserve.useAsCollateral,
               user: metamaskDetails.currentAccount
             });
             
@@ -475,7 +475,7 @@ const LendState = (props) => {
                 supplyBalance: supplyPrincipal,
                 balanceUSD: balanceUSD,
                 priceUSD: price,
-                isCollateral: userReserve.isCollateral,
+                isCollateral: userReserve.useAsCollateral,
               };
             }
             console.log(`❌ No supply found for ${token.symbol}`);
@@ -517,7 +517,7 @@ const LendState = (props) => {
       if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
 
       const abi = [
-        'function userReserves(address user, address asset) view returns (uint256 supplyBalance1e18, uint256 borrowBalance1e18, bool isCollateral)'
+        'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
       ];
       const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
 
@@ -526,19 +526,22 @@ const LendState = (props) => {
           try {
             console.log(`🔍 Checking borrow for ${token.symbol} (${token.address})`);
             const userReserve = await pool.userReserves(metamaskDetails.currentAccount, token.address);
-            const borrowPrincipal = ethers.formatUnits(userReserve.borrowBalance1e18, 18);
-            const supplyPrincipal = ethers.formatUnits(userReserve.supplyBalance1e18, 18);
+            const borrowPrincipal = ethers.formatUnits(userReserve.borrow.principal, 18);
+            const supplyPrincipal = ethers.formatUnits(userReserve.supply.principal, 18);
             
             console.log(`📊 ${token.symbol} borrow:`, {
               borrowBalance: borrowPrincipal,
+              borrowBalanceNum: parseFloat(borrowPrincipal),
               supplyBalance: supplyPrincipal,
-              isCollateral: userReserve.isCollateral,
+              isCollateral: userReserve.useAsCollateral,
               user: metamaskDetails.currentAccount
             });
             
-            if (parseFloat(borrowPrincipal) > 0) {
+            // Check if borrow balance is reasonable (not corrupted)
+            const borrowBalanceNum = parseFloat(borrowPrincipal);
+            if (borrowBalanceNum > 0 && borrowBalanceNum < 1e15) { // Reasonable range
               const price = await getPriceUSD(token.address);
-              const balanceUSD = parseFloat(borrowPrincipal) * parseFloat(price);
+              const balanceUSD = borrowBalanceNum * parseFloat(price);
               
               console.log(`✅ Found borrow for ${token.symbol}:`, borrowPrincipal);
               
@@ -551,7 +554,7 @@ const LendState = (props) => {
                 borrowBalance: borrowPrincipal,
                 balanceUSD: balanceUSD,
                 priceUSD: price,
-                isCollateral: userReserve.isCollateral,
+                isCollateral: userReserve.useAsCollateral,
               };
             }
             console.log(`❌ No borrow found for ${token.symbol}`);

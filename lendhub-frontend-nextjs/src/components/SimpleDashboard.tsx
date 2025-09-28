@@ -696,7 +696,7 @@ export function SimpleDashboard() {
                             </div>
                             <div className="text-center">
                               <div className="text-lg font-bold text-red-600">
-                                {formatNumber(token.userBorrow || 0, 4)} {token.symbol}
+                                {formatBalance(token.userBorrow || 0, { decimals: 4 })} {token.symbol}
                               </div>
                               <div className="text-xs text-red-600/70">
                                 Borrowed (${formatCurrency(token.userBorrowUSD || 0)})
