@@ -213,8 +213,13 @@ function lend(address asset, uint256 amount) external {
     uint256 sNew = sNow + delta1e18;
     u.supply.principal = uint128(sNew);
     u.supply.index = r.liquidityIndex;
+    
+    // 4) Set as collateral if it's WETH (for demo purposes)
+    if (asset == WETH) {
+        u.useAsCollateral = true;
+    }
 
-    // 4) Cập nhật sổ cái
+    // 5) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
 
     emit Supplied(msg.sender, asset, delta1e18);

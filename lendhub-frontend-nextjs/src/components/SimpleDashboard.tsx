@@ -761,7 +761,7 @@ export function SimpleDashboard() {
                               className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg"
                               onClick={() => handleBorrowClick(token)}
                             >
-                              💸 Borrow {token.symbol}
+                            💸 Borrow {token.symbol}
                             </Button>
                           )}
                         </div>
@@ -858,7 +858,7 @@ export function SimpleDashboard() {
           token={{
             address: selectedToken.address,
             symbol: selectedToken.symbol,
-            decimals: 18
+            decimals: selectedToken.decimals || 18
           }}
           poolAddress={CONFIG.LENDING_POOL}
           signer={signer}
@@ -884,7 +884,7 @@ export function SimpleDashboard() {
           token={{
             address: selectedToken.address,
             symbol: selectedToken.symbol,
-            decimals: 18
+            decimals: selectedToken.decimals || 18
           }}
           poolAddress={CONFIG.LENDING_POOL}
           signer={signer}
@@ -908,7 +908,7 @@ export function SimpleDashboard() {
           token={{  
             address: selectedToken.address,
             symbol: selectedToken.symbol,
-            decimals: 18
+            decimals: selectedToken.decimals || 18
           }}
           poolAddress={CONFIG.LENDING_POOL}
           signer={signer}
