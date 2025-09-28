@@ -605,8 +605,10 @@ const LendState = (props) => {
           try {
             const reserve = await pool.reserves(token.address);
             const isBorrowable = Boolean(reserve.isBorrowable);
-            const reserveDecimals = Number(reserve.decimals ?? token.decimals ?? 18);
-            const reserveCash = ethers.formatUnits(reserve.reserveCash, reserveDecimals);
+            // Contract stores reserveCash in 18 decimals (normalized), need to convert back to token decimals
+            const reserveCash1e18 = reserve.reserveCash;
+            // Convert from 18 decimals to token decimals
+            const reserveCash = ethers.formatUnits(reserveCash1e18, 18);
             const price = await getPriceUSD(token.address);
 
             // Always return the reserve (even if not borrowable or 0 cash) so UI shows total pool
