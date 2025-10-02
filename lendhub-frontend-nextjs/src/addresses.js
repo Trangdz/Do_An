@@ -3,14 +3,14 @@
 // Mnemonic: test test test test test test test test test test test junk
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
-export const LendingPoolAddress = "0xcFF8dd7765c3b2919540653CC2C921839033d484";
-export const InterestRateModelAddress = "0x464c0C20D266BdC5e8eA8A9809039E943Ac39bBC";
-export const PriceOracleAddress = "0xF37Fab6fF7c5b60C9De4d10284b437901fbd90C0";
+export const LendingPoolAddress = "0xa77A1B9d8f5F4d50Db64525AF587ac9E852A4b11";
+export const InterestRateModelAddress = "0x523102e21e55D6A2F6449735F26eD4d056b80cc7";
+export const PriceOracleAddress = "0x9560b854E0eA45F34Db8D1E811d289ab55386383";
 export const LendingHelperAddress = "0x0000000000000000000000000000000000000000";
-export const WETHAddress = "0x7D7c831af908F9551D73143b1B447C5981B9ABE2";
-export const DAIAddress = "0x1237437e918eFD46604bF5120C8559188B1757Ed";
-export const USDCAddress = "0x948FA9F1c0750D05dc784623F8B82d5881898228";
-export const LINKAddress = "0x7c7BdBfFEf164Fd79DC443B146badE0417AeB142";
+export const WETHAddress = "0x23505c4d380142E30Ee084e4938bCE1821E1a30e";
+export const DAIAddress = "0x0eCA55D63d5274e4CDdAb66af567824Aa43BA3B0";
+export const USDCAddress = "0x2b74D559Beb0696044fe42f35D384150ac99F0F2";
+export const LINKAddress = "0x85E534a91B2A7756995376AA407002a8177c938d";
 
 // 10 Demo Users (each has 100 WETH, 50K DAI, 50K USDC, 10K LINK)
 export const User0Address = "0xa49c4Bc9570F0fbF6fECB276D0290D8ab37B3746";

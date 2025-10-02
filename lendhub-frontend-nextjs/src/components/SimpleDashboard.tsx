@@ -17,6 +17,7 @@ import {
   formatWETHBalance
 } from '../lib/math';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { TokenCard } from './TokenCard';
 
 export function SimpleDashboard() {
   const {
@@ -84,9 +85,9 @@ export function SimpleDashboard() {
       userSupplyUSD: supply ? supply.balanceUSD || 0 : 0,
       userBorrow: borrow ? parseFloat(borrow.borrowPrincipal || '0') : 0,
       userBorrowUSD: borrow ? borrow.balanceUSD || 0 : 0,
-      supplyAPR: 0, // TODO: Get from reserve data
-      borrowAPR: 0, // TODO: Get from reserve data
-      utilization: 0, // TODO: Calculate
+      supplyAPR: 0, // Will be updated by useReserveAPR hook
+      borrowAPR: 0, // Will be updated by useReserveAPR hook
+      utilization: 0, // Will be updated by useReserveAPR hook
       availableLiquidity: borrowCfg ? parseFloat(borrowCfg.reserveCash || '0') : 0,
       isBorrowable: borrowCfg ? Boolean(borrowCfg.isBorrowable) : true,
       liquidationThreshold: 8000, // Default
@@ -635,168 +636,18 @@ export function SimpleDashboard() {
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {tokens.map((token: any, index: number) => (
-                    <div
+                    <TokenCard
                       key={token.address}
-                      
-                      className="group p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 bg-white/50 backdrop-blur-sm"
-                    >
-                      {/* Token Header */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg ${
-                            index === 0 ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
-                            index === 1 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
-                            'bg-gradient-to-r from-purple-500 to-pink-500'
-                          }`}>
-                            {token.symbol.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="font-bold text-lg text-gray-900">{token.symbol}</div>
-                            <div className="text-sm text-gray-500 font-mono">
-                              {token.address.slice(0, 6)}...{token.address.slice(-4)}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-gray-900">
-                            ${token.price.toLocaleString()}
-                          </div>
-                          <div className="text-sm text-gray-500">Current Price</div>
-                        </div>
-                      </div>
-
-                      {/* User Position */}
-                      {(token.userBalance > 0 || token.userSupply > 0 || token.userBorrow > 0) && (
-                        <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
-                          <div className="text-sm font-semibold text-indigo-800 mb-2">Your Position</div>
-                          <div className="grid grid-cols-3 gap-4">
-                            <div className="text-center">
-                              <div className="text-lg font-bold text-blue-600">
-                                {(() => {
-                                  const bal = token.userBalance || 0;
-                                  if (token.symbol === 'WETH') {
-                                    const adjusted = bal > 1000000 ? bal - 1000000 : bal;
-                                    return `${formatBalance(adjusted, 4)} ${token.symbol}`;
-                                  }
-                                  return `${formatBalance(bal, 4)} ${token.symbol}`;
-                                })()}
-                              </div>
-                              <div className="text-xs text-blue-600/70">
-                                Wallet (${formatCurrency(token.userBalanceUSD || 0)})
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-lg font-bold text-green-600">
-                                {formatNumber(token.userSupply || 0, 4)} {token.symbol}
-                              </div>
-                              <div className="text-xs text-green-600/70">
-                                Supplied (${formatCurrency(token.userSupplyUSD || 0)})
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-lg font-bold text-red-600">
-                                {formatBalance(token.userBorrow || 0, { decimals: 4 })} {token.symbol}
-                              </div>
-                               <div className="text-xs text-red-600/70">
-                                Borrowed (${formatCurrency(token.userBorrowUSD || 0)})
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="text-center p-3 rounded-lg bg-blue-50">
-                          <div className="text-lg font-bold text-blue-600">
-                            {formatPercentage(token.supplyAPR)}
-                          </div>
-                          <div className="text-xs text-blue-600/70">Supply APR</div>
-                        </div>
-                        <div className="text-center p-3 rounded-lg bg-green-50">
-                          <div className="text-lg font-bold text-green-600">
-                            {formatPercentage(token.borrowAPR)}
-                          </div>
-                          <div className="text-xs text-green-600/70">Borrow APR</div>
-                        </div>
-                        <div className="text-center p-3 rounded-lg bg-purple-50">
-                          <div className="text-lg font-bold text-purple-600">
-                            {formatPercentage(token.utilization * 100)}
-                          </div>
-                          <div className="text-xs text-purple-600/70">Utilization</div>
-                        </div>
-                        <div className="text-center p-3 rounded-lg bg-gray-50">
-                          <div className="text-lg font-bold text-gray-600">
-                            {formatNumber(token.availableLiquidity, 0)}
-                          </div>
-                          <div className="text-xs text-gray-600/70">Available</div>
-                        </div>
-                      </div>
-
-                      {/* Quick Actions */}
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          {token.symbol === 'ETH' ? (
-                            <Button 
-                              className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg"
-                              onClick={() => handleWrapEthClick()}
-                            >
-                              🔄 Wrap ETH
-                            </Button>
-                          ) : (
-                            <Button 
-                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
-                              onClick={() => handleSupplyClick(token)}
-                            >
-                              💰 Supply {token.symbol}
-                            </Button>
-                          )}
-                          {token.symbol === 'ETH' || token.symbol === 'WETH' ? (
-                            <Button disabled className="w-full bg-gray-300 text-gray-500">
-                              💸 Not Borrowable
-                            </Button>
-                          ) : (
-                            <Button 
-                              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg"
-                              onClick={() => handleBorrowClick(token)}
-                            >
-                            💸 Borrow {token.symbol}
-                            </Button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {token.symbol === 'ETH' ? (
-                            <Button disabled variant="outline" className="w-full border-gray-200 text-gray-400">
-                              📤 N/A
-                            </Button>
-                          ) : (
-                            <Button 
-                              variant="outline" 
-                              className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                              onClick={() => handleWithdrawClick(token)}
-                              disabled={token.userSupply <= 0}
-                            >
-                              📤 Withdraw
-                            </Button>
-                          )}
-                          {token.symbol === 'ETH' ? (
-                            <Button disabled variant="outline" className="w-full border-gray-200 text-gray-400">
-                              💳 N/A
-                            </Button>
-                          ) : (
-                            <Button 
-                              variant="outline" 
-                              className="w-full border-green-200 text-green-600 hover:bg-green-50"
-                              onClick={() => handleRepayClick(token)}
-                              disabled={token.userBorrow <= 0}
-                            >
-                              💳 Repay
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                      token={token}
+                      index={index}
+                      provider={provider}
+                      poolAddress={CONFIG.LENDING_POOL}
+                      onSupplyClick={() => handleSupplyClick(token)}
+                      onBorrowClick={() => handleBorrowClick(token)}
+                      onWithdrawClick={() => handleWithdrawClick(token)}
+                      onRepayClick={() => handleRepayClick(token)}
+                      onWrapEthClick={handleWrapEthClick}
+                    />
                   ))}
                 </div>
               )}

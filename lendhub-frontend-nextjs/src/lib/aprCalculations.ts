@@ -7,19 +7,20 @@ import { ethers } from 'ethers';
  * @returns APR as percentage (e.g., 5.25 for 5.25%)
  */
 export function rayPerSecToAPR(rateRayPerSec: bigint): number {
-  const SECONDS_PER_YEAR = 365 * 24 * 60 * 60; // 31,536,000
+  const SECONDS_PER_YEAR = BigInt(365 * 24 * 60 * 60); // 31,536,000
   const RAY = BigInt(10 ** 27);
   
   // Convert rate per second to rate per year
   // ratePerYear = ratePerSec * secondsPerYear
-  const ratePerYear = rateRayPerSec * BigInt(SECONDS_PER_YEAR);
+  const ratePerYear = rateRayPerSec * SECONDS_PER_YEAR;
   
-  // Convert from Ray (1e27) to percentage (1e2)
+  // Convert from Ray (1e27) to percentage with precision
   // APR% = (ratePerYear / 1e27) * 100
-  const aprBigInt = (ratePerYear * BigInt(100)) / RAY;
+  // To preserve precision, multiply by 10000 first (for 4 decimal places)
+  const aprBigInt = (ratePerYear * BigInt(10000)) / RAY;
   
-  // Convert to number for display
-  return Number(aprBigInt) / 100; // Divide by 100 to get decimal places
+  // Convert to number and divide by 100 to get percentage with 2 decimals
+  return Number(aprBigInt) / 100;
 }
 
 /**
@@ -62,19 +63,43 @@ export async function getReserveAPRData(
   totalBorrowed: string;
 }> {
   try {
-    // LendingPool ABI
+    console.log('🔍 Fetching APR data for:', assetAddress);
+    console.log('   Pool:', poolAddress);
+    
+    // LendingPool ABI - Simple version without tuple names
     const poolABI = [
-      'function reserves(address asset) external view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 lastUpdate, uint8 decimals, uint16 reserveFactorBps, uint16 ltvBps, uint16 liquidationThresholdBps, uint16 liquidationBonusBps, uint16 closeFactorBps, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec) reserve)',
-      'function getInterestRateModel() external view returns (address)'
+      'function reserves(address) external view returns (uint128, uint128, uint128, uint128, uint64, uint64, uint16, uint16, uint16, uint16, uint16, uint8, bool, uint16, uint64, uint64, uint64, uint40)',
+      'function interestRateModel() external view returns (address)'
     ];
     
     const pool = new ethers.Contract(poolAddress, poolABI, provider);
     
     // Get reserve data
-    const reserve = await pool.reserves(assetAddress);
+    console.log('📊 Calling reserves()...');
+    const reserveRaw = await pool.reserves(assetAddress);
+    
+    console.log('📦 Raw reserve data length:', reserveRaw.length);
+    console.log('📦 Reserve raw:', reserveRaw);
+    
+    // Extract only what we need from tuple (safer approach)
+    const reserve = {
+      reserveCash: reserveRaw[0],                    // uint128
+      totalDebtPrincipal: reserveRaw[1],             // uint128
+      reserveFactorBps: reserveRaw[6],               // uint16
+      optimalUBps: reserveRaw[13],                   // uint16
+      baseRateRayPerSec: reserveRaw[14],             // uint64
+      slope1RayPerSec: reserveRaw[15],               // uint64
+      slope2RayPerSec: reserveRaw[16]                // uint64
+    };
+    
+    console.log('✅ Reserve data:', {
+      cash: reserve.reserveCash.toString(),
+      debt: reserve.totalDebtPrincipal.toString(),
+      optimalU: reserve.optimalUBps.toString()
+    });
     
     // Get InterestRateModel address
-    const irmAddress = await pool.getInterestRateModel();
+    const irmAddress = await pool.interestRateModel();
     
     // InterestRateModel ABI
     const irmABI = [
@@ -82,6 +107,16 @@ export async function getReserveAPRData(
     ];
     
     const irm = new ethers.Contract(irmAddress, irmABI, provider);
+    
+    console.log('🔧 IRM Parameters:', {
+      cash: reserve.reserveCash.toString(),
+      debt: reserve.totalDebtPrincipal.toString(),
+      reserveFactorBps: reserve.reserveFactorBps.toString(),
+      optimalUBps: reserve.optimalUBps.toString(),
+      baseRate: reserve.baseRateRayPerSec.toString(),
+      slope1: reserve.slope1RayPerSec.toString(),
+      slope2: reserve.slope2RayPerSec.toString()
+    });
     
     // Calculate current rates
     const rates = await irm.getRates(
@@ -94,9 +129,19 @@ export async function getReserveAPRData(
       reserve.slope2RayPerSec
     );
     
+    console.log('📊 Raw Rates from IRM:', {
+      borrowRateRayPerSec: rates.borrowRateRayPerSec.toString(),
+      supplyRateRayPerSec: rates.supplyRateRayPerSec.toString()
+    });
+    
     // Convert rates to APR
     const supplyAPR = rayPerSecToAPR(rates.supplyRateRayPerSec);
     const borrowAPR = rayPerSecToAPR(rates.borrowRateRayPerSec);
+    
+    console.log('💰 APR Results:', {
+      supplyAPR: supplyAPR.toFixed(4) + '%',
+      borrowAPR: borrowAPR.toFixed(4) + '%'
+    });
     
     // Calculate utilization
     const utilization = calculateUtilization(
@@ -104,16 +149,17 @@ export async function getReserveAPRData(
       reserve.reserveCash + reserve.totalDebtPrincipal
     );
     
-    // Format totals (convert from 1e18 to token decimals)
-    const decimals = reserve.decimals;
-    const conversionFactor = BigInt(10 ** (18 - decimals));
+    console.log('📈 Utilization:', utilization.toFixed(2) + '%');
+    
+    // Format totals (values are in 1e18 precision in contract)
+    // Simply format as strings without conversion
     const totalSupplied = ethers.formatUnits(
-      (reserve.reserveCash + reserve.totalDebtPrincipal) / conversionFactor,
-      decimals
+      reserve.reserveCash + reserve.totalDebtPrincipal,
+      18
     );
     const totalBorrowed = ethers.formatUnits(
-      reserve.totalDebtPrincipal / conversionFactor,
-      decimals
+      reserve.totalDebtPrincipal,
+      18
     );
     
     return {
