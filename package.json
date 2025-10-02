@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
+    "axios": "^1.12.2",
     "ds-test": "github:dapphub/ds-test",
     "forge-std": "^1.1.2"
   }

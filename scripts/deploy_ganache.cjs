@@ -96,13 +96,44 @@ async function main() {
   // Set up contracts
   console.log("\n🔧 Setting up contracts...");
   
-  // Set prices
-  console.log("Setting oracle prices...");
-  await (await oracle.setAssetPrice(await weth.getAddress(), ethers.parseUnits("1600", 18))).wait();
-  await (await oracle.setAssetPrice(await dai.getAddress(), ethers.parseUnits("1", 18))).wait();
-  await (await oracle.setAssetPrice(await usdc.getAddress(), ethers.parseUnits("1", 18))).wait();
-  await (await oracle.setAssetPrice(await link.getAddress(), ethers.parseUnits("6", 18))).wait();
-  console.log("✅ Oracle prices set");
+  // Set REALISTIC prices from CoinGecko
+  console.log("Setting REALISTIC oracle prices...");
+  
+  // Try to fetch real prices from CoinGecko
+  let realPrices = {
+    WETH: 2000, // fallback
+    DAI: 1,
+    USDC: 1,
+    LINK: 15
+  };
+  
+  try {
+    const axios = require("axios");
+    const url = "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,dai,usd-coin,chainlink&vs_currencies=usd";
+    const response = await axios.get(url);
+    const data = response.data;
+    
+    realPrices = {
+      WETH: data.ethereum?.usd || 2000,
+      DAI: data.dai?.usd || 1,
+      USDC: data["usd-coin"]?.usd || 1,
+      LINK: data.chainlink?.usd || 15
+    };
+    
+    console.log("✅ Fetched REAL prices from CoinGecko:");
+    console.log(`   ETH:  $${realPrices.WETH.toFixed(2)}`);
+    console.log(`   DAI:  $${realPrices.DAI.toFixed(4)}`);
+    console.log(`   USDC: $${realPrices.USDC.toFixed(4)}`);
+    console.log(`   LINK: $${realPrices.LINK.toFixed(2)}`);
+  } catch (error) {
+    console.log("⚠️  CoinGecko fetch failed, using fallback prices");
+  }
+  
+  await (await oracle.setAssetPrice(await weth.getAddress(), ethers.parseUnits(realPrices.WETH.toFixed(18), 18))).wait();
+  await (await oracle.setAssetPrice(await dai.getAddress(), ethers.parseUnits(realPrices.DAI.toFixed(18), 18))).wait();
+  await (await oracle.setAssetPrice(await usdc.getAddress(), ethers.parseUnits(realPrices.USDC.toFixed(18), 18))).wait();
+  await (await oracle.setAssetPrice(await link.getAddress(), ethers.parseUnits(realPrices.LINK.toFixed(18), 18))).wait();
+  console.log("✅ Oracle prices set with REALISTIC values!");
   
   // Initialize reserves
   console.log("Initializing reserves...");

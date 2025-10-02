@@ -61,12 +61,32 @@ export function useReserveAPR(
         }
       } catch (error) {
         console.error('Error fetching reserve APR:', error);
+        
+        // If reserve not initialized, return zeros instead of error
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const isReserveNotInitialized = errorMessage.includes('Reserve not initialized') || 
+                                        errorMessage.includes('could not decode result data');
+        
         if (isMounted) {
-          setData(prev => ({
-            ...prev,
-            isLoading: false,
-            error: error instanceof Error ? error.message : 'Failed to fetch APR data'
-          }));
+          if (isReserveNotInitialized) {
+            // Silently fail with zero values (reserve not yet initialized)
+            setData({
+              supplyAPR: 0,
+              borrowAPR: 0,
+              utilization: 0,
+              totalSupplied: '0',
+              totalBorrowed: '0',
+              isLoading: false,
+              error: null // Don't show error, just zeros
+            });
+          } else {
+            // Real error - show it
+            setData(prev => ({
+              ...prev,
+              isLoading: false,
+              error: errorMessage
+            }));
+          }
         }
       }
     };

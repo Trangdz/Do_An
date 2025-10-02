@@ -66,6 +66,17 @@ export async function getReserveAPRData(
     console.log('🔍 Fetching APR data for:', assetAddress);
     console.log('   Pool:', poolAddress);
     
+    // Validate addresses
+    if (!poolAddress || poolAddress === '0x0000000000000000000000000000000000000000') {
+      console.error('❌ Invalid pool address');
+      throw new Error('Invalid pool address');
+    }
+    
+    if (!assetAddress || assetAddress === '0x0000000000000000000000000000000000000000') {
+      console.error('❌ Invalid asset address');
+      throw new Error('Invalid asset address');
+    }
+    
     // LendingPool ABI - Simple version without tuple names
     const poolABI = [
       'function reserves(address) external view returns (uint128, uint128, uint128, uint128, uint64, uint64, uint16, uint16, uint16, uint16, uint16, uint8, bool, uint16, uint64, uint64, uint64, uint40)',
@@ -77,6 +88,12 @@ export async function getReserveAPRData(
     // Get reserve data
     console.log('📊 Calling reserves()...');
     const reserveRaw = await pool.reserves(assetAddress);
+    
+    // Check if reserve is initialized
+    if (!reserveRaw || reserveRaw.length === 0) {
+      console.error('❌ Reserve not initialized for:', assetAddress);
+      throw new Error('Reserve not initialized');
+    }
     
     console.log('📦 Raw reserve data length:', reserveRaw.length);
     console.log('📦 Reserve raw:', reserveRaw);
@@ -169,8 +186,20 @@ export async function getReserveAPRData(
       totalSupplied,
       totalBorrowed
     };
-  } catch (error) {
-    console.error('Error getting reserve APR data:', error);
+  } catch (error: any) {
+    console.error('❌ Error getting reserve APR data:', error);
+    
+    // Log detailed error info for debugging
+    if (error.code === 'BAD_DATA') {
+      console.error('   Reason: Contract returned empty data (0x)');
+      console.error('   Possible causes:');
+      console.error('   1. Reserve not initialized');
+      console.error('   2. Wrong contract address');
+      console.error('   3. Wrong network');
+      console.error('   4. Provider not connected');
+    }
+    
+    // Return zeros silently (don't crash the UI)
     return {
       supplyAPR: 0,
       borrowAPR: 0,

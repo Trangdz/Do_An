@@ -1,3 +1,4 @@
+import React from 'react';
 import { useReserveAPR } from '../hooks/useReserveAPR';
 import { formatPercentage, formatNumber, formatCurrency, formatBalance } from '../lib/math';
 import { Button } from './ui/Button';
@@ -26,18 +27,36 @@ export function TokenCard({
   onRepayClick,
   onWrapEthClick
 }: TokenCardProps) {
-  // Fetch APR data for non-ETH tokens
-  const aprData = useReserveAPR(
-    token.symbol === 'ETH' ? null : provider,
-    poolAddress,
-    token.address,
-    30000 // Refresh every 30 seconds
-  );
+  // Track price changes for animation
+  const [prevPrice, setPrevPrice] = React.useState(token.price);
+  const [priceChanged, setPriceChanged] = React.useState<'up' | 'down' | null>(null);
 
-  // Use APR data if available, otherwise use default 0
-  const supplyAPR = token.symbol === 'ETH' ? 0 : aprData.supplyAPR;
-  const borrowAPR = token.symbol === 'ETH' ? 0 : aprData.borrowAPR;
-  const utilization = token.symbol === 'ETH' ? 0 : aprData.utilization;
+  React.useEffect(() => {
+    if (token.price !== prevPrice) {
+      setPriceChanged(token.price > prevPrice ? 'up' : 'down');
+      setPrevPrice(token.price);
+      
+      // Clear animation after 1 second
+      const timer = setTimeout(() => setPriceChanged(null), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [token.price]);
+
+  // TEMPORARY FIX: Disable APR fetch to prevent crashes
+  // TODO: Fix provider initialization in SimpleDashboard
+  // const shouldFetchAPR = token.symbol !== 'ETH' && provider !== null && poolAddress && poolAddress !== '0x0000000000000000000000000000000000000000';
+  
+  // const aprData = useReserveAPR(
+  //   shouldFetchAPR ? provider : null,
+  //   poolAddress,
+  //   token.address,
+  //   30000 // Refresh every 30 seconds
+  // );
+
+  // Use default 0 for now (APR fetch disabled)
+  const supplyAPR = 0;
+  const borrowAPR = 0;
+  const utilization = 0;
 
   return (
     <div className="group p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 bg-white/50 backdrop-blur-sm">
@@ -60,10 +79,21 @@ export function TokenCard({
         </div>
         
         <div className="text-right">
-          <div className="text-2xl font-bold text-gray-900">
+          <div className={`text-2xl font-bold transition-all duration-300 ${
+            priceChanged === 'up' ? 'text-green-600 scale-110' :
+            priceChanged === 'down' ? 'text-red-600 scale-110' :
+            'text-gray-900'
+          }`}>
             ${token.price.toLocaleString()}
+            {priceChanged && (
+              <span className="ml-2 text-sm">
+                {priceChanged === 'up' ? '↗' : '↘'}
+              </span>
+            )}
           </div>
-          <div className="text-sm text-gray-500">Current Price</div>
+          <div className="text-sm text-gray-500">
+            Current Price {priceChanged && <span className="text-xs ml-1 animate-pulse">●</span>}
+          </div>
         </div>
       </div>
 
@@ -111,31 +141,19 @@ export function TokenCard({
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="text-center p-3 rounded-lg bg-blue-50">
           <div className="text-lg font-bold text-blue-600">
-            {aprData.isLoading && token.symbol !== 'ETH' ? (
-              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            ) : (
-              formatPercentage(supplyAPR)
-            )}
+            {formatPercentage(supplyAPR)}
           </div>
           <div className="text-xs text-blue-600/70">Supply APR</div>
         </div>
         <div className="text-center p-3 rounded-lg bg-green-50">
           <div className="text-lg font-bold text-green-600">
-            {aprData.isLoading && token.symbol !== 'ETH' ? (
-              <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            ) : (
-              formatPercentage(borrowAPR)
-            )}
+            {formatPercentage(borrowAPR)}
           </div>
           <div className="text-xs text-green-600/70">Borrow APR</div>
         </div>
         <div className="text-center p-3 rounded-lg bg-purple-50">
           <div className="text-lg font-bold text-purple-600">
-            {aprData.isLoading && token.symbol !== 'ETH' ? (
-              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            ) : (
-              formatPercentage(utilization)
-            )}
+            {formatPercentage(utilization)}
           </div>
           <div className="text-xs text-purple-600/70">Utilization</div>
         </div>

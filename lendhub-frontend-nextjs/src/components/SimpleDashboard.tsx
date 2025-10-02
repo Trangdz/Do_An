@@ -18,6 +18,8 @@ import {
 } from '../lib/math';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TokenCard } from './TokenCard';
+import { useRealtimePrices } from '../hooks/useRealtimePrices';
+import { PriceOracleAddress } from '../addresses';
 
 export function SimpleDashboard() {
   const {
@@ -48,6 +50,15 @@ export function SimpleDashboard() {
   const ethBalance = parseFloat(userAssets.find((a: any) => a.symbol === 'ETH')?.balance || '0');
   const realWethBalance = parseFloat(userAssets.find((a: any) => a.symbol === 'WETH')?.balance || '0');
   
+  // Real-time price updates (poll every 10 seconds)
+  const tokenAddresses = userAssets.map((a: any) => a.address).filter((a: string) => a !== '0x0000000000000000000000000000000000000000');
+  const realtimePrices = useRealtimePrices(
+    isConnected ? provider : null,
+    PriceOracleAddress,
+    tokenAddresses,
+    10000 // Update every 10 seconds
+  );
+  
   // Create tokens array for display (combine user assets with supply/borrow data)
   const tokens = userAssets.map((asset: any) => {
     const supply = supplyAssets.find((s: any) => s.address === asset.address);
@@ -72,13 +83,17 @@ export function SimpleDashboard() {
       });
     }
     
+    // Use real-time price if available, fallback to context price
+    const realtimePrice = realtimePrices.prices[asset.address]?.price;
+    const price = realtimePrice !== undefined ? realtimePrice : parseFloat(asset.priceUSD || '0');
+    
     const base = {
       address: asset.address,
       symbol: asset.symbol,
       name: asset.name,
       decimals: asset.decimals,
       isNative: asset.isNative,
-      price: parseFloat(asset.priceUSD || '0'),
+      price: price,
       userBalance: parseFloat(asset.balance || '0'),
       userBalanceUSD: asset.balanceUSD || 0,
       userSupply: supply ? parseFloat(supply.supplyPrincipal || '0') : 0,
