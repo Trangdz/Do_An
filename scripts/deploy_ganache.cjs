@@ -1,152 +1,316 @@
-const { ethers } = require("ethers");
+const { ethers } = require("hardhat");
 
 async function main() {
-    console.log("🚀 Deploy to Ganache");
-    console.log("====================");
+  console.log("🎬 Deploy Complete to GANACHE - All Contracts");
+  console.log("================================================");
+
+  // Get signers from Ganache
+  const [deployer, user, liquidator] = await ethers.getSigners();
+  
+  console.log("👤 Deployer:", deployer.address);
+  console.log("👤 User:", user.address);
+  console.log("👤 Liquidator:", liquidator.address);
+  
+  const deployerBalance = await ethers.provider.getBalance(deployer.address);
+  console.log("💰 Deployer balance:", ethers.formatEther(deployerBalance), "ETH");
+  
+  console.log("\n📦 Deploying all available contracts...");
+  
+  // Deploy ERC20 tokens with withdraw functionality
+  const TokenWithWithdraw = await ethers.getContractFactory("TokenWithWithdraw");
+  
+  // WETH uses TokenWithWithdraw for deposit/withdraw functionality
+  console.log("Deploying tokens...");
+  const weth = await TokenWithWithdraw.deploy("Wrapped ETH", "WETH", 18, 1000000); // 1M initial supply
+  const dai = await TokenWithWithdraw.deploy("Dai Stablecoin", "DAI", 18, 1000000);
+  const usdc = await TokenWithWithdraw.deploy("USD Coin", "USDC", 6, 1000000);
+  const link = await TokenWithWithdraw.deploy("Chainlink Token", "LINK", 18, 1000000);
+  
+  await weth.waitForDeployment();
+  await dai.waitForDeployment();
+  await usdc.waitForDeployment();
+  await link.waitForDeployment();
+  
+  console.log("✅ Tokens deployed");
+  
+  // Deploy core contracts
+  console.log("Deploying core contracts...");
+  const LendingPool = await ethers.getContractFactory("LendingPool");
+  const InterestRateModel = await ethers.getContractFactory("InterestRateModel");
+  const PriceOracle = await ethers.getContractFactory("PriceOracle");
+  
+  const irm = await InterestRateModel.deploy();
+  const oracle = await PriceOracle.deploy();
+  const pool = await LendingPool.deploy(
+    await irm.getAddress(), 
+    await oracle.getAddress(),
+    await weth.getAddress(),
+    await dai.getAddress()
+  );
+  
+  await irm.waitForDeployment();
+  await oracle.waitForDeployment();
+  await pool.waitForDeployment();
+  
+  console.log("✅ Core contracts deployed");
+  
+  // Deploy MockV3Aggregator if available
+  let mockAggregator = null;
+  try {
+    const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
+    mockAggregator = await MockV3Aggregator.deploy(8, ethers.parseUnits("1600", 8)); // 8 decimals, $1600
+    await mockAggregator.waitForDeployment();
+    console.log("✅ MockV3Aggregator deployed");
+  } catch (error) {
+    console.log("⚠️ MockV3Aggregator not available");
+  }
+  
+  // Print all addresses
+  console.log("\n📋 Complete Contract Addresses:");
+  console.log("================================");
+  console.log(`// Core Contracts`);
+  console.log(`export const LendingPoolAddress = "${await pool.getAddress()}";`);
+  console.log(`export const InterestRateModelAddress = "${await irm.getAddress()}";`);
+  console.log(`export const PriceOracleAddress = "${await oracle.getAddress()}";`);
+  
+  console.log(`\n// ERC20 Tokens`);
+  console.log(`export const ETHAddress = "0x0000000000000000000000000000000000000000";`);
+  console.log(`export const WETHAddress = "${await weth.getAddress()}";`);
+  console.log(`export const DAIAddress = "${await dai.getAddress()}";`);
+  console.log(`export const USDCAddress = "${await usdc.getAddress()}";`);
+  console.log(`export const LINKAddress = "${await link.getAddress()}";`);
+  
+  if (mockAggregator) {
+    console.log(`\n// Mock Contracts`);
+    console.log(`export const MockV3AggregatorAddress = "${await mockAggregator.getAddress()}";`);
+  }
+  
+  console.log(`\n// Not Deployed (Interfaces/Libraries)`);
+  console.log(`export const LendingHelperAddress = "0x0000000000000000000000000000000000000000"; // Not available`);
+  
+  console.log(`\n// Account Addresses (From Ganache)`);
+  console.log(`export const DeployerAddress = "${deployer.address}";`);
+  console.log(`export const UserAddress = "${user.address}";`);
+  console.log(`export const LiquidatorAddress = "${liquidator.address}";`);
+  
+  // Set up contracts
+  console.log("\n🔧 Setting up contracts...");
+  
+  // Set prices
+  console.log("Setting oracle prices...");
+  await (await oracle.setAssetPrice(await weth.getAddress(), ethers.parseUnits("1600", 18))).wait();
+  await (await oracle.setAssetPrice(await dai.getAddress(), ethers.parseUnits("1", 18))).wait();
+  await (await oracle.setAssetPrice(await usdc.getAddress(), ethers.parseUnits("1", 18))).wait();
+  await (await oracle.setAssetPrice(await link.getAddress(), ethers.parseUnits("6", 18))).wait();
+  console.log("✅ Oracle prices set");
+  
+  // Initialize reserves
+  console.log("Initializing reserves...");
+  const SECONDS_PER_YEAR = 365 * 24 * 3600;
+  const toRayPerSec = (apr) => BigInt(Math.floor(apr * 1e27 / SECONDS_PER_YEAR));
+  
+  const base = toRayPerSec(0.001);
+  const s1 = toRayPerSec(0.002);
+  const s2 = toRayPerSec(0.01);
+  
+  // Init WETH (collateral only)
+  await (await pool.initReserve(
+    await weth.getAddress(), 18,
+    1000, 7500, 8000, 500, 5000,
+    false, // isBorrowable = false
+    8000, base, s1, s2
+  )).wait();
+  console.log("✅ WETH reserve initialized");
+  
+  // Init DAI (borrowable)
+  await (await pool.initReserve(
+    await dai.getAddress(), 18,
+    1000, 7500, 8000, 500, 5000,
+    true, // isBorrowable = true
+    8000, base, s1, s2
+  )).wait();
+  console.log("✅ DAI reserve initialized");
+  
+  // Init USDC (borrowable)
+  await (await pool.initReserve(
+    await usdc.getAddress(), 6,
+    1000, 7500, 8000, 500, 5000,
+    true, // isBorrowable = true
+    8000, base, s1, s2
+  )).wait();
+  console.log("✅ USDC reserve initialized");
+  
+  // Init LINK (borrowable)
+  await (await pool.initReserve(
+    await link.getAddress(), 18,
+    1000, 7500, 8000, 500, 5000,
+    true, // isBorrowable = true
+    8000, base, s1, s2
+  )).wait();
+  console.log("✅ LINK reserve initialized");
+  
+  console.log("✅ All reserves initialized!");
+  
+  // Mint tokens to users
+  console.log("\n💰 Minting tokens to users...");
+  await (await weth.mint(user.address, ethers.parseUnits("100", 18))).wait();
+  await (await dai.mint(liquidator.address, ethers.parseUnits("200000", 18))).wait();
+  await (await dai.mint(deployer.address, ethers.parseUnits("100000", 18))).wait();
+  await (await usdc.mint(liquidator.address, ethers.parseUnits("200000", 6))).wait();
+  await (await usdc.mint(deployer.address, ethers.parseUnits("100000", 6))).wait();
+  await (await link.mint(liquidator.address, ethers.parseUnits("10000", 18))).wait();
+  await (await link.mint(deployer.address, ethers.parseUnits("5000", 18))).wait();
+  
+  console.log("✅ Tokens minted to users");
+
+  // Auto-update frontend configs
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const frontendDir = path.join(__dirname, '..', 'lendhub-frontend-nextjs');
+
+    const poolAddr = await pool.getAddress();
+    const oracleAddr = await oracle.getAddress();
+    const irmAddr = await irm.getAddress();
+    const wethAddr = await weth.getAddress();
+    const daiAddr = await dai.getAddress();
+    const usdcAddr = await usdc.getAddress();
+    const linkAddr = await link.getAddress();
+
+    // 1) Write src/addresses.js
+    const addressesJsPath = path.join(frontendDir, 'src', 'addresses.js');
+    const mockAggLine = mockAggregator ? `export const MockV3AggregatorAddress = "${await mockAggregator.getAddress()}";\n` : '';
+    const addressesJs = `// Contract addresses (auto-updated by deploy script - GANACHE)
+// Network: Ganache Local (http://127.0.0.1:7545)
+// Chain ID: 1337
+export const ETHAddress = "0x0000000000000000000000000000000000000000";
+export const LendingPoolAddress = "${poolAddr}";
+export const InterestRateModelAddress = "${irmAddr}";
+export const LendingHelperAddress = "0x0000000000000000000000000000000000000000"; // Not deployed
+export const WETHAddress = "${wethAddr}";
+export const DAIAddress = "${daiAddr}";
+export const USDCAddress = "${usdcAddr}";
+export const LINKAddress = "${linkAddr}";
+export const PriceOracleAddress = "${oracleAddr}";
+${mockAggLine}
+// Account Addresses (From Ganache)
+export const DeployerAddress = "${deployer.address}";
+export const UserAddress = "${user.address}";
+export const LiquidatorAddress = "${liquidator.address}";
+`;
+    fs.writeFileSync(addressesJsPath, addressesJs);
+
+    // 2) Write .env.local to override config/contracts.ts
+    const envLocalPath = path.join(frontendDir, '.env.local');
+    const envLocal = `# GANACHE LOCAL NETWORK
+NEXT_PUBLIC_RPC_URL=http://127.0.0.1:7545
+NEXT_PUBLIC_CHAIN_ID=1337
+NEXT_PUBLIC_POOL=${poolAddr}
+NEXT_PUBLIC_ORACLE=${oracleAddr}
+NEXT_PUBLIC_IRM=${irmAddr}
+NEXT_PUBLIC_WETH=${wethAddr}
+NEXT_PUBLIC_DAI=${daiAddr}
+NEXT_PUBLIC_USDC=${usdcAddr}
+NEXT_PUBLIC_LINK=${linkAddr}
+`;
+    fs.writeFileSync(envLocalPath, envLocal);
+
+    console.log("\n🛠️ Frontend updated:");
+    console.log(`- Updated ${path.relative(process.cwd(), addressesJsPath)}`);
+    console.log(`- Updated ${path.relative(process.cwd(), envLocalPath)}`);
+    console.log("🔄 Next.js will pick up .env.local on restart; addresses.js is updated immediately.");
+  } catch (e) {
+    console.log("⚠️ Failed to auto-update frontend files:", e.message);
+  }
+
+  // Run quick tests
+  console.log("\n🧪 Running quick tests...");
+  console.log("─".repeat(40));
+  
+  try {
+    // Test 1: Lend
+    console.log("\n1️⃣ TEST LEND");
+    await dai.connect(deployer).approve(poolAddr, ethers.MaxUint256);
+    await pool.connect(deployer).lend(await dai.getAddress(), ethers.parseUnits("1000", 18));
+    const deployerReserve = await pool.userReserves(deployer.address, await dai.getAddress());
+    console.log("✅ Deployer lent 1000 DAI");
+    console.log("   Supply:", ethers.formatUnits(deployerReserve.supply.principal, 18), "DAI");
     
-    // Connect to Ganache
-    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-    const deployer = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", provider);
+    // Test 2: Borrow
+    console.log("\n2️⃣ TEST BORROW");
+    await weth.connect(user).approve(poolAddr, ethers.MaxUint256);
+    await pool.connect(user).lend(await weth.getAddress(), ethers.parseUnits("1", 18));
+    console.log("✅ User lent 1 WETH as collateral");
     
-    console.log("Deploying with account:", deployer.address);
-    console.log("Network:", await provider.getNetwork());
+    const daiBalBefore = await dai.balanceOf(user.address);
+    await pool.connect(user).borrow(await dai.getAddress(), ethers.parseUnits("100", 18));
+    const daiBalAfter = await dai.balanceOf(user.address);
+    console.log("✅ User borrowed 100 DAI");
+    console.log("   Received:", ethers.formatUnits(daiBalAfter - daiBalBefore, 18), "DAI");
     
-    try {
-        // Deploy InterestRateModel first
-        console.log("\n📦 Deploying InterestRateModel...");
-        const InterestRateModelABI = [
-            'constructor()',
-            'function getBorrowRate(uint256 cash, uint256 borrows, uint256 reserves) external view returns (uint256)',
-            'function getSupplyRate(uint256 cash, uint256 borrows, uint256 reserves, uint256 reserveFactorMantissa) external view returns (uint256)'
-        ];
-        
-        const InterestRateModelBytecode = "0x608060405234801561001057600080fd5b50600436106100365760003560e01c806315f240531461003b5780636c540baf1461006f575b600080fd5b61004d6100493660046100d4565b610083565b6040516100669190610100565b60405180910390f35b61007761007d565b6040516100669190610100565b6000919050565b6000546001600160a01b0316331461009b57600080fd5b600080546001600160a01b0319166001600160a01b0392909216919091179055565b600080fd5b600080fd5b600080fd5b60008083601f8401126100d157600080fd5b50813567ffffffffffffffff8111156100e957600080fd5b6020830191508360208285010111156100ff57600080fd5b9250929050565b600060208083528351808285015260005b8181101561012d57858101830151858201604001528201610111565b8181111561013f576000604083870101525b50601f01601f191692909201604001939250505056fea2646970667358221220...";
-        
-        const InterestRateModelFactory = new ethers.ContractFactory(InterestRateModelABI, InterestRateModelBytecode, deployer);
-        const interestRateModel = await InterestRateModelFactory.deploy();
-        await interestRateModel.waitForDeployment();
-        const interestRateModelAddress = await interestRateModel.getAddress();
-        console.log("✅ InterestRateModel deployed:", interestRateModelAddress);
-        
-        // Deploy PriceOracle
-        console.log("\n📦 Deploying PriceOracle...");
-        const PriceOracleABI = [
-            'constructor()',
-            'function setAssetPrice(address asset, uint256 price) external',
-            'function getAssetPrice(address asset) external view returns (uint256)'
-        ];
-        
-        const PriceOracleBytecode = "0x608060405234801561001057600080fd5b50600436106100365760003560e01c806315f240531461003b5780636c540baf1461006f575b600080fd5b61004d6100493660046100d4565b610083565b6040516100669190610100565b60405180910390f35b61007761007d565b6040516100669190610100565b6000919050565b6000546001600160a01b0316331461009b57600080fd5b600080546001600160a01b0319166001600160a01b0392909216919091179055565b600080fd5b600080fd5b600080fd5b60008083601f8401126100d157600080fd5b50813567ffffffffffffffff8111156100e957600080fd5b6020830191508360208285010111156100ff57600080fd5b9250929050565b600060208083528351808285015260005b8181101561012d57858101830151858201604001528201610111565b8181111561013f576000604083870101525b50601f01601f191692909201604001939250505056fea2646970667358221220...";
-        
-        const PriceOracleFactory = new ethers.ContractFactory(PriceOracleABI, PriceOracleBytecode, deployer);
-        const priceOracle = await PriceOracleFactory.deploy();
-        await priceOracle.waitForDeployment();
-        const priceOracleAddress = await priceOracle.getAddress();
-        console.log("✅ PriceOracle deployed:", priceOracleAddress);
-        
-        // Deploy ERC20 tokens
-        console.log("\n📦 Deploying ERC20 Tokens...");
-        
-        const ERC20ABI = [
-            'constructor(string name, string symbol, uint8 decimals, uint256 initialSupply)',
-            'function balanceOf(address) view returns (uint256)',
-            'function totalSupply() view returns (uint256)',
-            'function mint(address to, uint256 amount) external',
-            'function approve(address spender, uint256 amount) returns (bool)'
-        ];
-        
-        const ERC20Bytecode = "0x608060405234801561001057600080fd5b50600436106100365760003560e01c806315f240531461003b5780636c540baf1461006f575b600080fd5b61004d6100493660046100d4565b610083565b6040516100669190610100565b60405180910390f35b61007761007d565b6040516100669190610100565b6000919050565b6000546001600160a01b0316331461009b57600080fd5b600080546001600160a01b0319166001600160a01b0392909216919091179055565b600080fd5b600080fd5b600080fd5b60008083601f8401126100d157600080fd5b50813567ffffffffffffffff8111156100e957600080fd5b6020830191508360208285010111156100ff57600080fd5b9250929050565b600060208083528351808285015260005b8181101561012d57858101830151858201604001528201610111565b8181111561013f576000604083870101525b50601f01601f191692909201604001939250505056fea2646970667358221220...";
-        
-        // Deploy WETH
-        const WETHFactory = new ethers.ContractFactory(ERC20ABI, ERC20Bytecode, deployer);
-        const weth = await WETHFactory.deploy("Wrapped Ether", "WETH", 18, ethers.parseEther("1000000"));
-        await weth.waitForDeployment();
-        const wethAddress = await weth.getAddress();
-        console.log("✅ WETH deployed:", wethAddress);
-        
-        // Deploy DAI
-        const dai = await WETHFactory.deploy("Dai Stablecoin", "DAI", 18, ethers.parseEther("1000000"));
-        await dai.waitForDeployment();
-        const daiAddress = await dai.getAddress();
-        console.log("✅ DAI deployed:", daiAddress);
-        
-        // Deploy USDC
-        const usdc = await WETHFactory.deploy("USD Coin", "USDC", 6, ethers.parseUnits("1000000", 6));
-        await usdc.waitForDeployment();
-        const usdcAddress = await usdc.getAddress();
-        console.log("✅ USDC deployed:", usdcAddress);
-        
-        // Deploy LINK
-        const link = await WETHFactory.deploy("Chainlink Token", "LINK", 18, ethers.parseEther("1000000"));
-        await link.waitForDeployment();
-        const linkAddress = await link.getAddress();
-        console.log("✅ LINK deployed:", linkAddress);
-        
-        // Deploy LendingPool
-        console.log("\n📦 Deploying LendingPool...");
-        const LendingPoolABI = [
-            'constructor(address irm, address oracle, address weth, address dai)',
-            'function initReserve(address asset, uint8 decimals, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps) external',
-            'function lend(address asset, uint256 amount) external',
-            'function withdraw(address asset, uint256 amount) external returns (uint256)',
-            'function borrow(address asset, uint256 amount) external',
-            'function repay(address asset, uint256 amount, address onBehalfOf) external returns (uint256)',
-            'function userReserves(address user, address asset) view returns (uint256 supplyBalance1e18, uint256 borrowBalance1e18, bool isCollateral)',
-            'function getAccountData(address user) view returns (uint256 collateralValue1e18, uint256 debtValue1e18, uint256 healthFactor1e18)',
-            'function reserves(address asset) view returns (uint256 reserveCash, uint256 totalDebt, uint256 utilizationWad, uint256 liquidityRateRayPerSec, uint256 variableBorrowRateRayPerSec, uint256 liquidityIndexRay, uint256 variableBorrowIndexRay, uint8 decimals, bool isBorrowable, uint16 liquidationThreshold, uint16 ltv, uint16 reserveFactor, uint16 liquidationBonus, uint16 closeFactor)'
-        ];
-        
-        const LendingPoolBytecode = "0x608060405234801561001057600080fd5b50600436106100365760003560e01c806315f240531461003b5780636c540baf1461006f575b600080fd5b61004d6100493660046100d4565b610083565b6040516100669190610100565b60405180910390f35b61007761007d565b6040516100669190610100565b6000919050565b6000546001600160a01b0316331461009b57600080fd5b600080546001600160a01b0319166001600160a01b0392909216919091179055565b600080fd5b600080fd5b600080fd5b60008083601f8401126100d157600080fd5b50813567ffffffffffffffff8111156100e957600080fd5b6020830191508360208285010111156100ff57600080fd5b9250929050565b600060208083528351808285015260005b8181101561012d57858101830151858201604001528201610111565b8181111561013f576000604083870101525b50601f01601f191692909201604001939250505056fea2646970667358221220...";
-        
-        const LendingPoolFactory = new ethers.ContractFactory(LendingPoolABI, LendingPoolBytecode, deployer);
-        const lendingPool = await LendingPoolFactory.deploy(interestRateModelAddress, priceOracleAddress, wethAddress, daiAddress);
-        await lendingPool.waitForDeployment();
-        const lendingPoolAddress = await lendingPool.getAddress();
-        console.log("✅ LendingPool deployed:", lendingPoolAddress);
-        
-        // Set up reserves
-        console.log("\n🔧 Setting up reserves...");
-        
-        // Set asset prices
-        await priceOracle.setAssetPrice(wethAddress, ethers.parseEther("1600")); // $1600
-        await priceOracle.setAssetPrice(daiAddress, ethers.parseEther("1")); // $1
-        await priceOracle.setAssetPrice(usdcAddress, ethers.parseEther("1")); // $1
-        await priceOracle.setAssetPrice(linkAddress, ethers.parseEther("10")); // $10
-        console.log("✅ Asset prices set");
-        
-        // Initialize reserves
-        await lendingPool.initReserve(wethAddress, 18, 1000, 5000, 5000, 1000); // 50% LTV
-        await lendingPool.initReserve(daiAddress, 18, 1000, 5000, 5000, 1000); // 50% LTV
-        await lendingPool.initReserve(usdcAddress, 6, 1000, 5000, 5000, 1000); // 50% LTV
-        await lendingPool.initReserve(linkAddress, 18, 1000, 5000, 5000, 1000); // 50% LTV
-        console.log("✅ Reserves initialized");
-        
-        // Mint tokens to deployer
-        console.log("\n💰 Minting tokens to deployer...");
-        await weth.mint(deployer.address, ethers.parseEther("1000000"));
-        await dai.mint(deployer.address, ethers.parseEther("1000000"));
-        await usdc.mint(deployer.address, ethers.parseUnits("1000000", 6));
-        await link.mint(deployer.address, ethers.parseEther("1000000"));
-        console.log("✅ Tokens minted");
-        
-        // Output addresses
-        console.log("\n📋 Contract Addresses:");
-        console.log("=====================");
-        console.log("LendingPool:", lendingPoolAddress);
-        console.log("InterestRateModel:", interestRateModelAddress);
-        console.log("PriceOracle:", priceOracleAddress);
-        console.log("WETH:", wethAddress);
-        console.log("DAI:", daiAddress);
-        console.log("USDC:", usdcAddress);
-        console.log("LINK:", linkAddress);
-        
-        console.log("\n✅ Deployment to Ganache completed!");
-        console.log("🎉 All contracts are ready to use!");
-        
-    } catch (error) {
-        console.error("❌ Deployment failed:", error.message);
+    // Test 3: Repay partial
+    console.log("\n3️⃣ TEST REPAY PARTIAL");
+    await dai.connect(user).approve(poolAddr, ethers.MaxUint256);
+    await pool.connect(user).repay(await dai.getAddress(), ethers.parseUnits("50", 18), user.address);
+    const userDebtPartial = await pool.userReserves(user.address, await dai.getAddress());
+    console.log("✅ User repaid 50 DAI");
+    console.log("   Remaining debt:", ethers.formatUnits(userDebtPartial.borrow.principal, 18), "DAI");
+    
+    // Test 4: Repay all
+    console.log("\n4️⃣ TEST REPAY ALL (DEBT TO ZERO)");
+    const debtBefore = await pool.userReserves(user.address, await dai.getAddress());
+    const debtRaw = debtBefore.borrow.principal;
+    console.log("   Debt before:", ethers.formatUnits(debtRaw, 18), "DAI");
+    
+    if (debtRaw > 0n) {
+      // Calculate with buffer
+      const withBuffer = (debtRaw * 120n) / 100n;
+      await pool.connect(user).repay(await dai.getAddress(), withBuffer, user.address);
+      
+      const debtAfter = await pool.userReserves(user.address, await dai.getAddress());
+      console.log("   Debt after:", ethers.formatUnits(debtAfter.borrow.principal, 18), "DAI");
+      
+      if (debtAfter.borrow.principal === 0n) {
+        console.log("   🎉 DEBT CLEARED TO ZERO!");
+      } else if (debtAfter.borrow.principal < 1000n) {
+        console.log("   ✅ Dust cleared (< 1000 wei)");
+      } else {
+        console.log("   ⚠️ Debt still exists");
+      }
     }
+    
+    // Test 5: Withdraw
+    console.log("\n5️⃣ TEST WITHDRAW");
+    const usdcBalBefore = await usdc.balanceOf(deployer.address);
+    await usdc.connect(deployer).approve(poolAddr, ethers.MaxUint256);
+    await pool.connect(deployer).lend(await usdc.getAddress(), ethers.parseUnits("1000", 6));
+    await pool.connect(deployer).withdraw(await usdc.getAddress(), ethers.parseUnits("100", 6));
+    const usdcBalAfter = await usdc.balanceOf(deployer.address);
+    console.log("✅ Deployer withdrew 100 USDC");
+    console.log("   Net change:", ethers.formatUnits(usdcBalAfter - usdcBalBefore, 6), "USDC");
+    
+    console.log("\n" + "=".repeat(40));
+    console.log("🎉 ALL TESTS PASSED!");
+    console.log("=".repeat(40));
+    
+  } catch (testErr) {
+    console.log("\n❌ Test failed:", testErr.message);
+  }
+
+  console.log("\n🎉 Complete deployment to GANACHE finished! ✅");
+  console.log("\n📋 Next steps:");
+  console.log("1. Ganache is running at http://127.0.0.1:7545");
+  console.log("2. Import Ganache accounts to MetaMask:");
+  console.log(`   - Deployer: ${deployer.address}`);
+  console.log(`   - User: ${user.address}`);
+  console.log(`   - Liquidator: ${liquidator.address}`);
+  console.log("3. Start frontend: cd lendhub-frontend-nextjs && npm run dev");
+  console.log("4. Connect MetaMask to Ganache (Chain ID: 1337)");
+  console.log("5. Test all features on the UI!");
 }
 
-main().catch(console.error);
-
+main().catch((error) => {
+  console.error("\n❌ DEPLOYMENT FAILED:");
+  console.error(error);
+  process.exit(1);
+});

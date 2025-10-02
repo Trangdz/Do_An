@@ -183,7 +183,7 @@ function _getAccountData(address user) internal view returns (
 }
 
 // x_max theo công thức bạn chốt: tối đa rút được của 1 asset khi vẫn HF_after>=1
-function _maxWithdrawAllowed(address user, address asset) internal view returns (uint256 xMax1e18) {
+function _maxWithdrawAllowed(address /*user*/, address /*asset*/) internal pure returns (uint256 xMax1e18) {
     // Simplified version for demo - return max value to allow withdraw
     // In production, you would implement proper health factor calculation
     return type(uint256).max;
@@ -280,7 +280,7 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
     ReserveUserModels.UserReserveData storage u = userReserves[msg.sender][asset];
     
     // Check health factor before borrow
-    (uint256 col, uint256 debt, uint256 hf) = _getAccountData(msg.sender);
+    (uint256 col, uint256 debt, ) = _getAccountData(msg.sender);
     uint256 borrowAmount1e18 = _to1e18(amount, r.decimals);
     uint256 newDebt = debt + borrowAmount1e18;
     
@@ -322,21 +322,51 @@ function repay(address asset, uint256 amount, address onBehalfOf) external nonRe
     
     // Transfer tokens from user
     uint256 transferAmount = _from1e18(repayAmount1e18, r.decimals);
+    
+    // DUST PROTECTION: If transferAmount rounds to 0, set to 1 wei minimum
+    if (transferAmount == 0 && repayAmount1e18 > 0) {
+        transferAmount = 1;
+    }
+    
     uint256 balBefore = IERC20(asset).balanceOf(address(this));
     IERC20(asset).safeTransferFrom(msg.sender, address(this), transferAmount);
     uint256 received = IERC20(asset).balanceOf(address(this)) - balBefore;
     uint256 received1e18 = _to1e18(received, r.decimals);
     
+    // Cap repay amount to what was actually received
     if (received1e18 < repayAmount1e18) repayAmount1e18 = received1e18;
     
     // Update user debt position
     uint256 newDebt = currentDebt - repayAmount1e18;
+    
+    // DUST CLEANUP: Clear dust based on token decimals
+    // For 18 decimals (DAI): 1000 wei = 0.000000000000001
+    // For 6 decimals (USDC): 1000000000000 wei (1e12) = 0.000001 USDC
+    uint256 dustThreshold;
+    if (r.decimals >= 18) {
+        dustThreshold = 1000; // ~0.000000000000001 for 18 decimals
+    } else {
+        // Scale threshold: 1e12 for 6 decimals, 1e15 for 3 decimals, etc.
+        dustThreshold = 10 ** (18 - r.decimals); 
+    }
+    
+    if (newDebt > 0 && newDebt < dustThreshold) {
+        newDebt = 0;
+    }
+    
     u.borrow.principal = uint128(newDebt);
     u.borrow.index = r.variableBorrowIndex;
     
     // Update reserve
     r.reserveCash = uint128(uint256(r.reserveCash) + repayAmount1e18);
-    r.totalDebtPrincipal = uint128(uint256(r.totalDebtPrincipal) - repayAmount1e18);
+    
+    // Safe subtraction for totalDebtPrincipal (prevent underflow)
+    uint256 currentTotalDebt = uint256(r.totalDebtPrincipal);
+    if (repayAmount1e18 >= currentTotalDebt) {
+        r.totalDebtPrincipal = 0;
+    } else {
+        r.totalDebtPrincipal = uint128(currentTotalDebt - repayAmount1e18);
+    }
     
     emit Repaid(msg.sender, onBehalfOf, asset, repayAmount1e18);
     return repayAmount1e18;

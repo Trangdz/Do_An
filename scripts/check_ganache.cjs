@@ -1,45 +1,40 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  console.log("🔍 Checking Ganache connection...");
+  console.log("🔍 Checking Ganache connection...\n");
   
   try {
     // Get network info
     const network = await ethers.provider.getNetwork();
-    console.log("✅ Connected to network:", network.name, "(Chain ID:", network.chainId.toString() + ")");
+    console.log("✅ Connected to network:");
+    console.log("   Chain ID:", network.chainId.toString());
+    console.log("   Name:", network.name);
     
-    // Get block info
-    const blockNumber = await ethers.provider.getBlockNumber();
-    console.log("📦 Current block number:", blockNumber);
-    
-    // Get accounts
-    const accounts = await ethers.getSigners();
-    console.log("👥 Available accounts:", accounts.length);
+    // Get signers (ethers v6)
+    const signers = await ethers.getSigners();
+    console.log("\n✅ Found", signers.length, "signers:");
     
     // Check balances
-    for (let i = 0; i < Math.min(3, accounts.length); i++) {
-      const balance = await ethers.provider.getBalance(accounts[i].address);
-      console.log(`💰 Account ${i}: ${accounts[i].address} - ${ethers.formatEther(balance)} ETH`);
+    for (let i = 0; i < Math.min(5, signers.length); i++) {
+      const signer = signers[i];
+      const address = await signer.getAddress();
+      const balance = await ethers.provider.getBalance(address);
+      console.log(`   [${i}] ${address}: ${ethers.formatEther(balance)} ETH`);
     }
     
-    // Test transaction
-    console.log("\n🧪 Testing transaction...");
-    const tx = await accounts[0].sendTransaction({
-      to: accounts[1].address,
-      value: ethers.parseEther("0.001")
-    });
-    await tx.wait();
-    console.log("✅ Transaction successful:", tx.hash);
+    // Get block number
+    const blockNumber = await ethers.provider.getBlockNumber();
+    console.log("\n✅ Current block:", blockNumber);
     
-    console.log("\n🎉 Ganache connection successful!");
+    console.log("\n🎉 Ganache is ready for deployment!");
     
   } catch (error) {
-    console.error("❌ Error connecting to Ganache:", error.message);
-    console.log("\n💡 Make sure Ganache is running on http://127.0.0.1:7545");
+    console.error("\n❌ Cannot connect to Ganache:");
+    console.error("   Error:", error.message);
+    console.error("\n💡 Make sure Ganache is running at http://127.0.0.1:7545");
+    console.error("   You can start it with: ganache-cli -p 7545 -i 1337");
+    process.exit(1);
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main().catch(console.error);

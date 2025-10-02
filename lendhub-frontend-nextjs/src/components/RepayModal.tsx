@@ -65,20 +65,104 @@ export function RepayModal({
   };
 
   const handleMaxClick = () => {
-    // MAX = min(userDebt, userBalance)
-    const debtNum = parseFloat(userDebt);
-    const balanceNum = parseFloat(balance);
-    const maxAmount = Math.min(debtNum, balanceNum);
-    setAmount(maxAmount.toFixed(6));
+    // Set to "REPAY_ALL" mode instead of calculating max
+    setAmount('REPAY_ALL');
   };
 
   const handleRepay = async () => {
-    if (!signer || !amount || parseFloat(amount) <= 0) return;
+    if (!signer || !amount) return;
 
     setIsLoading(true);
 
     try {
-      const amountBN = parseTokenAmount(amount, token.decimals);
+      const userAddress = await signer.getAddress();
+      let amountBN: bigint;
+      let displayAmount: string;
+
+      // Check if this is "Repay All" mode
+      if (amount === 'REPAY_ALL') {
+        console.log('🔄 REPAY ALL MODE: Calculating exact debt including interest...');
+        
+        // Get the lending pool contract
+        const poolContract = new ethers.Contract(
+          poolAddress,
+          [
+            'function userReserves(address user, address asset) external view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
+          ],
+          provider
+        );
+
+        // Get user reserves - principal is already in 1e18 precision
+        const userReserve = await poolContract.userReserves(userAddress, token.address);
+        const principalRaw1e18 = userReserve.borrow.principal;
+        
+        console.log('📊 Borrow Principal (1e18):', principalRaw1e18.toString());
+        console.log('📊 As decimal:', ethers.formatUnits(principalRaw1e18, 18));
+
+        if (principalRaw1e18 === BigInt(0)) {
+          showToast({
+            type: 'info',
+            title: 'No Debt',
+            message: 'You have no debt to repay'
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Convert from 1e18 internal precision to token decimals (ROUND UP!)
+        const conversionFactor = BigInt(10 ** (18 - token.decimals));
+        
+        // Round UP division to ensure we don't lose precision
+        let debtInTokenDecimals = principalRaw1e18 / conversionFactor;
+        const remainder = principalRaw1e18 % conversionFactor;
+        if (remainder > BigInt(0)) {
+          debtInTokenDecimals += BigInt(1); // Round up if there's any remainder
+        }
+        
+        console.log('💰 Principal in', token.symbol, '(rounded up):', ethers.formatUnits(debtInTokenDecimals, token.decimals));
+
+        // For very small debts, ensure minimum repay amount
+        const minRepayAmount = BigInt(100); // Minimum 100 wei (0.0001 USDC for 6 decimals)
+        if (debtInTokenDecimals < minRepayAmount) {
+          console.log('⚠️ Debt too small, using minimum repay:', ethers.formatUnits(minRepayAmount, token.decimals), token.symbol);
+          debtInTokenDecimals = minRepayAmount;
+        }
+
+        // Add 20% buffer to handle interest accrual during transaction
+        const withBuffer = (debtInTokenDecimals * BigInt(120)) / BigInt(100);
+        console.log('📈 With 20% buffer:', ethers.formatUnits(withBuffer, token.decimals), token.symbol);
+
+        // Check user balance
+        const tokenContract = new ethers.Contract(
+          token.address,
+          ['function balanceOf(address) view returns (uint256)'],
+          provider
+        );
+        const userBalance = await tokenContract.balanceOf(userAddress);
+        console.log('👛 User balance:', ethers.formatUnits(userBalance, token.decimals), token.symbol);
+        
+        // Cap to user balance if needed
+        if (withBuffer > userBalance) {
+          console.log('⚠️ Buffer exceeds balance, using full balance');
+          amountBN = userBalance;
+        } else {
+          amountBN = withBuffer;
+        }
+        
+        displayAmount = ethers.formatUnits(debtInTokenDecimals, token.decimals);
+        console.log('💵 Final repay amount:', ethers.formatUnits(amountBN, token.decimals), token.symbol);
+
+      } else {
+        // Normal amount input
+        const amountNum = parseFloat(amount);
+        if (amountNum <= 0) {
+          setIsLoading(false);
+          return;
+        }
+        
+        amountBN = parseTokenAmount(amount, token.decimals);
+        displayAmount = amount;
+      }
       
       // Use transaction service
       const result = await repay(signer, token.address, amountBN);
@@ -87,7 +171,7 @@ export function RepayModal({
       showToast({
         type: 'success',
         title: 'Repay Successful!',
-        message: `Successfully repaid ${amount} ${token.symbol}`,
+        message: `Successfully repaid ${displayAmount} ${token.symbol}`,
         hash: result.hash
       });
       
@@ -112,8 +196,8 @@ export function RepayModal({
 
   const debtNum = parseFloat(userDebt);
   const balanceNum = parseFloat(balance);
-  const amountNum = parseFloat(amount) || 0;
-  const isDisabled = !signer || !amount || amountNum <= 0 || amountNum > debtNum || amountNum > balanceNum;
+  const amountNum = amount === 'REPAY_ALL' ? debtNum : (parseFloat(amount) || 0);
+  const isDisabled = !signer || !amount || (amount !== 'REPAY_ALL' && (amountNum <= 0 || amountNum > debtNum || amountNum > balanceNum));
 
   if (!open) return null;
 
@@ -176,7 +260,7 @@ export function RepayModal({
               <Input
                 id="amount"
                 type="text"
-                value={amount}
+                value={amount === 'REPAY_ALL' ? 'Repay All (including interest)' : amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 placeholder="0.00"
                 className="pr-20 text-lg"
