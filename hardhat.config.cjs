@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "noodle window amateur float bulk door exotic accuse thunder pigeon merge elevator",
+        mnemonic: "shell valid canoe finger artefact torch soda soul vast twenty hope quote",
         count: 10, // Generate 10 accounts
       },
     },

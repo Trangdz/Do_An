@@ -16,9 +16,10 @@ import {
   formatBalance,
   formatWETHBalance
 } from '../lib/math';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TokenCard } from './TokenCard';
 import { useRealtimePrices } from '../hooks/useRealtimePrices';
+import { useInterestRateHistory } from '../hooks/useInterestRateHistory';
+import { InterestRateChart } from './InterestRateChart';
 import { PriceOracleAddress } from '../addresses';
 
 export function SimpleDashboard() {
@@ -57,6 +58,18 @@ export function SimpleDashboard() {
     PriceOracleAddress,
     tokenAddresses,
     10000 // Update every 10 seconds
+  );
+
+  // Real-time interest rate history (poll every 5 seconds)
+  const assetsForHistory = userAssets
+    .filter((a: any) => a.address !== '0x0000000000000000000000000000000000000000')
+    .map((a: any) => ({ address: a.address, symbol: a.symbol }));
+  
+  const { history: rateHistory, isLoading: rateHistoryLoading, error: rateHistoryError, clearHistory } = useInterestRateHistory(
+    isConnected ? provider : null,
+    CONFIG.LENDING_POOL,
+    assetsForHistory,
+    5000 // Update every 5 seconds
   );
   
   // Create tokens array for display (combine user assets with supply/borrow data)
@@ -116,10 +129,6 @@ export function SimpleDashboard() {
 
     return base;
   });
-
-  // Mock rate chart data (TODO: Implement real rate chart)
-  const rateChartData: any[] = [];
-  const rateChartLoading = false;
   
   // Toast hook
   const { showToast } = useToast();
@@ -546,89 +555,23 @@ export function SimpleDashboard() {
             </CardHeader>
           </Card>
 
-          {/* Interest Rate Chart */}
+          {/* Live Interest Rate Chart */}
           <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-2xl font-bold text-gray-900">Live Interest Rates</CardTitle>
+              <CardTitle className="text-2xl font-bold text-gray-900">
+                📈 Live Interest Rates
+              </CardTitle>
               <CardDescription className="text-gray-600">
-                Real-time supply and borrow rates across all assets (updates every 5s)
+                Real-time supply and borrow APR across all assets (updates every 5 seconds)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {rateChartLoading ? (
-                <div className="h-80 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-gray-600">Loading interest rate data...</p>
-                  </div>
-                </div>
-              ) : rateChartData.length === 0 ? (
-                <div className="h-80 flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">📊</div>
-                    <p>No interest rate data available</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={rateChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis 
-                        dataKey="time" 
-                        tick={{ fontSize: 12, fill: '#6b7280' }}
-                        interval="preserveStartEnd"
-                        axisLine={{ stroke: '#e5e7eb' }}
-                      />
-                      <YAxis 
-                        tick={{ fontSize: 12, fill: '#6b7280' }}
-                        axisLine={{ stroke: '#e5e7eb' }}
-                        domain={[0, 'dataMax * 1.1']}
-                        tickFormatter={(value) => `${value.toFixed(2)}%`}
-                      />
-                      <Tooltip 
-                        formatter={(value, name) => [
-                          `${Number(value).toFixed(4)}%`, 
-                          name.toString().replace('_', ' ')
-                        ]}
-                        labelFormatter={(label) => `Time: ${label}`}
-                        contentStyle={{
-                          backgroundColor: 'white',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                        }}
-                      />
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px' }}
-                      />
-                      {CONFIG.TOKENS.map((token: any, index: number) => [
-                        <Line
-                          key={`${token.symbol}_Supply`}
-                          type="monotone"
-                          dataKey={`${token.symbol}_Supply`}
-                          stroke={`hsl(${index * 120}, 70%, 50%)`}
-                          strokeWidth={3}
-                          dot={false}
-                          connectNulls={false}
-                          name={`${token.symbol} Supply Rate`}
-                        />,
-                        <Line
-                          key={`${token.symbol}_Borrow`}
-                          type="monotone"
-                          dataKey={`${token.symbol}_Borrow`}
-                          stroke={`hsl(${index * 120}, 70%, 50%)`}
-                          strokeWidth={2}
-                          strokeDasharray="5 5"
-                          dot={false}
-                          connectNulls={false}
-                          name={`${token.symbol} Borrow Rate`}
-                        />
-                      ]).flat()}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <InterestRateChart
+                history={rateHistory}
+                isLoading={rateHistoryLoading}
+                error={rateHistoryError}
+                onClearHistory={clearHistory}
+              />
             </CardContent>
           </Card>
 
