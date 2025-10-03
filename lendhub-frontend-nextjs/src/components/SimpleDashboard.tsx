@@ -52,7 +52,14 @@ export function SimpleDashboard() {
   const realWethBalance = parseFloat(userAssets.find((a: any) => a.symbol === 'WETH')?.balance || '0');
   
   // Real-time price updates (poll every 10 seconds)
-  const tokenAddresses = userAssets.map((a: any) => a.address).filter((a: string) => a !== '0x0000000000000000000000000000000000000000');
+  // Remove duplicate addresses for price fetching
+  const tokenAddresses = Array.from(
+    new Set(
+      userAssets
+        .map((a: any) => a.address)
+        .filter((a: string) => a !== '0x0000000000000000000000000000000000000000')
+    )
+  );
   const realtimePrices = useRealtimePrices(
     isConnected ? provider : null,
     PriceOracleAddress,
@@ -61,9 +68,17 @@ export function SimpleDashboard() {
   );
 
   // Real-time interest rate history (poll every 5 seconds)
-  const assetsForHistory = userAssets
-    .filter((a: any) => a.address !== '0x0000000000000000000000000000000000000000')
-    .map((a: any) => ({ address: a.address, symbol: a.symbol }));
+  // IMPORTANT: Remove duplicates by address to prevent chart duplication
+  const assetsForHistory = Array.from(
+    new Map(
+      userAssets
+        .filter((a: any) => a.address !== '0x0000000000000000000000000000000000000000')
+        .map((a: any) => [a.address, { address: a.address, symbol: a.symbol }])
+    ).values()
+  );
+  
+  // Debug log to verify no duplicates
+  console.log('📊 Assets for history (deduplicated):', assetsForHistory.map(a => a.symbol).join(', '));
   
   const { history: rateHistory, isLoading: rateHistoryLoading, error: rateHistoryError, clearHistory } = useInterestRateHistory(
     isConnected ? provider : null,

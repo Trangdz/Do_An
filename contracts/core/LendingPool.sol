@@ -164,15 +164,39 @@ function _getAccountData(address user) internal view returns (
     uint256 debtValue1e18,
     uint256 healthFactor1e18
 ) {
-    // Calculate collateral value (WETH only for now)
-    uint256 wethSupply = _currentSupply(user, WETH);
-    uint256 wethPrice = oracle.getAssetPrice1e18(WETH);
-    collateralValue1e18 = (wethSupply * wethPrice) / 1e18;
-    
-    // Calculate debt value (DAI only for now)
-    uint256 daiDebt = _currentDebt(user, DAI);
-    uint256 daiPrice = oracle.getAssetPrice1e18(DAI);
-    debtValue1e18 = (daiDebt * daiPrice) / 1e18;
+    // Loop through all initialized assets to calculate total collateral and debt
+    for (uint256 i = 0; i < _allAssets.length; i++) {
+        address asset = _allAssets[i];
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        ReserveUserModels.UserReserveData storage u = userReserves[user][asset];
+        
+        // Skip if reserve not initialized
+        if (r.lastUpdate == 0) continue;
+        
+        // Get asset price
+        uint256 price = oracle.getAssetPrice1e18(asset);
+        if (price == 0) continue; // Skip if price not available
+        
+        // Calculate collateral value (weighted by LTV)
+        // ONLY if user has enabled this asset as collateral
+        uint256 supply = _currentSupply(user, asset);
+        if (supply > 0 && u.useAsCollateral) {
+            // collateralValue = supply * price * ltvBps / 10000
+            // Both supply and price are in 1e18, so we divide by 1e18 once
+            uint256 supplyValueUSD = (supply * price) / 1e18;
+            uint256 weightedCollateral = (supplyValueUSD * uint256(r.ltvBps)) / 10000;
+            collateralValue1e18 += weightedCollateral;
+        }
+        
+        // Calculate debt value
+        uint256 debt = _currentDebt(user, asset);
+        if (debt > 0) {
+            // debtValue = debt * price
+            // Both debt and price are in 1e18, so we divide by 1e18 once
+            uint256 debtValueUSD = (debt * price) / 1e18;
+            debtValue1e18 += debtValueUSD;
+        }
+    }
     
     // Calculate health factor
     if (debtValue1e18 == 0) {
@@ -214,9 +238,11 @@ function lend(address asset, uint256 amount) external {
     u.supply.principal = uint128(sNew);
     u.supply.index = r.liquidityIndex;
     
-    // 4) Set as collateral if it's WETH (for demo purposes)
-    if (asset == WETH) {
+    // 4) Auto-enable as collateral if LTV > 0 (realistic behavior like Aave)
+    // User can disable later via setUserUseReserveAsCollateral()
+    if (r.ltvBps > 0 && !u.useAsCollateral) {
         u.useAsCollateral = true;
+        emit CollateralEnabled(msg.sender, asset);
     }
 
     // 5) Cập nhật sổ cái
@@ -431,6 +457,61 @@ function initReserve(
 
     function pause() external onlyOwner { _pause(); }
     function unpause() external onlyOwner { _unpause(); }
+
+    /**
+     * @notice Enable/Disable an asset as collateral
+     * @param asset The address of the asset
+     * @param useAsCollateral true to enable, false to disable
+     * 
+     * Requirements:
+     * - User must have supply balance > 0
+     * - If disabling, health factor must remain > 1 after removal
+     */
+    function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) external nonReentrant {
+        _requireInited(asset);
+        _accrue(asset);
+        
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        ReserveUserModels.UserReserveData storage u = userReserves[msg.sender][asset];
+        
+        // Must have supply to enable/disable collateral
+        uint256 supply = _currentSupply(msg.sender, asset);
+        require(supply > 0, "No supply balance");
+        
+        // If already in desired state, do nothing
+        if (u.useAsCollateral == useAsCollateral) {
+            return;
+        }
+        
+        // If enabling collateral
+        if (useAsCollateral) {
+            require(r.ltvBps > 0, "Asset cannot be used as collateral");
+            u.useAsCollateral = true;
+            emit CollateralEnabled(msg.sender, asset);
+        } 
+        // If disabling collateral
+        else {
+            // Check health factor after disabling
+            (uint256 collateralBefore, uint256 debt, ) = _getAccountData(msg.sender);
+            
+            // Calculate collateral without this asset
+            uint256 price = oracle.getAssetPrice1e18(asset);
+            uint256 supplyValueUSD = (supply * price) / 1e18;
+            uint256 weightedCollateral = (supplyValueUSD * uint256(r.ltvBps)) / 10000;
+            uint256 collateralAfter = collateralBefore - weightedCollateral;
+            
+            // If user has debt, ensure health factor remains > 1
+            if (debt > 0) {
+                require(collateralAfter >= debt, "Health factor would be < 1");
+            }
+            
+            u.useAsCollateral = false;
+            emit CollateralDisabled(msg.sender, asset);
+        }
+    }
+
+    event CollateralEnabled(address indexed user, address indexed asset);
+    event CollateralDisabled(address indexed user, address indexed asset);
 
     event Liquidated(
   address indexed liquidator,

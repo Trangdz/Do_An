@@ -194,10 +194,7 @@ export function InterestRateChart({ history, isLoading, error, onClearHistory }:
               }}
               labelStyle={{ fontWeight: 600, marginBottom: '4px' }}
             />
-            <Legend 
-              wrapperStyle={{ paddingTop: '20px' }}
-              iconType="line"
-            />
+            {/* Legend removed - using custom legend above chart to prevent duplicates */}
             
             {/* Render lines for each asset */}
             {assetList.map((asset, index) => (
