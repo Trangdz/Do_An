@@ -416,6 +416,14 @@ export function SimpleDashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Transaction History Link */}
+              <a
+                href="/history"
+                className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                📜 History
+              </a>
+              
               <div className="hidden sm:block text-right">
                 <div className="text-sm text-gray-600">Connected to</div>
                 <div className="font-medium text-green-600">Ganache Network</div>

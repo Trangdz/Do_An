@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "cost soccer illegal ignore source today material flip room promote inmate man",
+        mnemonic: "become minute home scare human loan bicycle limb seed elder foam topic",
         count: 10, // Generate 10 accounts
       },
     },
