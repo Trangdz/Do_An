@@ -2,16 +2,20 @@
 
 import React from 'react';
 import { TransactionHistory } from '../../components/TransactionHistory';
+import { TransactionStats } from '../../components/TransactionStats';
 import useLendContext from '../../context/useLendContext';
 import { PriceOracleAddress, LendingPoolAddress } from '../../addresses';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { useTransactionHistory } from '../../hooks/useTransactionHistory';
 
 export default function HistoryPage() {
   const { metamaskDetails } = useLendContext();
   const isConnected = !!metamaskDetails.currentAccount;
   const address = metamaskDetails.currentAccount;
   const provider = metamaskDetails.provider;
+
+  // Transaction data will be handled by TransactionHistory component
 
   // Always show the page, but handle wallet connection state within the component
 
@@ -70,6 +74,8 @@ export default function HistoryPage() {
             Track all your lending, borrowing, and repayment activities with real-time updates and beautiful analytics
           </p>
         </div>
+
+        {/* Transaction Stats will be shown in TransactionHistory component */}
 
         {/* Transaction History Component */}
         <div className="mb-16">

@@ -326,10 +326,7 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
     r.reserveCash = uint128(uint256(r.reserveCash) - borrowAmount1e18);
     r.totalDebtPrincipal = uint128(uint256(r.totalDebtPrincipal) + borrowAmount1e18);
     
-    // Transfer tokens to user
-    uint256 transferAmount = _from1e18(borrowAmount1e18, r.decimals);
-    IERC20(asset).safeTransfer(msg.sender, transferAmount);
-    
+    //  
     emit Borrowed(msg.sender, asset, borrowAmount1e18);
 }
 

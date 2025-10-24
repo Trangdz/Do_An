@@ -416,13 +416,33 @@ export function SimpleDashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* Transaction History Link */}
-              <a
-                href="/history"
-                className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              >
-                📜 History
-              </a>
+              {/* Navigation Links */}
+              <div className="flex items-center space-x-2">
+                <a
+                  href="/overview"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                >
+                  🏠 Overview
+                </a>
+                <a
+                  href="/history"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  📜 History
+                </a>
+                <a
+                  href="/analytics"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                >
+                  📈 Analytics
+                </a>
+                <a
+                  href="/transaction-test"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                >
+                  🔍 Test
+                </a>
+              </div>
               
               <div className="hidden sm:block text-right">
                 <div className="text-sm text-gray-600">Connected to</div>

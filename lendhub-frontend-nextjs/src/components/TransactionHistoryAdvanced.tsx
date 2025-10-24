@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTransactionHistory, Transaction } from '../hooks/useTransactionHistory';
 
-interface TransactionHistoryProps {
+interface TransactionHistoryAdvancedProps {
   provider: any;
   poolAddress: string;
   oracleAddress: string;
@@ -24,9 +24,13 @@ const TYPE_ICONS: Record<Transaction['type'], string> = {
   Liquidate: '⚡'
 };
 
-export function TransactionHistory({ provider, poolAddress, oracleAddress, userAddress }: TransactionHistoryProps) {
+export function TransactionHistoryAdvanced({ provider, poolAddress, oracleAddress, userAddress }: TransactionHistoryAdvancedProps) {
   const [filterType, setFilterType] = useState<Transaction['type'] | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [sortBy, setSortBy] = useState<'timestamp' | 'amount' | 'type'>('timestamp');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showExportModal, setShowExportModal] = useState(false);
   
   const { 
     transactions, 
@@ -42,20 +46,62 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
     poolAddress,
     oracleAddress,
     userAddress,
-    true, // Auto-refresh
-    15000 // Refresh every 15 seconds
+    true,
+    15000
   );
 
-  // Filter transactions
-  const filteredTransactions = transactions.filter(tx => {
-    const matchesType = filterType === 'All' || tx.type === filterType;
-    const matchesSearch = searchQuery === '' || 
-      tx.hash.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tx.assetSymbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tx.user.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesType && matchesSearch;
-  });
+  // Advanced filtering and sorting
+  const filteredAndSortedTransactions = useMemo(() => {
+    let filtered = transactions.filter(tx => {
+      const matchesType = filterType === 'All' || tx.type === filterType;
+      const matchesSearch = searchQuery === '' || 
+        tx.hash.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tx.assetSymbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tx.user.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Date filtering
+      const now = Date.now() / 1000;
+      const txDate = tx.timestamp;
+      let matchesDate = true;
+      
+      switch (dateRange) {
+        case 'today':
+          matchesDate = now - txDate < 86400; // 24 hours
+          break;
+        case 'week':
+          matchesDate = now - txDate < 604800; // 7 days
+          break;
+        case 'month':
+          matchesDate = now - txDate < 2592000; // 30 days
+          break;
+        default:
+          matchesDate = true;
+      }
+      
+      return matchesType && matchesSearch && matchesDate;
+    });
+
+    // Sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'timestamp':
+          comparison = a.timestamp - b.timestamp;
+          break;
+        case 'amount':
+          comparison = parseFloat(a.amountUSD) - parseFloat(b.amountUSD);
+          break;
+        case 'type':
+          comparison = a.type.localeCompare(b.type);
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [transactions, filterType, searchQuery, dateRange, sortBy, sortOrder]);
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleString('en-US', {
@@ -79,6 +125,49 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
     if (num < 1) return num.toFixed(6);
     if (num < 1000) return num.toFixed(4);
     return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Date', 'Type', 'Asset', 'Amount', 'Amount USD', 'User', 'Block', 'Hash', 'Gas Used', 'Gas Price', 'Fee USD'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredAndSortedTransactions.map(tx => [
+        formatDate(tx.timestamp),
+        tx.type,
+        tx.assetSymbol,
+        tx.amount,
+        tx.amountUSD,
+        tx.user,
+        tx.blockNumber,
+        tx.hash,
+        tx.gasUsed || '0',
+        tx.gasPrice || '0',
+        tx.txFeeUSD || '0'
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lendhub-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportToJSON = () => {
+    const jsonContent = JSON.stringify(filteredAndSortedTransactions, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lendhub-transactions-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   if (isLoading && transactions.length === 0) {
@@ -122,11 +211,11 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
               </svg>
             </div>
             <div>
-              <h2 className="text-3xl font-bold text-gray-900">Transaction History</h2>
+              <h2 className="text-3xl font-bold text-gray-900">Advanced Transaction History</h2>
               <p className="text-gray-600 text-lg">
                 {userAddress ? 'Your transaction history' : 'All protocol transactions'}
                 {' • '}
-                <span className="font-bold text-blue-600 text-xl">{filteredTransactions.length}</span> transactions
+                <span className="font-bold text-blue-600 text-xl">{filteredAndSortedTransactions.length}</span> transactions
               </p>
               {userAddress && (
                 <div className="mt-4 flex flex-wrap gap-6 text-sm">
@@ -138,20 +227,21 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
                     <span className="text-gray-500">Total Fees:</span>
                     <span className="font-bold text-red-600">${totalFees.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-500">Lend:</span>
-                    <span className="font-bold text-emerald-600">{transactionStats.totalLend}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-500">Borrow:</span>
-                    <span className="font-bold text-amber-600">{transactionStats.totalBorrow}</span>
-                  </div>
                 </div>
               )}
             </div>
           </div>
           
           <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export
+            </button>
             <button
               onClick={refetch}
               disabled={isLoading}
@@ -181,7 +271,7 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
 
       {/* Content */}
       <div className="p-8">
-        {/* Filters */}
+        {/* Advanced Filters */}
         <div className="mb-8 space-y-6">
           {/* Search */}
           <div className="relative">
@@ -199,29 +289,71 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
             />
           </div>
 
-          {/* Type filter */}
-          <div className="flex flex-wrap gap-3">
-            {(['All', 'Lend', 'Withdraw', 'Borrow', 'Repay', 'Liquidate'] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setFilterType(type)}
-                className={`inline-flex items-center px-8 py-4 rounded-2xl font-bold text-sm transition-all duration-200 transform hover:scale-105 ${
-                  filterType === type
-                    ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-xl scale-105'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-lg'
-                }`}
+          {/* Filter Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Type filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Transaction Type</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as Transaction['type'] | 'All')}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
               >
-                {type !== 'All' && (
-                  <span className="mr-3 text-xl">{TYPE_ICONS[type]}</span>
-                )}
-                {type}
-              </button>
-            ))}
+                <option value="All">All Types</option>
+                <option value="Lend">Lend</option>
+                <option value="Withdraw">Withdraw</option>
+                <option value="Borrow">Borrow</option>
+                <option value="Repay">Repay</option>
+                <option value="Liquidate">Liquidate</option>
+              </select>
+            </div>
+
+            {/* Date range filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as 'all' | 'today' | 'week' | 'month')}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+              >
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+              </select>
+            </div>
+
+            {/* Sort by */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'timestamp' | 'amount' | 'type')}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+              >
+                <option value="timestamp">Date</option>
+                <option value="amount">Amount</option>
+                <option value="type">Type</option>
+              </select>
+            </div>
+
+            {/* Sort order */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+              >
+                <option value="desc">Newest First</option>
+                <option value="asc">Oldest First</option>
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Transaction list */}
-        {filteredTransactions.length === 0 ? (
+        {filteredAndSortedTransactions.length === 0 ? (
           <div className="text-center py-20">
             <div className="w-32 h-32 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-8">
               <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,14 +362,14 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-4">No transactions found</h3>
             <p className="text-gray-600 max-w-md mx-auto text-lg">
-              {searchQuery || filterType !== 'All'
+              {searchQuery || filterType !== 'All' || dateRange !== 'all'
                 ? 'Try adjusting your search filters to find what you\'re looking for.'
                 : 'Transactions will appear here once you start lending, borrowing, or interacting with the protocol.'}
             </p>
           </div>
         ) : (
           <div className="space-y-6">
-            {filteredTransactions.map((tx) => (
+            {filteredAndSortedTransactions.map((tx) => (
               <div
                 key={tx.id}
                 className="group bg-gradient-to-r from-white to-gray-50/50 border-2 border-gray-100 rounded-3xl p-8 hover:shadow-2xl hover:border-gray-200 transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02]"
@@ -355,6 +487,44 @@ export function TransactionHistory({ provider, poolAddress, oracleAddress, userA
           </div>
         )}
       </div>
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">Export Transactions</h3>
+            <p className="text-gray-600 mb-6">
+              Export {filteredAndSortedTransactions.length} transactions to your preferred format.
+            </p>
+            <div className="flex space-x-4">
+              <button
+                onClick={exportToCSV}
+                className="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-medium"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={exportToJSON}
+                className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-xl hover:bg-blue-600 transition-colors font-medium"
+              >
+                Export JSON
+              </button>
+            </div>
+            <button
+              onClick={() => setShowExportModal(false)}
+              className="w-full mt-4 bg-gray-200 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-300 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+
+
+
+
+

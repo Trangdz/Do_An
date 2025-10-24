@@ -13,6 +13,10 @@ export interface Transaction {
   timestamp: number;
   blockNumber: number;
   status: 'success' | 'pending' | 'failed';
+  gasUsed?: string;
+  gasPrice?: string;
+  txFee?: string;
+  txFeeUSD?: string;
 }
 
 interface UseTransactionHistoryReturn {
@@ -21,6 +25,15 @@ interface UseTransactionHistoryReturn {
   error: string | null;
   clearHistory: () => void;
   refetch: () => Promise<void>;
+  totalVolume: number;
+  totalFees: number;
+  transactionStats: {
+    totalLend: number;
+    totalWithdraw: number;
+    totalBorrow: number;
+    totalRepay: number;
+    totalLiquidate: number;
+  };
 }
 
 const STORAGE_KEY = 'lendhub_transaction_history';
@@ -55,6 +68,18 @@ export function useTransactionHistory(
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Calculate statistics
+  const totalVolume = transactions.reduce((sum, tx) => sum + parseFloat(tx.amountUSD), 0);
+  const totalFees = transactions.reduce((sum, tx) => sum + parseFloat(tx.txFeeUSD || '0'), 0);
+  
+  const transactionStats = {
+    totalLend: transactions.filter(tx => tx.type === 'Lend').length,
+    totalWithdraw: transactions.filter(tx => tx.type === 'Withdraw').length,
+    totalBorrow: transactions.filter(tx => tx.type === 'Borrow').length,
+    totalRepay: transactions.filter(tx => tx.type === 'Repay').length,
+    totalLiquidate: transactions.filter(tx => tx.type === 'Liquidate').length,
+  };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -95,6 +120,17 @@ export function useTransactionHistory(
     }
   }, []);
 
+  const getAssetDecimals = useCallback(async (provider: ethers.Provider, assetAddress: string): Promise<number> => {
+    try {
+      const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, provider);
+      const d: number = await tokenContract.decimals();
+      return Number(d);
+    } catch (err) {
+      // Default to 18 if not an ERC20 or call fails
+      return 18;
+    }
+  }, []);
+
   // Fetch asset price
   const getAssetPrice = useCallback(async (provider: ethers.Provider, oracleAddress: string, assetAddress: string): Promise<number> => {
     try {
@@ -107,6 +143,35 @@ export function useTransactionHistory(
       return 0;
     }
   }, []);
+
+  // Fetch transaction details including gas info
+  const getTransactionDetails = useCallback(async (provider: ethers.Provider, txHash: string): Promise<{gasUsed: string, gasPrice: string, txFee: string, txFeeUSD: string}> => {
+    try {
+      const tx = await provider.getTransaction(txHash);
+      const receipt = await provider.getTransactionReceipt(txHash);
+      
+      if (!tx || !receipt) {
+        return { gasUsed: '0', gasPrice: '0', txFee: '0', txFeeUSD: '0' };
+      }
+
+      const gasUsed = receipt.gasUsed.toString();
+      const gasPrice = tx.gasPrice?.toString() || '0';
+      const txFee = (BigInt(gasUsed) * BigInt(gasPrice)).toString();
+      const txFeeETH = parseFloat(ethers.formatEther(txFee));
+      const ethPrice = await getAssetPrice(provider, oracleAddress, '0x0000000000000000000000000000000000000000'); // ETH price
+      const txFeeUSD = (txFeeETH * ethPrice).toFixed(2);
+
+      return {
+        gasUsed,
+        gasPrice,
+        txFee: ethers.formatEther(txFee),
+        txFeeUSD
+      };
+    } catch (err) {
+      console.warn('Failed to get transaction details for:', txHash);
+      return { gasUsed: '0', gasPrice: '0', txFee: '0', txFeeUSD: '0' };
+    }
+  }, [oracleAddress, getAssetPrice]);
 
   // Fetch transaction history
   const fetchTransactionHistory = useCallback(async () => {
@@ -121,16 +186,39 @@ export function useTransactionHistory(
     try {
       const pool = new ethers.Contract(poolAddress, LENDING_POOL_ABI, provider);
       const currentBlock = await provider.getBlockNumber();
-      const fromBlock = Math.max(0, currentBlock - 10000); // Last ~10k blocks (adjust as needed)
+      // Use last scanned block from localStorage to avoid duplicates and speed up
+      const lastScannedStr = localStorage.getItem(STORAGE_KEY + '_lastBlock');
+      const lastScanned = lastScannedStr ? parseInt(lastScannedStr, 10) : Math.max(0, currentBlock - 2000);
+      const fromBlock = Math.min(currentBlock, Math.max(0, lastScanned + 1));
+      
+      console.log(`🔍 Scanning blocks ${fromBlock} to ${currentBlock} (${currentBlock - fromBlock + 1} blocks)`);
+      console.log(`📊 Last scanned: ${lastScanned}, Current: ${currentBlock}`);
 
-      // Fetch all event types
+      // Fetch all event types with error handling
       const [lendEvents, withdrawEvents, borrowEvents, repayEvents, liquidateEvents] = await Promise.all([
-        pool.queryFilter(pool.filters.Lend(), fromBlock, currentBlock),
-        pool.queryFilter(pool.filters.Withdraw(), fromBlock, currentBlock),
-        pool.queryFilter(pool.filters.Borrow(), fromBlock, currentBlock),
-        pool.queryFilter(pool.filters.Repay(), fromBlock, currentBlock),
-        pool.queryFilter(pool.filters.Liquidate(), fromBlock, currentBlock),
+        pool.queryFilter(pool.filters.Lend(), fromBlock, currentBlock).catch(err => {
+          console.warn('Failed to fetch Lend events:', err);
+          return [];
+        }),
+        pool.queryFilter(pool.filters.Withdraw(), fromBlock, currentBlock).catch(err => {
+          console.warn('Failed to fetch Withdraw events:', err);
+          return [];
+        }),
+        pool.queryFilter(pool.filters.Borrow(), fromBlock, currentBlock).catch(err => {
+          console.warn('Failed to fetch Borrow events:', err);
+          return [];
+        }),
+        pool.queryFilter(pool.filters.Repay(), fromBlock, currentBlock).catch(err => {
+          console.warn('Failed to fetch Repay events:', err);
+          return [];
+        }),
+        pool.queryFilter(pool.filters.Liquidate(), fromBlock, currentBlock).catch(err => {
+          console.warn('Failed to fetch Liquidate events:', err);
+          return [];
+        }),
       ]);
+
+      console.log(`📈 Events found: Lend(${lendEvents.length}), Withdraw(${withdrawEvents.length}), Borrow(${borrowEvents.length}), Repay(${repayEvents.length}), Liquidate(${liquidateEvents.length})`);
 
       const allTransactions: Transaction[] = [];
 
@@ -138,10 +226,18 @@ export function useTransactionHistory(
       for (const event of lendEvents) {
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
-        const symbol = await getAssetSymbol(provider, event.args!.asset);
-        const price = await getAssetPrice(provider, oracleAddress, event.args!.asset);
-        const amount = ethers.formatUnits(event.args!.amount, 18);
-        const amountUSD = (parseFloat(amount) * price).toFixed(2);
+        const assetAddr = event.args!.asset;
+        const symbol = await getAssetSymbol(provider, assetAddr);
+        const decimals = await getAssetDecimals(provider, assetAddr);
+        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const amount = ethers.formatUnits(event.args!.amount, decimals);
+        // USD = amountRaw * price / 1e18 using BigInt for precision
+        const priceWei = BigInt(Math.trunc(price * 1e18).toString());
+        const amountRaw = BigInt(event.args!.amount.toString());
+        const usdWei = (amountRaw * priceWei) / BigInt(1e18);
+        const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
+        const txDetails = await getTransactionDetails(provider, event.transactionHash);
+        const blk = await provider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -152,9 +248,13 @@ export function useTransactionHistory(
           assetSymbol: symbol,
           amount,
           amountUSD,
-          timestamp: Number(event.args!.timestamp),
+          timestamp: blk?.timestamp ? Number(blk.timestamp) : Number(event.args!.timestamp),
           blockNumber: event.blockNumber,
-          status: 'success'
+          status: 'success',
+          gasUsed: txDetails.gasUsed,
+          gasPrice: txDetails.gasPrice,
+          txFee: txDetails.txFee,
+          txFeeUSD: txDetails.txFeeUSD
         });
       }
 
@@ -162,10 +262,17 @@ export function useTransactionHistory(
       for (const event of withdrawEvents) {
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
-        const symbol = await getAssetSymbol(provider, event.args!.asset);
-        const price = await getAssetPrice(provider, oracleAddress, event.args!.asset);
-        const amount = ethers.formatUnits(event.args!.amount, 18);
-        const amountUSD = (parseFloat(amount) * price).toFixed(2);
+        const assetAddr = event.args!.asset;
+        const symbol = await getAssetSymbol(provider, assetAddr);
+        const decimals = await getAssetDecimals(provider, assetAddr);
+        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const amount = ethers.formatUnits(event.args!.amount, decimals);
+        const priceWei = BigInt(Math.trunc(price * 1e18).toString());
+        const amountRaw = BigInt(event.args!.amount.toString());
+        const usdWei = (amountRaw * priceWei) / BigInt(1e18);
+        const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
+        const txDetails = await getTransactionDetails(provider, event.transactionHash);
+        const blk = await provider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -176,9 +283,13 @@ export function useTransactionHistory(
           assetSymbol: symbol,
           amount,
           amountUSD,
-          timestamp: Number(event.args!.timestamp),
+          timestamp: blk?.timestamp ? Number(blk.timestamp) : Number(event.args!.timestamp),
           blockNumber: event.blockNumber,
-          status: 'success'
+          status: 'success',
+          gasUsed: txDetails.gasUsed,
+          gasPrice: txDetails.gasPrice,
+          txFee: txDetails.txFee,
+          txFeeUSD: txDetails.txFeeUSD
         });
       }
 
@@ -186,10 +297,17 @@ export function useTransactionHistory(
       for (const event of borrowEvents) {
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
-        const symbol = await getAssetSymbol(provider, event.args!.asset);
-        const price = await getAssetPrice(provider, oracleAddress, event.args!.asset);
-        const amount = ethers.formatUnits(event.args!.amount, 18);
-        const amountUSD = (parseFloat(amount) * price).toFixed(2);
+        const assetAddr = event.args!.asset;
+        const symbol = await getAssetSymbol(provider, assetAddr);
+        const decimals = await getAssetDecimals(provider, assetAddr);
+        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const amount = ethers.formatUnits(event.args!.amount, decimals);
+        const priceWei = BigInt(Math.trunc(price * 1e18).toString());
+        const amountRaw = BigInt(event.args!.amount.toString());
+        const usdWei = (amountRaw * priceWei) / BigInt(1e18);
+        const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
+        const txDetails = await getTransactionDetails(provider, event.transactionHash);
+        const blk = await provider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -200,9 +318,13 @@ export function useTransactionHistory(
           assetSymbol: symbol,
           amount,
           amountUSD,
-          timestamp: Number(event.args!.timestamp),
+          timestamp: blk?.timestamp ? Number(blk.timestamp) : Number(event.args!.timestamp),
           blockNumber: event.blockNumber,
-          status: 'success'
+          status: 'success',
+          gasUsed: txDetails.gasUsed,
+          gasPrice: txDetails.gasPrice,
+          txFee: txDetails.txFee,
+          txFeeUSD: txDetails.txFeeUSD
         });
       }
 
@@ -210,10 +332,17 @@ export function useTransactionHistory(
       for (const event of repayEvents) {
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
-        const symbol = await getAssetSymbol(provider, event.args!.asset);
-        const price = await getAssetPrice(provider, oracleAddress, event.args!.asset);
-        const amount = ethers.formatUnits(event.args!.amount, 18);
-        const amountUSD = (parseFloat(amount) * price).toFixed(2);
+        const assetAddr = event.args!.asset;
+        const symbol = await getAssetSymbol(provider, assetAddr);
+        const decimals = await getAssetDecimals(provider, assetAddr);
+        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const amount = ethers.formatUnits(event.args!.amount, decimals);
+        const priceWei = BigInt(Math.trunc(price * 1e18).toString());
+        const amountRaw = BigInt(event.args!.amount.toString());
+        const usdWei = (amountRaw * priceWei) / BigInt(1e18);
+        const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
+        const txDetails = await getTransactionDetails(provider, event.transactionHash);
+        const blk = await provider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -224,9 +353,13 @@ export function useTransactionHistory(
           assetSymbol: symbol,
           amount,
           amountUSD,
-          timestamp: Number(event.args!.timestamp),
+          timestamp: blk?.timestamp ? Number(blk.timestamp) : Number(event.args!.timestamp),
           blockNumber: event.blockNumber,
-          status: 'success'
+          status: 'success',
+          gasUsed: txDetails.gasUsed,
+          gasPrice: txDetails.gasPrice,
+          txFee: txDetails.txFee,
+          txFeeUSD: txDetails.txFeeUSD
         });
       }
 
@@ -236,10 +369,17 @@ export function useTransactionHistory(
             event.args?.liquidator.toLowerCase() !== userAddress.toLowerCase() && 
             event.args?.borrower.toLowerCase() !== userAddress.toLowerCase()) continue;
         
-        const symbol = await getAssetSymbol(provider, event.args!.collateralAsset);
-        const price = await getAssetPrice(provider, oracleAddress, event.args!.collateralAsset);
-        const amount = ethers.formatUnits(event.args!.collateralSeized, 18);
-        const amountUSD = (parseFloat(amount) * price).toFixed(2);
+        const assetAddr = event.args!.collateralAsset;
+        const symbol = await getAssetSymbol(provider, assetAddr);
+        const decimals = await getAssetDecimals(provider, assetAddr);
+        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const amount = ethers.formatUnits(event.args!.collateralSeized, decimals);
+        const priceWei = BigInt(Math.trunc(price * 1e18).toString());
+        const amountRaw = BigInt(event.args!.collateralSeized.toString());
+        const usdWei = (amountRaw * priceWei) / BigInt(1e18);
+        const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
+        const txDetails = await getTransactionDetails(provider, event.transactionHash);
+        const blk = await provider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -250,20 +390,36 @@ export function useTransactionHistory(
           assetSymbol: symbol,
           amount,
           amountUSD,
-          timestamp: Number(event.args!.timestamp),
+          timestamp: blk?.timestamp ? Number(blk.timestamp) : Number(event.args!.timestamp),
           blockNumber: event.blockNumber,
-          status: 'success'
+          status: 'success',
+          gasUsed: txDetails.gasUsed,
+          gasPrice: txDetails.gasPrice,
+          txFee: txDetails.txFee,
+          txFeeUSD: txDetails.txFeeUSD
         });
       }
 
+      // Dedupe by (hash + type + blockNumber + amount) to avoid double entries from overlaps
+      const seen = new Set<string>();
+      const uniqueTransactions: Transaction[] = [];
+      for (const tx of allTransactions) {
+        const key = `${tx.hash}-${tx.type}-${tx.blockNumber}-${tx.amount}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueTransactions.push(tx);
+        }
+      }
+
       // Sort by timestamp (newest first)
-      allTransactions.sort((a, b) => b.timestamp - a.timestamp);
+      uniqueTransactions.sort((a, b) => b.timestamp - a.timestamp);
 
       // Keep only last MAX_TRANSACTIONS
-      const limitedTransactions = allTransactions.slice(0, MAX_TRANSACTIONS);
+      const limitedTransactions = uniqueTransactions.slice(0, MAX_TRANSACTIONS);
 
       setTransactions(limitedTransactions);
-      console.log(`✅ Fetched ${limitedTransactions.length} transactions`);
+      try { localStorage.setItem(STORAGE_KEY + '_lastBlock', String(currentBlock)); } catch {}
+      console.log(`✅ Fetched ${limitedTransactions.length} transactions (from block ${fromBlock} to ${currentBlock})`);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch transaction history';
       console.error('Error fetching transaction history:', err);
@@ -271,7 +427,7 @@ export function useTransactionHistory(
     } finally {
       setIsLoading(false);
     }
-  }, [provider, poolAddress, oracleAddress, userAddress, getAssetSymbol, getAssetPrice]);
+  }, [provider, poolAddress, oracleAddress, userAddress, getAssetSymbol, getAssetPrice, getAssetDecimals]);
 
   // Initial fetch
   useEffect(() => {
@@ -304,7 +460,10 @@ export function useTransactionHistory(
     isLoading,
     error,
     clearHistory,
-    refetch
+    refetch,
+    totalVolume,
+    totalFees,
+    transactionStats
   };
 }
 

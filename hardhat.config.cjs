@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "become minute home scare human loan bicycle limb seed elder foam topic",
+        mnemonic: "mask good never bid attack hand equal fancy absent insane field tape",
         count: 10, // Generate 10 accounts
       },
     },

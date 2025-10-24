@@ -1,5 +1,6 @@
 'use client';
 
+import '../styles/globals.css';
 import LendState from '../context/LendState';
 
 export default function RootLayout({
