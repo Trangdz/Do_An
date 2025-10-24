@@ -4,6 +4,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_RPC_URL: 'http://localhost:8545',
     NEXT_PUBLIC_CHAIN_ID: '1337',
+    MONGODB_URI: 'mongodb://localhost:27017/lendhub_local',
   },
   webpack: (config) => {
     config.resolve.fallback = {

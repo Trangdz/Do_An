@@ -442,6 +442,12 @@ export function SimpleDashboard() {
                 >
                   🔍 Test
                 </a>
+                <a
+                  href="/test-history"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                >
+                  🧪 Test History
+                </a>
               </div>
               
               <div className="hidden sm:block text-right">

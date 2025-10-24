@@ -1,0 +1,31 @@
+{
+  "name": "lendhub-indexer",
+  "version": "1.0.0",
+  "description": "LendHub MongoDB Indexer for blockchain event monitoring",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "defi",
+    "lending",
+    "blockchain",
+    "indexer",
+    "mongodb"
+  ],
+  "author": "LendHub Team",
+  "license": "MIT",
+  "dependencies": {
+    "mongodb": "^6.0.0",
+    "ethers": "^6.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

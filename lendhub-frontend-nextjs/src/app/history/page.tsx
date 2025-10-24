@@ -7,7 +7,7 @@ import useLendContext from '../../context/useLendContext';
 import { PriceOracleAddress, LendingPoolAddress } from '../../addresses';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { useTransactionHistory } from '../../hooks/useTransactionHistory';
+import { useMongoTransactions } from '../../hooks/useMongoTransactions';
 
 export default function HistoryPage() {
   const { metamaskDetails } = useLendContext();
@@ -15,9 +15,24 @@ export default function HistoryPage() {
   const address = metamaskDetails.currentAccount;
   const provider = metamaskDetails.provider;
 
-  // Transaction data will be handled by TransactionHistory component
+  // Use MongoDB transactions - show all transactions if no wallet connected
+  const { transactions, isLoading, error, refetch, totalVolume, totalFees, transactionStats } = useMongoTransactions(address || 'all');
 
-  // Always show the page, but handle wallet connection state within the component
+  // Helper function to safely format addresses
+  const formatAddress = (addr: any) => {
+    if (typeof addr === 'string' && addr.length > 10) {
+      return `${addr.slice(0, 8)}...${addr.slice(-6)}`;
+    }
+    return 'Unknown';
+  };
+
+  // Helper function to safely format hash
+  const formatHash = (hash: any) => {
+    if (typeof hash === 'string' && hash.length > 20) {
+      return `${hash.slice(0, 12)}...${hash.slice(-8)}`;
+    }
+    return 'Unknown';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
@@ -79,41 +94,155 @@ export default function HistoryPage() {
 
         {/* Transaction History Component */}
         <div className="mb-16">
-          {!isConnected ? (
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-12">
-                <div className="text-center">
-                  <div className="w-32 h-32 bg-gradient-to-r from-gray-400/20 to-gray-600/20 rounded-full flex items-center justify-center mx-auto mb-8">
-                    <svg className="w-16 h-16 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+            <div className="max-w-6xl mx-auto">
+              {/* Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+                  <div className="text-white/70 text-sm mb-2">Total Transactions</div>
+                  <div className="text-3xl font-bold text-white">{transactions.length}</div>
+                  <div className="text-white/50 text-xs mt-1">All time</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+                  <div className="text-white/70 text-sm mb-2">Total Volume (USD)</div>
+                  <div className="text-3xl font-bold text-white">
+                    ${totalVolume.toFixed(2)}
                   </div>
-                  <h2 className="text-4xl font-bold text-white mb-4">
-                    Wallet Not Connected
-                  </h2>
-                  <p className="text-white/70 text-xl mb-8 leading-relaxed">
-                    Connect your wallet on the main dashboard to view your transaction history and start tracking your DeFi activities
-                  </p>
-                  <Button 
-                    onClick={() => window.location.href = '/'}
-                    className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-12 py-4 rounded-2xl font-bold text-lg transition-all duration-200 shadow-2xl hover:shadow-3xl transform hover:scale-105"
-                  >
-                    <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    Go to Dashboard
-                  </Button>
+                  <div className="text-white/50 text-xs mt-1">USD value</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+                  <div className="text-white/70 text-sm mb-2">Transaction Types</div>
+                  <div className="text-2xl font-bold text-white">
+                    {transactionStats.totalLend + transactionStats.totalBorrow + transactionStats.totalRepay + transactionStats.totalWithdraw}
+                  </div>
+                  <div className="text-white/50 text-xs mt-1">
+                    Lend: {transactionStats.totalLend} | Borrow: {transactionStats.totalBorrow}
+                  </div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+                  <div className="text-white/70 text-sm mb-2">Status</div>
+                  <div className="text-3xl font-bold text-white">
+                    {isLoading ? '⏳' : '✅'}
+                  </div>
+                  <div className="text-white/50 text-xs mt-1">
+                    {isLoading ? 'Loading...' : 'Live data'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactions List */}
+              <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
+                <div className="p-6 border-b border-white/20">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-white">Recent Transactions</h2>
+                    <Button 
+                      onClick={refetch}
+                      disabled={isLoading}
+                      className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30"
+                    >
+                      {isLoading ? '⏳ Refreshing...' : '🔄 Refresh'}
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  {isLoading ? (
+                    <div className="text-center py-12">
+                      <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-white/70">Loading transactions...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="text-center py-12">
+                      <div className="text-red-400 mb-4">❌ Error: {error}</div>
+                      <Button onClick={refetch} className="bg-red-500/20 hover:bg-red-500/30 text-red-300">
+                        Try Again
+                      </Button>
+                    </div>
+                  ) : transactions.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">📝</div>
+                      <h3 className="text-2xl font-bold text-white mb-2">No Transactions Yet</h3>
+                      <p className="text-white/70 mb-6">Start using LendHub to see your transaction history here</p>
+                      <Button 
+                        onClick={() => window.location.href = '/'}
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-8 py-3 rounded-xl font-bold"
+                      >
+                        Go to Dashboard
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {transactions.map((tx, index) => (
+                        <div key={tx._id || index} className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-all duration-200 hover:scale-[1.02]">
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-4">
+                              <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                                <span className="text-white font-bold text-xl">
+                                  {tx.type === 'Lend' ? '💰' : 
+                                   tx.type === 'Withdraw' ? '⬅️' : 
+                                   tx.type === 'Borrow' ? '📤' : 
+                                   tx.type === 'Repay' ? '✅' : '⚡'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="text-white font-bold text-xl">{tx.type}</div>
+                                <div className="text-white/70 text-sm">
+                                  {tx.asset?.symbol || 'Unknown'} Transaction
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-white font-bold text-2xl">
+                                {tx.amount} {tx.asset?.symbol || 'Unknown'}
+                              </div>
+                              <div className="text-white/70 text-sm">
+                                ${tx.amountUSD} USD
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Details */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <div className="text-white/60 text-xs mb-1">User Address</div>
+                              <div className="text-white font-mono text-sm">
+                                {formatAddress(tx.user)}
+                              </div>
+                            </div>
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <div className="text-white/60 text-xs mb-1">Block Number</div>
+                              <div className="text-white font-mono text-sm">
+                                #{typeof tx.blockNumber === 'number' ? tx.blockNumber.toLocaleString() : 'Unknown'}
+                              </div>
+                            </div>
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <div className="text-white/60 text-xs mb-1">Transaction Hash</div>
+                              <div className="text-white font-mono text-sm">
+                                {formatHash(tx.hash)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Footer */}
+                          <div className="flex items-center justify-between text-xs text-white/50">
+                            <div>
+                              {typeof tx.timestamp === 'number' ? 
+                                new Date(tx.timestamp * 1000).toLocaleString() : 
+                                'Unknown time'
+                              }
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                              <span>Confirmed</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          ) : (
-            <TransactionHistory
-              provider={provider}
-              poolAddress={LendingPoolAddress}
-              oracleAddress={PriceOracleAddress}
-              userAddress={address || undefined}
-            />
-          )}
         </div>
 
         {/* Feature Cards */}
