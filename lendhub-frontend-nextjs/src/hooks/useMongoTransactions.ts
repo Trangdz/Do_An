@@ -108,21 +108,27 @@ export function useMongoTransactions(
     }
   }, [userAddress]);
 
-  // Initial fetch
+  // Initial fetch (only when userAddress changes)
   useEffect(() => {
-    fetchTransactions();
-  }, [fetchTransactions]);
+    if (userAddress) {
+      fetchTransactions();
+    }
+  }, [userAddress]); // Remove fetchTransactions from dependencies to prevent infinite loop
 
-  // Auto-refresh
+  // Smart auto-refresh (smooth, no flickering)
   useEffect(() => {
     if (!autoRefresh || !userAddress) return;
 
+    // Use longer interval to prevent flickering
     const intervalId = setInterval(() => {
-      fetchTransactions();
+      // Only refresh if not currently loading
+      if (!isLoading) {
+        fetchTransactions();
+      }
     }, refreshInterval);
 
     return () => clearInterval(intervalId);
-  }, [autoRefresh, refreshInterval, fetchTransactions, userAddress]);
+  }, [autoRefresh, refreshInterval, userAddress]); // Remove fetchTransactions from deps
 
   const refetch = useCallback(async () => {
     await fetchTransactions();

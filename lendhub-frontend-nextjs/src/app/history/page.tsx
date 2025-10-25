@@ -17,7 +17,11 @@ export default function HistoryPage() {
 
   // Use MongoDB transactions - only show transactions for connected wallet
   // Always call hooks, but pass null address when not mounted
-  const { transactions, isLoading, error, refetch, totalVolume, totalFees, transactionStats } = useMongoTransactions(isMounted ? address : null);
+  const { transactions, isLoading, error, refetch, totalVolume, totalFees, transactionStats } = useMongoTransactions(
+    isMounted && address ? address : null,
+    true,  // Enable smart auto-refresh
+    60000  // 60 seconds refresh interval (smooth)
+  );
 
   // Don't render until component is mounted (prevents hydration mismatch)
   if (!isMounted) {
@@ -67,6 +71,36 @@ export default function HistoryPage() {
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Auto-refresh Status & Manual Refresh Button */}
+              <div className="flex items-center space-x-3">
+                {/* Auto-refresh indicator */}
+                <div className="flex items-center space-x-2 text-white/60 text-sm">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>Auto-refresh: 60s</span>
+                </div>
+                
+                {/* Manual Refresh Button */}
+                <button
+                  onClick={refetch}
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg transition-colors duration-200 flex items-center space-x-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Refresh</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              
               {isConnected ? (
                 <div className="flex items-center space-x-3 px-6 py-3 bg-green-500/20 text-green-300 rounded-2xl backdrop-blur-sm border border-green-500/30">
                   <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>

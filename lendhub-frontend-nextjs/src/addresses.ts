@@ -1,0 +1,13 @@
+// Auto-generated addresses
+export const PriceOracleAddress = "0xb8A99b2272541eA6f63f579839AEFA20A8f00937";
+export const LendingPoolAddress = "0x56328671A331a3563e86C4CC53b5E1945733A3E3"; // Update with your pool address
+
+// Chainlink Aggregators
+export const ETH_USD_AGGREGATOR = "0x8b17C05f7b6ddb62B8eAf245f794a62e450564A7";
+export const USDC_USD_AGGREGATOR = "0x32204C52A19F1CEB131c0ADEb9d0df8a32a1b264";
+export const DAI_USD_AGGREGATOR = "0xc63972E5e5e0aB47AA141891F472370DBFfd8bEF";
+
+// Token Addresses
+export const WETH_ADDRESS = "0x7e1600E50472a5850A295cB8eeEB5C323c1f6254";
+export const USDC_ADDRESS = "0x92c2Dc1Fc29b180de2dA0FdB217823D939b6E0A5";
+export const DAI_ADDRESS = "0x2d45297410159D48CE557EDf07fCBF2919F6a7Bf";
