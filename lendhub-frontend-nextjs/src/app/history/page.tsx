@@ -10,13 +10,25 @@ import { Button } from '../../components/ui/Button';
 import { useMongoTransactions } from '../../hooks/useMongoTransactions';
 
 export default function HistoryPage() {
-  const { metamaskDetails } = useLendContext();
+  const { metamaskDetails, isMounted } = useLendContext();
   const isConnected = !!metamaskDetails.currentAccount;
   const address = metamaskDetails.currentAccount;
   const provider = metamaskDetails.provider;
 
-  // Use MongoDB transactions - show all transactions if no wallet connected
-  const { transactions, isLoading, error, refetch, totalVolume, totalFees, transactionStats } = useMongoTransactions(address || 'all');
+  // Use MongoDB transactions - only show transactions for connected wallet
+  // Always call hooks, but pass null address when not mounted
+  const { transactions, isLoading, error, refetch, totalVolume, totalFees, transactionStats } = useMongoTransactions(isMounted ? address : null);
+
+  // Don't render until component is mounted (prevents hydration mismatch)
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-white text-xl">Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   // Helper function to safely format addresses
   const formatAddress = (addr: any) => {
@@ -155,6 +167,18 @@ export default function HistoryPage() {
                       <div className="text-red-400 mb-4">❌ Error: {error}</div>
                       <Button onClick={refetch} className="bg-red-500/20 hover:bg-red-500/30 text-red-300">
                         Try Again
+                      </Button>
+                    </div>
+                  ) : !isConnected ? (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">🔗</div>
+                      <h3 className="text-2xl font-bold text-white mb-2">Wallet Not Connected</h3>
+                      <p className="text-white/70 mb-6">Please connect your wallet to view your transaction history</p>
+                      <Button 
+                        onClick={() => window.location.href = '/'}
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-8 py-3 rounded-xl font-bold"
+                      >
+                        Connect Wallet
                       </Button>
                     </div>
                   ) : transactions.length === 0 ? (

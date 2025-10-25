@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import lendContext from "./lendContext";
 import { ethers } from "ethers";
 import { CONFIG } from "../config/contracts";
@@ -19,7 +19,7 @@ const reportError = (error) => {
 const LendState = (props) => {
   //* Declaring all the states
 
-  // Set metamask details
+  // Set metamask details with hydration-safe initialization
   const [metamaskDetails, setMetamaskDetails] = useState({
     provider: null,
     networkName: null,
@@ -27,6 +27,9 @@ const LendState = (props) => {
     currentAccount: null,
     chainId: null,
   });
+
+  // Track if component is mounted (client-side)
+  const [isMounted, setIsMounted] = useState(false);
 
   // User assets and balances
   const [userAssets, setUserAssets] = useState([]);
@@ -108,6 +111,40 @@ const LendState = (props) => {
   //   }
   // }, []);
 
+  // Function to restore wallet connection from localStorage (client-side only)
+  const restoreWalletConnection = useCallback(async () => {
+    if (typeof window === 'undefined' || !isMounted) return;
+    
+    const saved = localStorage.getItem('metamaskDetails');
+    if (!saved) return;
+    
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed.currentAccount && window.ethereum) {
+        const { ethereum } = window;
+        const accounts = await ethereum.request({ method: 'eth_accounts' });
+        
+        if (accounts.length > 0 && accounts[0].toLowerCase() === parsed.currentAccount.toLowerCase()) {
+          const provider = new ethers.BrowserProvider(ethereum);
+          const network = await provider.getNetwork();
+          const signer = await provider.getSigner();
+          
+          setMetamaskDetails({
+            provider: provider,
+            networkName: parsed.networkName,
+            signer: signer,
+            currentAccount: parsed.currentAccount,
+            chainId: parsed.chainId,
+          });
+          
+          console.log("Restored wallet connection:", parsed.currentAccount);
+        }
+      }
+    } catch (error) {
+      console.log('Failed to restore wallet connection:', error);
+    }
+  }, [isMounted]);
+
   const connectWallet = useCallback(async () => {
     console.log("1. Connecting to wallet...");
     const { ethereum } = window;
@@ -135,13 +172,24 @@ const LendState = (props) => {
 
       if (accounts.length) {
         let currentAddress = accounts[0];
-        setMetamaskDetails({
+        const newDetails = {
           provider: provider,
           networkName: networkName,
           signer: signer,
           currentAccount: currentAddress,
           chainId: Number(network.chainId),
-        });
+        };
+        setMetamaskDetails(newDetails);
+        
+        // Save to localStorage for persistence
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('metamaskDetails', JSON.stringify({
+            networkName: networkName,
+            currentAccount: currentAddress,
+            chainId: Number(network.chainId),
+          }));
+        }
+        
         console.log("Connected to wallet++++++++++++++++++++++++++++++++++:", currentAddress);
       } else {
         alert(failMessage);
@@ -828,6 +876,8 @@ const LendState = (props) => {
 
     // Wallet functions
     connectWallet,
+    restoreWalletConnection,
+    isMounted,
     refresh,
 
     // Asset functions
@@ -900,6 +950,18 @@ const LendState = (props) => {
     mergeObjectifiedAssets,
     updateInterests,
   ]);
+
+  // Set mounted flag and restore wallet connection
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Auto-restore wallet connection after component is mounted
+  useEffect(() => {
+    if (isMounted) {
+      restoreWalletConnection();
+    }
+  }, [isMounted, restoreWalletConnection]);
 
   return (
     <lendContext.Provider value={contextValue}>

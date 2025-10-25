@@ -63,27 +63,11 @@ export function useMongoTransactions(
 
   // Fetch transactions from API
   const fetchTransactions = useCallback(async () => {
-    if (!userAddress || userAddress === 'all') {
-      // If no specific address, fetch all transactions
-      const params = new URLSearchParams({
-        limit: '100',
-        offset: '0'
-      });
-      
-      try {
-        const response = await fetch(`/api/transactions?${params}`);
-        const data = await response.json();
-        
-        if (data.success) {
-          setTransactions(data.data.transactions || []);
-          console.log(`✅ Fetched ${data.data.transactions?.length || 0} transactions from MongoDB (all users)`);
-        }
-      } catch (err) {
-        console.error('Error fetching all transactions:', err);
-        setError('Failed to fetch transactions');
-      } finally {
-        setIsLoading(false);
-      }
+    if (!userAddress) {
+      // If no address provided, don't fetch anything
+      setTransactions([]);
+      setIsLoading(false);
+      setError(null);
       return;
     }
 
@@ -97,8 +81,13 @@ export function useMongoTransactions(
         offset: '0'
       });
 
+      console.log(`🔍 Fetching transactions for user: ${userAddress}`);
+      console.log(`🔗 API URL: /api/transactions?${params}`);
+
       const response = await fetch(`/api/transactions?${params}`);
       const data = await response.json();
+
+      console.log(`📊 API Response:`, data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch transactions');

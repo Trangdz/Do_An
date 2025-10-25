@@ -22,7 +22,10 @@ export async function GET(request) {
 
     // Build query
     const query = {};
-    if (user) query.user = user;
+    if (user) {
+      // Use case-insensitive comparison for user address
+      query.user = { $regex: new RegExp(`^${user}$`, 'i') };
+    }
     if (type) query.type = type;
 
     // Get transactions
