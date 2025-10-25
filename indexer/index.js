@@ -1,5 +1,7 @@
 const { MongoClient } = require('mongodb');
 const { ethers } = require('ethers');
+const CoinGeckoPriceService = require('./coingecko-price-service.cjs');
+const RealtimePriceUpdater = require('./realtime-price-updater.cjs');
 require('dotenv').config({ path: './config.env' });
 
 class LendHubIndexer {
@@ -13,6 +15,8 @@ class LendHubIndexer {
     this.retryCount = 0;
     this.maxRetries = parseInt(process.env.MAX_RETRIES) || 3;
     this.retryDelay = parseInt(process.env.RETRY_DELAY) || 1000;
+    this.priceService = new CoinGeckoPriceService();
+    this.priceUpdater = new RealtimePriceUpdater();
   }
 
   async start() {
@@ -35,6 +39,10 @@ class LendHubIndexer {
       // Start indexing
       await this.indexFromLatestBlock();
       console.log('✅ Started indexing');
+      
+      // Start realtime price updater
+      await this.priceUpdater.start();
+      console.log('✅ Started realtime price updater');
 
       this.isRunning = true;
 
@@ -260,29 +268,32 @@ class LendHubIndexer {
 
   async calculateUSD(amount, assetAddress) {
     try {
-      // Hardcoded prices for known assets (in USD)
-      const knownPrices = {
-        '0xf7087e183958b9292a6a2DeDA6D4Bb8FEea50472': 1.0,  // USDC
-        '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 2000.0,  // WETH
-        '0x7e1600E50472a5850A295cB8eeEB5C323c1f6254': 1.0,  // DAI
-        '0x92c2Dc1Fc29b180de2dA0FdB217823D939b6E0A5': 2000.0   // WETH
-      };
-      
-      if (knownPrices[assetAddress]) {
-        const amountFloat = parseFloat(ethers.formatUnits(amount, 18));
-        const usdValue = amountFloat * knownPrices[assetAddress];
-        console.log(`💰 Calculated USD: ${amountFloat} * ${knownPrices[assetAddress]} = $${usdValue}`);
-        return usdValue;
+      // Try to get price from database first (updated by realtime updater)
+      let price = null;
+      try {
+        const asset = await this.db.collection('assets').findOne({ address: assetAddress });
+        if (asset && asset.currentPrice) {
+          price = asset.currentPrice;
+          console.log(`💰 Using cached price: $${price}`);
+        }
+      } catch (dbError) {
+        console.warn('⚠️ Database price lookup failed:', dbError.message);
       }
       
-      // Default estimation for unknown assets
+      // Fallback to CoinGecko API if no cached price
+      if (!price) {
+        price = await this.priceService.getPrice(assetAddress);
+        console.log(`💰 Using CoinGecko price: $${price}`);
+      }
+      
       const amountFloat = parseFloat(ethers.formatUnits(amount, 18));
-      const estimatedValue = amountFloat * 100; // Default estimation
-      console.log(`💰 Estimated USD: ${amountFloat} * 100 = $${estimatedValue}`);
-      return estimatedValue;
+      const usdValue = amountFloat * price;
+      
+      console.log(`💰 Final USD: ${amountFloat} * $${price} = $${usdValue.toFixed(2)}`);
+      return usdValue;
     } catch (error) {
       console.warn(`⚠️ Failed to calculate USD for asset ${assetAddress}:`, error.message);
-      // Return estimated value based on amount
+      // Fallback to estimated value
       const amountFloat = parseFloat(ethers.formatUnits(amount, 18));
       return amountFloat * 100; // Default estimation
     }

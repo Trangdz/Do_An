@@ -164,6 +164,67 @@ NEXT_PUBLIC_LINK=${linkAddr}
   console.log("✅ Updated .env.local");
 
   // ============================================
+  // STEP 6: UPDATE INDEXER CONFIG
+  // ============================================
+  console.log("\n📝 STEP 6: UPDATE INDEXER CONFIG");
+  console.log("─".repeat(40));
+  
+  // Update indexer config.env
+  const indexerConfigPath = path.join(__dirname, '..', 'indexer', 'config.env');
+  let indexerConfig = '';
+  
+  if (fs.existsSync(indexerConfigPath)) {
+    indexerConfig = fs.readFileSync(indexerConfigPath, 'utf8');
+  }
+  
+  // Update LENDING_POOL_ADDRESS
+  if (indexerConfig.includes('LENDING_POOL_ADDRESS=')) {
+    indexerConfig = indexerConfig.replace(
+      /LENDING_POOL_ADDRESS=.*/,
+      `LENDING_POOL_ADDRESS=${poolAddr}`
+    );
+  } else {
+    indexerConfig += `\nLENDING_POOL_ADDRESS=${poolAddr}\n`;
+  }
+  
+  // Update ORACLE_ADDRESS
+  if (indexerConfig.includes('ORACLE_ADDRESS=')) {
+    indexerConfig = indexerConfig.replace(
+      /ORACLE_ADDRESS=.*/,
+      `ORACLE_ADDRESS=${oracleAddr}`
+    );
+  } else {
+    indexerConfig += `\nORACLE_ADDRESS=${oracleAddr}\n`;
+  }
+  
+  // Update RPC_URL
+  if (indexerConfig.includes('RPC_URL=')) {
+    indexerConfig = indexerConfig.replace(
+      /RPC_URL=.*/,
+      `RPC_URL=http://127.0.0.1:7545`
+    );
+  } else {
+    indexerConfig += `\nRPC_URL=http://127.0.0.1:7545\n`;
+  }
+  
+  // Update MONGODB_URI
+  if (indexerConfig.includes('MONGODB_URI=')) {
+    indexerConfig = indexerConfig.replace(
+      /MONGODB_URI=.*/,
+      `MONGODB_URI=mongodb://localhost:27017/lendhub_local`
+    );
+  } else {
+    indexerConfig += `\nMONGODB_URI=mongodb://localhost:27017/lendhub_local\n`;
+  }
+  
+  fs.writeFileSync(indexerConfigPath, indexerConfig);
+  console.log("✅ Updated indexer config.env");
+  console.log(`   🏦 Pool: ${poolAddr}`);
+  console.log(`   💰 Oracle: ${oracleAddr}`);
+  console.log(`   🔗 RPC: http://127.0.0.1:7545`);
+  console.log(`   🗄️ MongoDB: mongodb://localhost:27017/lendhub_local`);
+
+  // ============================================
   // SUMMARY
   // ============================================
   console.log("\n" + "=".repeat(60));
@@ -191,7 +252,8 @@ NEXT_PUBLIC_LINK=${linkAddr}
   console.log("2. Import any of the 10 accounts to MetaMask");
   console.log("3. Start frontend: cd lendhub-frontend-nextjs && npm run dev");
   console.log("4. Connect MetaMask to Ganache (localhost:7545, Chain ID: 1337)");
-  console.log("5. Start testing!");
+  console.log("5. Start indexer: cd indexer && node index.js");
+  console.log("6. Start testing!");
   
   console.log("\n" + "=".repeat(60));
 }

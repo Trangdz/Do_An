@@ -18,9 +18,10 @@
   "author": "LendHub Team",
   "license": "MIT",
   "dependencies": {
-    "mongodb": "^6.0.0",
+    "axios": "^1.12.2",
+    "dotenv": "^16.0.0",
     "ethers": "^6.0.0",
-    "dotenv": "^16.0.0"
+    "mongodb": "^6.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.0"

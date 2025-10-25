@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "exit solid own south lock actual whip blur friend robot film inquiry",
+        mnemonic: "parent mixed hungry crisp remind noodle primary comfort cheap impulse agent clock",
         count: 10, // Generate 10 accounts
       },
     },

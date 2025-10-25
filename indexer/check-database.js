@@ -13,7 +13,7 @@ async function checkDatabase() {
     await client.connect();
     console.log('✅ Connected to MongoDB Atlas');
     
-    const db = client.db('lendhub');
+    const db = client.db('lendhub_local');
     
     // Check collections
     console.log('\n📋 Collections:');
