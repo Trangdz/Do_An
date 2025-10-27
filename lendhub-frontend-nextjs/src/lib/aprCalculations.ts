@@ -77,9 +77,9 @@ export async function getReserveAPRData(
       throw new Error('Invalid asset address');
     }
     
-    // LendingPool ABI - Simple version without tuple names
+    // LendingPool ABI - Map correctly to ReserveData struct (18 fields total)
     const poolABI = [
-      'function reserves(address) external view returns (uint128, uint128, uint128, uint128, uint64, uint64, uint16, uint16, uint16, uint16, uint16, uint8, bool, uint16, uint64, uint64, uint64, uint40)',
+      'function reserves(address) external view returns (uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate)',
       'function interestRateModel() external view returns (address)'
     ];
     
@@ -87,26 +87,47 @@ export async function getReserveAPRData(
     
     // Get reserve data
     console.log('📊 Calling reserves()...');
-    const reserveRaw = await pool.reserves(assetAddress);
-    
-    // Check if reserve is initialized
-    if (!reserveRaw || reserveRaw.length === 0) {
-      console.error('❌ Reserve not initialized for:', assetAddress);
-      throw new Error('Reserve not initialized');
+    let reserveRaw;
+    try {
+      reserveRaw = await pool.reserves(assetAddress);
+    } catch (callError: any) {
+      console.error('❌ Cannot call reserves():', callError.message);
+      if (callError.code === 'BAD_DATA' || callError.code === 'CALL_EXCEPTION') {
+        console.warn('⚠️ Reserve not initialized or contract error');
+        return {
+          supplyAPR: 0,
+          borrowAPR: 0,
+          utilization: 0,
+          totalSupplied: '0',
+          totalBorrowed: '0'
+        };
+      }
+      throw callError;
     }
     
-    console.log('📦 Raw reserve data length:', reserveRaw.length);
-    console.log('📦 Reserve raw:', reserveRaw);
+    // Check if reserve is initialized (lastUpdate == 0 means not initialized)
+    if (!reserveRaw || reserveRaw.lastUpdate === 0) {
+      console.warn('⚠️ Reserve not initialized for:', assetAddress);
+      return {
+        supplyAPR: 0,
+        borrowAPR: 0,
+        utilization: 0,
+        totalSupplied: '0',
+        totalBorrowed: '0'
+      };
+    }
     
-    // Extract only what we need from tuple (safer approach)
+    console.log('📦 Reserve data retrieved, lastUpdate:', reserveRaw.lastUpdate.toString());
+    
+    // Extract fields from named tuple
     const reserve = {
-      reserveCash: reserveRaw[0],                    // uint128
-      totalDebtPrincipal: reserveRaw[1],             // uint128
-      reserveFactorBps: reserveRaw[6],               // uint16
-      optimalUBps: reserveRaw[13],                   // uint16
-      baseRateRayPerSec: reserveRaw[14],             // uint64
-      slope1RayPerSec: reserveRaw[15],               // uint64
-      slope2RayPerSec: reserveRaw[16]                // uint64
+      reserveCash: reserveRaw.reserveCash,                    // uint128
+      totalDebtPrincipal: reserveRaw.totalDebtPrincipal,     // uint128
+      reserveFactorBps: reserveRaw.reserveFactorBps,         // uint16
+      optimalUBps: reserveRaw.optimalUBps,                   // uint16
+      baseRateRayPerSec: reserveRaw.baseRateRayPerSec,        // uint64
+      slope1RayPerSec: reserveRaw.slope1RayPerSec,            // uint64
+      slope2RayPerSec: reserveRaw.slope2RayPerSec             // uint64
     };
     
     console.log('✅ Reserve data:', {

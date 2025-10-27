@@ -76,9 +76,16 @@ async function main() {
   // Initialize reserves
   const SECONDS_PER_YEAR = 365 * 24 * 3600;
   const toRayPerSec = (apr) => BigInt(Math.floor(apr * 1e27 / SECONDS_PER_YEAR));
-  const base = toRayPerSec(0.001);
-  const s1 = toRayPerSec(0.002);
-  const s2 = toRayPerSec(0.01);
+  // ⭐ TĂNG RATES LÊN ĐỂ DỄ THẤY LÃI TÍCH LŨY
+  const base = toRayPerSec(0.01);     // 1% APY (tăng từ 0.1%)
+  const s1 = toRayPerSec(0.05);       // 5% APY (tăng từ 0.2%)
+  const s2 = toRayPerSec(0.30);       // 30% APY (tăng từ 1%)
+  
+  console.log("📈 Interest Rate Parameters (HIGH VISIBILITY):");
+  console.log("   Base: 1% APR");
+  console.log("   Slope 1: 5% APR");
+  console.log("   Slope 2: 30% APR");
+  console.log("   Max Rate: 36% APR");
   
   await pool.initReserve(await weth.getAddress(), 18, 1000, 7500, 8000, 500, 5000, false, 8000, base, s1, s2);
   await pool.initReserve(await dai.getAddress(), 18, 1000, 7500, 8000, 500, 5000, true, 8000, base, s1, s2);

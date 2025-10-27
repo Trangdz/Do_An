@@ -14,6 +14,7 @@ interface TokenCardProps {
   onWithdrawClick: () => void;
   onRepayClick: () => void;
   onWrapEthClick: () => void;
+  signer?: ethers.JsonRpcSigner | null;
 }
 
 export function TokenCard({
@@ -25,11 +26,16 @@ export function TokenCard({
   onBorrowClick,
   onWithdrawClick,
   onRepayClick,
-  onWrapEthClick
+  onWrapEthClick,
+  signer
 }: TokenCardProps) {
   // Track price changes for animation
   const [prevPrice, setPrevPrice] = React.useState(token.price);
   const [priceChanged, setPriceChanged] = React.useState<'up' | 'down' | null>(null);
+  
+  // Collateral toggle state
+  const [isCollateral, setIsCollateral] = React.useState(false);
+  const [isToggling, setIsToggling] = React.useState(false);
 
   React.useEffect(() => {
     if (token.price !== prevPrice) {
@@ -75,6 +81,190 @@ export function TokenCard({
     }
   }, [supplyAPR, borrowAPR]);
 
+  // Check collateral status
+  React.useEffect(() => {
+    const checkCollateralStatus = async () => {
+      if (!provider || !signer || !poolAddress || token.userSupply <= 0) return;
+      
+      try {
+        const abi = [
+          'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
+        ];
+        const pool = new ethers.Contract(poolAddress, abi, provider);
+        const userAddress = await signer.getAddress();
+        const userReserve = await pool.userReserves(userAddress, token.address);
+        setIsCollateral(userReserve.useAsCollateral);
+      } catch (error) {
+        console.error('Error checking collateral status:', error);
+      }
+    };
+    
+    checkCollateralStatus();
+  }, [provider, signer, poolAddress, token.address, token.userSupply]);
+
+  // Toggle collateral with detailed error handling
+  const handleToggleCollateral = async () => {
+    if (!signer || !poolAddress) return;
+    
+    try {
+      const abi = [
+        'function setUserUseReserveAsCollateral(address asset, bool useAsCollateral)',
+        'function getAccountData(address user) view returns (uint256 collateralValue1e18, uint256 debtValue1e18, uint256 healthFactor1e18)'
+      ];
+      const pool = new ethers.Contract(poolAddress, abi, signer);
+      
+      setIsToggling(true);
+      
+      // Pre-check: Get account data to show helpful message if needed
+      try {
+        const userAddress = await signer.getAddress();
+        const accountData = await pool.getAccountData(userAddress);
+        const { collateralValue1e18, debtValue1e18, healthFactor1e18 } = accountData;
+        
+        console.log('Current account:', {
+          collateral: ethers.formatEther(collateralValue1e18),
+          debt: ethers.formatEther(debtValue1e18),
+          healthFactor: ethers.formatEther(healthFactor1e18)
+        });
+        
+        // If disabling and user has debt with HF < 2, warn them
+        if (!isCollateral && debtValue1e18 > BigInt(0) && healthFactor1e18 < ethers.parseEther('2.0')) {
+          const confirmDisable = confirm(
+            `⚠️ WARNING: Your Health Factor is ${(Number(healthFactor1e18) / 1e18).toFixed(2)}\n\n` +
+            `Disabling this collateral may make your position LIQUIDATABLE!\n\n` +
+            `Continue anyway?`
+          );
+          if (!confirmDisable) {
+            setIsToggling(false);
+            return;
+          }
+        }
+      } catch (checkError) {
+        console.warn('Could not check account data:', checkError);
+      }
+      
+      // Try to execute transaction with better gas estimation
+      let estimatedGas;
+      try {
+        estimatedGas = await pool.setUserUseReserveAsCollateral.estimateGas(
+          token.address, 
+          !isCollateral
+        );
+        console.log('Estimated gas:', estimatedGas.toString());
+      } catch (estError: any) {
+        // If estimate fails, extract revert reason
+        const estReason = estError?.reason || estError?.shortMessage || estError?.message || '';
+        console.error('Gas estimation failed:', estReason);
+        
+        // Show specific error message based on revert reason
+        if (estReason.includes('Health factor would be < 1') || estReason.includes('Health factor')) {
+          alert('❌ CANNOT DISABLE COLLATERAL!\n\n⚠️ Safety Check Failed:\n\nYou have DEBT and this is your ONLY collateral.\n\nDisabling would make:\n• Health Factor < 1.00\n• Your position LIQUIDATABLE!\n\n✅ TO FIX:\n1. Repay ALL your debt first\n   OR\n2. Enable another asset as collateral\n3. Then disable this one\n\n🛡️ Protocol protects you!');
+          setIsToggling(false);
+          return;
+        }
+        
+        if (estReason.includes('Asset cannot be used as collateral')) {
+          alert('❌ Asset cannot be used as collateral\n\nThis asset has LTV = 0%.');
+          setIsToggling(false);
+          return;
+        }
+        
+        if (estReason.includes('No supply balance')) {
+          alert('❌ No supply balance\n\nYou must supply this asset first.');
+          setIsToggling(false);
+          return;
+        }
+        
+        // For other revert reasons, still try to send tx
+        console.warn('Continuing despite estimation failure');
+      }
+      
+      const txOptions: any = {};
+      if (estimatedGas) {
+        txOptions.gasLimit = estimatedGas * BigInt(120) / BigInt(100); // Add 20% buffer
+      }
+      
+      const tx = await pool.setUserUseReserveAsCollateral(
+        token.address, 
+        !isCollateral,
+        txOptions
+      );
+      
+      const receipt = await tx.wait();
+      
+      console.log('✅ Collateral toggle successful:', receipt);
+      
+      setIsCollateral(!isCollateral);
+      
+      if (window.location.reload) {
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (error: any) {
+      console.error('❌ Error toggling collateral:', error);
+      console.error('Full error object:', JSON.stringify(error, null, 2));
+      
+      // Try to extract revert reason from error
+      let revertReason = '';
+      let errorCode = '';
+      
+      // Check different error structures
+      if (error?.error?.message) {
+        revertReason = error.error.message;
+        errorCode = error.error.code;
+      } else if (error?.data?.message) {
+        revertReason = error.data.message;
+      } else if (error?.reason) {
+        revertReason = error.reason;
+      } else if (error?.shortMessage) {
+        // ethers v6 format
+        revertReason = error.shortMessage;
+        // Try to extract revert reason from data
+        if (error.data) {
+          try {
+            const decoded = error.info?.error?.data;
+            if (decoded && typeof decoded === 'string' && decoded.startsWith('0x08c379a0')) {
+              // Error(string) selector - extract actual message
+              revertReason = 'Transaction reverted';
+            }
+          } catch (e) {}
+        }
+      } else if (error?.message) {
+        revertReason = error.message;
+      } else if (typeof error === 'string') {
+        revertReason = error;
+      }
+      
+      console.log('Extracted revert reason:', revertReason);
+      
+      // Check for specific revert reasons
+      if (revertReason.includes('Health factor would be < 1') || revertReason.includes('Health factor')) {
+        alert('❌ CANNOT DISABLE COLLATERAL!\n\n⚠️ Safety Check Failed:\n\nYou have DEBT and this is your ONLY collateral.\n\nDisabling would make:\n• Health Factor < 1.00\n• Your position LIQUIDATABLE!\n\n✅ TO FIX:\n1. Repay ALL your debt first\n   OR\n2. Enable another asset as collateral\n3. Then disable this one\n\n🛡️ Protocol protects you!');
+        return;
+      }
+      
+      if (revertReason.includes('Asset cannot be used as collateral')) {
+        alert('❌ Asset cannot be used as collateral\n\nThis asset has LTV = 0%.');
+        return;
+      }
+      
+      if (revertReason.includes('No supply balance')) {
+        alert('❌ No supply balance\n\nYou must supply this asset first.');
+        return;
+      }
+      
+      if (errorCode === '-32603' || parseInt(errorCode) === -32603 || revertReason.includes('Internal JSON-RPC')) {
+        // This usually means the transaction reverted but we couldn't get the reason
+        alert('❌ TRANSACTION REVERTED!\n\n⚠️ Likely reason: You cannot disable this collateral.\n\nWhy?\n• You have DEBT\n• This is your only collateral\n• Disabling → Health Factor < 1\n\n✅ SOLUTIONS:\n1. Repay all debt\n2. Enable another asset as collateral first\n3. Then try again\n\n💡 Check the "Borrows" section for your current debt.');
+        return;
+      }
+      
+      // Generic error
+      alert(`❌ Error toggling collateral\n\n${revertReason || 'Transaction failed'}\n\nSee console for details.`);
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
   return (
     <div className="group p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 bg-white/50 backdrop-blur-sm">
       {/* Token Header */}
@@ -91,6 +281,37 @@ export function TokenCard({
             <div className="font-bold text-lg text-gray-900">{token.symbol}</div>
             <div className="text-sm text-gray-500 font-mono">
               {token.address.slice(0, 6)}...{token.address.slice(-4)}
+            </div>
+            {/* Collateral Toggle Switch */}
+            <div className="mt-2 flex items-center space-x-2">
+              {token.userSupply > 0 ? (
+                <>
+                  <span className="text-xs text-gray-500">Collateral:</span>
+                  <button
+                    onClick={handleToggleCollateral}
+                    disabled={isToggling}
+                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      isCollateral ? 'bg-green-500' : 'bg-gray-300'
+                    } ${isToggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    title={isCollateral ? 'Click to disable collateral' : 'Click to enable collateral'}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                        isCollateral ? 'translate-x-5' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className={`text-xs font-medium ${
+                    isCollateral ? 'text-green-600' : 'text-gray-500'
+                  }`}>
+                    {isToggling ? '⏳' : isCollateral ? 'ON' : 'OFF'}
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-300">
+                  📌 Supply to enable
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -144,7 +365,7 @@ export function TokenCard({
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-red-600">
-                {formatBalance(token.userBorrow || 0, { decimals: 4 })} {token.symbol}
+                {formatBalance(token.userBorrow || 0, 4)} {token.symbol}
               </div>
               <div className="text-xs text-red-600/70">
                 Borrowed (${formatCurrency(token.userBorrowUSD || 0)})

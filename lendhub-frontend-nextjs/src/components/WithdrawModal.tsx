@@ -45,10 +45,44 @@ export function WithdrawModal({
 }: WithdrawModalProps) {
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isCollateral, setIsCollateral] = useState(false);
   const { showToast } = useToast();
 
-  // Calculate x_max based on Health Factor and liquidity
+  // Check if asset is used as collateral
+  useEffect(() => {
+    const checkCollateralStatus = async () => {
+      if (!provider || !signer || !poolAddress) return;
+      
+      try {
+        const abi = [
+          'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
+        ];
+        const pool = new ethers.Contract(poolAddress, abi, provider);
+        const userAddress = await signer.getAddress();
+        const userReserve = await pool.userReserves(userAddress, token.address);
+        setIsCollateral(userReserve.useAsCollateral);
+      } catch (error) {
+        console.error('Error checking collateral status:', error);
+        setIsCollateral(false);
+      }
+    };
+    
+    if (open) {
+      checkCollateralStatus();
+    }
+  }, [open, provider, signer, poolAddress, token.address]);
+
+  // Calculate x_max based on whether asset is collateral
   const calculateXMax = () => {
+    const userSupplyNum = parseFloat(userSupply);
+    const poolLiquidityNum = parseFloat(poolLiquidity);
+    
+    // If not used as collateral, can withdraw all (limited by supply & liquidity)
+    if (!isCollateral) {
+      return Math.min(userSupplyNum, poolLiquidityNum);
+    }
+    
+    // If used as collateral, check Health Factor
     if (price === 0 || liquidationThreshold === 0) return 0;
     
     // x_max = ((CollateralUSD - DebtUSD) * 10000) / (Price * liqThresholdBps)
@@ -63,15 +97,16 @@ export function WithdrawModal({
     const maxWithdrawTokens = maxWithdrawUSD / price;
     
     // Clamp by user supply and pool liquidity
-    const userSupplyNum = parseFloat(userSupply);
-    const poolLiquidityNum = parseFloat(poolLiquidity);
-    
     return Math.min(maxWithdrawTokens, userSupplyNum, poolLiquidityNum);
   };
 
   const xMax = calculateXMax();
-  const isHealthy = collateralUSD > debtUSD;
-  const canWithdraw = isHealthy && xMax > 0;
+  const isHealthy = collateralUSD >= debtUSD;
+  const hasDebt = debtUSD > 0;
+  
+  // Only show warning if: is collateral AND has debt AND unhealthy
+  const showWarning = isCollateral && hasDebt && !isHealthy;
+  const canWithdraw = !isCollateral ? xMax > 0 : (isHealthy && xMax > 0);
 
   const handleAmountChange = (value: string) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
@@ -162,8 +197,8 @@ export function WithdrawModal({
             </div>
           </div>
 
-          {/* Health Factor Warning */}
-          {!isHealthy && (
+          {/* Health Factor Warning - Only show for collateral assets with debt */}
+          {showWarning && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center space-x-2">
                 <span className="text-red-500">⚠️</span>
@@ -171,6 +206,21 @@ export function WithdrawModal({
                   <p className="text-sm font-medium text-red-800">Position at Risk</p>
                   <p className="text-xs text-red-600 mt-1">
                     Your debt exceeds collateral. Cannot withdraw safely.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Info for non-collateral assets */}
+          {!isCollateral && xMax > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2">
+                <span className="text-blue-500">ℹ️</span>
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Safe to Withdraw</p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    This asset is not used as collateral. You can withdraw your full supply.
                   </p>
                 </div>
               </div>

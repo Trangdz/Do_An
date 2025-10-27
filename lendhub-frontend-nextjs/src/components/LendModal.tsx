@@ -161,10 +161,43 @@ export function LendModal({
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Allowance</span>
-              <span className="text-sm font-mono text-gray-900">
+              <span className={`text-sm font-mono ${
+                parseFloat(allowance) === 0 ? 'text-red-600' : 'text-gray-900'
+              }`}>
                 {formatNumber(parseFloat(allowance), 4)} {token.symbol}
               </span>
             </div>
+            
+            {/* Show info about allowance */}
+            {parseFloat(allowance) === 0 && parseFloat(balance) > 0 && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-500 mt-0.5">ℹ️</span>
+                  <div>
+                    <p className="text-sm font-medium text-blue-900 mb-1">
+                      Approval Required
+                    </p>
+                    <p className="text-xs text-blue-700">
+                      Allowance is currently 0. When you click "Supply", you'll need to approve the transaction first, then supply.
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1 font-mono">
+                      Flow: Approve token → Supply to pool (2 steps)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {parseFloat(allowance) > 0 && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <span className="text-green-500">✅</span>
+                  <p className="text-xs text-green-700">
+                    Approved! You can supply tokens directly.
+                  </p>
+                </div>
+              </div>
+            )}
             {parseFloat(balance) === 0 && (
               <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800 mb-2">

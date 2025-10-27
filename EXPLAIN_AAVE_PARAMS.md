@@ -274,3 +274,4 @@ APR = (EtherscanValue / 1e25) * 100
 Etherscan shows: 4,000,000,000,000,000,000,000,000
 APR = 4e25 / 1e25 * 100 = 4%
 ```
+

@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   env: {
-    NEXT_PUBLIC_RPC_URL: 'http://localhost:8545',
+    NEXT_PUBLIC_RPC_URL: 'http://localhost:7545',
     NEXT_PUBLIC_CHAIN_ID: '1337',
     MONGODB_URI: 'mongodb://localhost:27017/lendhub_local',
   },
@@ -13,9 +13,13 @@ const nextConfig = {
       net: false,
       tls: false,
     };
+    // Disable webpack cache to avoid ENOENT errors
+    config.cache = false;
     return config;
   },
-  outputFileTracingRoot: __dirname,
+  experimental: {
+    serverComponentsExternalPackages: ['mongodb', 'ethers'],
+  },
 };
 
 module.exports = nextConfig;

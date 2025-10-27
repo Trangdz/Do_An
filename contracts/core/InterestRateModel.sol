@@ -60,7 +60,7 @@ contract InterestRateModel {
 
         // supply ≈ borrow * U * (1 - reserveFactor)
         // U in WAD; (1 - RF) in WAD
-        uint256 oneMinusRF = (uint256(10000 - reserveFactorBps) * 1e14); // 10000 bps -> 1e18
+        uint256 oneMinusRF = (uint256(10000 - reserveFactorBps) * 1e18) / 10000; // Convert bps to WAD: (bps * 1e18) / 10000
         uint256 supply = (borrow * U) / 1e18;
         supply = (supply * oneMinusRF) / 1e18;
 

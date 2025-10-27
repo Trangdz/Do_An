@@ -207,10 +207,56 @@ function _getAccountData(address user) internal view returns (
 }
 
 // x_max theo công thức bạn chốt: tối đa rút được của 1 asset khi vẫn HF_after>=1
-function _maxWithdrawAllowed(address /*user*/, address /*asset*/) internal pure returns (uint256 xMax1e18) {
-    // Simplified version for demo - return max value to allow withdraw
-    // In production, you would implement proper health factor calculation
-    return type(uint256).max;
+function _maxWithdrawAllowed(address user, address asset) internal view returns (uint256 xMax1e18) {
+    ReserveUserModels.UserReserveData storage u = userReserves[user][asset];
+    
+    // If user has no supply, cannot withdraw
+    uint256 supply = _currentSupply(user, asset);
+    if (supply == 0) {
+        return 0;
+    }
+    
+    // If not used as collateral, can withdraw all
+    if (!u.useAsCollateral) {
+        return supply;
+    }
+    
+    // If used as collateral, check health factor
+    (uint256 totalColl, uint256 totalDebt, ) = _getAccountData(user);
+    
+    // If no debt, can withdraw all
+    if (totalDebt == 0) {
+        return supply;
+    }
+    
+    // Get current supply balance and price
+    uint256 price = oracle.getAssetPrice1e18(asset);
+    uint256 supplyValueUSD = (supply * price) / 1e18;
+    
+    ReserveUserModels.ReserveData storage r = reserves[asset];
+    uint256 weightedCollateral = (supplyValueUSD * uint256(r.ltvBps)) / 10000;
+    
+    // If removing this collateral would make HF < 1, limit withdraw
+    uint256 collateralAfter = totalColl - weightedCollateral;
+    if (collateralAfter < totalDebt) {
+        // Calculate how much we can withdraw to keep HF = 1.0
+        // target_collateral = totalDebt (to get HF = 1)
+        // collateral_to_remove = totalColl - target_collateral
+        uint256 maxCollateralToRemove = totalColl - totalDebt;
+        
+        if (maxCollateralToRemove >= weightedCollateral) {
+            // Can withdraw all of this asset
+            return supply;
+        } else {
+            // Can only withdraw partial amount
+            // maxCollateralToRemove (USD) / weightedCollateral (USD) * supply
+            uint256 partialValue = (supply * maxCollateralToRemove) / weightedCollateral;
+            return partialValue;
+        }
+    }
+    
+    // Can withdraw all
+    return supply;
 }
 
 
@@ -238,14 +284,11 @@ function lend(address asset, uint256 amount) external {
     u.supply.principal = uint128(sNew);
     u.supply.index = r.liquidityIndex;
     
-    // 4) Auto-enable as collateral if LTV > 0 (realistic behavior like Aave)
-    // User can disable later via setUserUseReserveAsCollateral()
-    if (r.ltvBps > 0 && !u.useAsCollateral) {
-        u.useAsCollateral = true;
-        emit CollateralEnabled(msg.sender, asset);
-    }
+    // Note: NOT auto-enabling as collateral
+    // User must manually enable collateral via setUserUseReserveAsCollateral()
+    // This gives users full control over their collateral positions
 
-    // 5) Cập nhật sổ cái
+    // 4) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
 
     emit Supplied(msg.sender, asset, delta1e18);
@@ -306,12 +349,33 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
     ReserveUserModels.UserReserveData storage u = userReserves[msg.sender][asset];
     
     // Check health factor before borrow
-    (uint256 col, uint256 debt, ) = _getAccountData(msg.sender);
     uint256 borrowAmount1e18 = _to1e18(amount, r.decimals);
-    uint256 newDebt = debt + borrowAmount1e18;
     
-    // Simple health factor check: collateral must be >= debt * 1.1 (10% buffer)
-    require(col >= newDebt * 110 / 100, "Health factor too low");
+    // Calculate new debt with price
+    uint256 price = oracle.getAssetPrice1e18(asset);
+    uint256 newDebtValueUSD = (borrowAmount1e18 * price) / 1e18;
+    
+    // Get account data (collateral already includes LTV)
+    (uint256 col, uint256 debt, ) = _getAccountData(msg.sender);
+    uint256 totalNewDebt = debt + newDebtValueUSD;
+    
+    // Health factor must be > 1 after borrow (with 1% buffer for safety)
+    require(col * 100 > totalNewDebt * 101, "Health factor too low");
+    
+    // Additional check: Ensure user has enabled collateral assets
+    if (debt == 0 && borrowAmount1e18 > 0) {
+        // First borrow - check user has at least one collateral
+        bool hasCollateral = false;
+        for (uint256 i = 0; i < _allAssets.length; i++) {
+            address assetAddr = _allAssets[i];
+            ReserveUserModels.UserReserveData storage uCheck = userReserves[msg.sender][assetAddr];
+            if (uCheck.useAsCollateral && uCheck.supply.principal > 0) {
+                hasCollateral = true;
+                break;
+            }
+        }
+        require(hasCollateral, "No collateral enabled");
+    }
     
     // Check liquidity
     require(r.reserveCash >= borrowAmount1e18, "Insufficient liquidity");
@@ -401,6 +465,26 @@ function getAccountData(address user) external view returns (
     uint256 healthFactor1e18
 ) {
     return _getAccountData(user);
+}
+
+/**
+ * @notice Get current supply balance (with interest) for a user
+ * @param user The address of the user
+ * @param asset The asset address
+ * @return Current supply balance including accrued interest (in 1e18)
+ */
+function getCurrentSupplyBalance(address user, address asset) external view returns (uint256) {
+    return _currentSupply(user, asset);
+}
+
+/**
+ * @notice Get current debt balance (with interest) for a user
+ * @param user The address of the user
+ * @param asset The asset address
+ * @return Current debt balance including accrued interest (in 1e18)
+ */
+function getCurrentDebtBalance(address user, address asset) external view returns (uint256) {
+    return _currentDebt(user, asset);
 }
 
 event Borrowed(address indexed user, address indexed asset, uint256 amount);
@@ -617,5 +701,237 @@ function setAsCollateral(address asset, bool useAsCollateral) external {
 
 // Event for collateral setting
 event CollateralSet(address indexed user, address indexed asset, bool useAsCollateral);
+
+    // ========== COLLATERAL MANAGEMENT FUNCTIONS ==========
+    
+    /**
+     * @notice Get list of assets that user is using as collateral
+     * @param user The address of the user
+     * @return Array of asset addresses used as collateral
+     */
+    function getUserCollateral(address user) external view returns (address[] memory) {
+        uint256 collateralCount = 0;
+        
+        // Count how many assets are used as collateral
+        for (uint256 i = 0; i < _allAssets.length; i++) {
+            ReserveUserModels.UserReserveData storage u = userReserves[user][_allAssets[i]];
+            if (u.useAsCollateral && u.supply.principal > 0) {
+                collateralCount++;
+            }
+        }
+        
+        // Build array
+        address[] memory collateralList = new address[](collateralCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < _allAssets.length; i++) {
+            ReserveUserModels.UserReserveData storage u = userReserves[user][_allAssets[i]];
+            if (u.useAsCollateral && u.supply.principal > 0) {
+                collateralList[index] = _allAssets[i];
+                index++;
+            }
+        }
+        
+        return collateralList;
+    }
+    
+    /**
+     * @notice Check if an asset can be used as collateral
+     * @param asset The address of the asset
+     * @return true if asset can be used as collateral (LTV > 0)
+     */
+    function canUseAsCollateral(address asset) external view returns (bool) {
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        return r.ltvBps > 0;
+    }
+    
+    /**
+     * @notice Get maximum amount user can borrow for a specific asset
+     * @param user The address of the user
+     * @param asset The asset to borrow
+     * @return Maximum borrowable amount in 1e18 format
+     */
+    function getMaxBorrowable(address user, address asset) external view returns (uint256) {
+        uint256 totalCollateral = 0;
+        uint256 totalDebt = 0;
+        
+        // Sum all collateral with LTV
+        for (uint256 i = 0; i < _allAssets.length; i++) {
+            address assetAddr = _allAssets[i];
+            ReserveUserModels.ReserveData storage rData = reserves[assetAddr];
+            ReserveUserModels.UserReserveData storage uData = userReserves[user][assetAddr];
+            
+            if (uData.useAsCollateral && uData.supply.principal > 0) {
+                uint256 supply = _currentSupply(user, assetAddr);
+                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                uint256 collateralValue = (supply * price * rData.ltvBps) / (1e18 * 10000);
+                totalCollateral += collateralValue;
+            }
+        }
+        
+        // Sum all debt
+        for (uint256 i = 0; i < _allAssets.length; i++) {
+            address assetAddr = _allAssets[i];
+            ReserveUserModels.UserReserveData storage uData = userReserves[user][assetAddr];
+            
+            if (uData.borrow.principal > 0) {
+                uint256 userDebt = _currentDebt(user, assetAddr);
+                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                totalDebt += (userDebt * price) / 1e18;
+            }
+        }
+        
+        // If no collateral, cannot borrow
+        if (totalCollateral <= totalDebt) {
+            return 0;
+        }
+        
+        // Calculate available to borrow
+        uint256 availableCollateral = totalCollateral - totalDebt;
+        
+        // Get price of asset to borrow
+        uint256 borrowAssetPrice = oracle.getAssetPrice1e18(asset);
+        if (borrowAssetPrice == 0) return 0;
+        
+        // Get LTV of asset to borrow
+        ReserveUserModels.ReserveData storage borrowAssetData = reserves[asset];
+        if (borrowAssetData.ltvBps == 0) return 0;
+        
+        // Calculate max borrow amount
+        uint256 maxBorrowValue = (availableCollateral * borrowAssetData.ltvBps) / 10000;
+        uint256 maxBorrowAmount = (maxBorrowValue * 1e18) / borrowAssetPrice;
+        
+        return maxBorrowAmount;
+    }
+    
+    /**
+     * @notice Get debt utilization ratio
+     * @param user The address of the user
+     * @return Utilization ratio in bps (0-10000)
+     */
+    function getDebtUtilization(address user) external view returns (uint256) {
+        uint256 totalCollateral = 0;
+        uint256 totalDebt = 0;
+        
+        // Calculate total collateral
+        for (uint256 i = 0; i < _allAssets.length; i++) {
+            address assetAddr = _allAssets[i];
+            ReserveUserModels.ReserveData storage rData = reserves[assetAddr];
+            ReserveUserModels.UserReserveData storage uData = userReserves[user][assetAddr];
+            
+            if (uData.useAsCollateral && uData.supply.principal > 0) {
+                uint256 supply = _currentSupply(user, assetAddr);
+                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                uint256 collateralValue = (supply * price * rData.ltvBps) / (1e18 * 10000);
+                totalCollateral += collateralValue;
+            }
+        }
+        
+        // Calculate total debt
+        for (uint256 i = 0; i < _allAssets.length; i++) {
+            address assetAddr = _allAssets[i];
+            ReserveUserModels.UserReserveData storage uData = userReserves[user][assetAddr];
+            
+            if (uData.borrow.principal > 0) {
+                uint256 userDebt = _currentDebt(user, assetAddr);
+                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                totalDebt += (userDebt * price) / 1e18;
+            }
+        }
+        
+        if (totalCollateral == 0) return 10000; // 100% utilized if no collateral
+        
+        // Return utilization in bps
+        return (totalDebt * 10000) / totalCollateral;
+    }
+    
+    /**
+     * @notice Enable or disable multiple assets as collateral in one transaction
+     * @param assets Array of asset addresses
+     * @param useAsCollaterals Array of flags (true to enable, false to disable)
+     */
+    function setUserCollaterals(address[] memory assets, bool[] memory useAsCollaterals) external nonReentrant {
+        require(assets.length == useAsCollaterals.length, "Array length mismatch");
+        
+        for (uint256 i = 0; i < assets.length; i++) {
+            // Call internal function directly to avoid double nonReentrant modifier
+            address asset = assets[i];
+            bool useAsCollateral = useAsCollaterals[i];
+            
+            _requireInited(asset);
+            _accrue(asset);
+            
+            ReserveUserModels.ReserveData storage r = reserves[asset];
+            ReserveUserModels.UserReserveData storage u = userReserves[msg.sender][asset];
+            
+            // Must have supply to enable/disable collateral
+            uint256 supply = _currentSupply(msg.sender, asset);
+            require(supply > 0, "No supply balance");
+            
+            // If already in desired state, skip
+            if (u.useAsCollateral == useAsCollateral) {
+                continue;
+            }
+            
+            // If enabling collateral
+            if (useAsCollateral) {
+                require(r.ltvBps > 0, "Asset cannot be used as collateral");
+                u.useAsCollateral = true;
+                emit CollateralEnabled(msg.sender, asset);
+            } 
+            // If disabling collateral
+            else {
+                // Check health factor after disabling
+                (uint256 collateralBefore, uint256 debt, ) = _getAccountData(msg.sender);
+                
+                // Calculate collateral without this asset
+                uint256 price = oracle.getAssetPrice1e18(asset);
+                uint256 supplyValueUSD = (supply * price) / 1e18;
+                uint256 weightedCollateral = (supplyValueUSD * uint256(r.ltvBps)) / 10000;
+                uint256 collateralAfter = collateralBefore - weightedCollateral;
+                
+                // If user has debt, ensure health factor remains > 1
+                if (debt > 0) {
+                    require(collateralAfter >= debt, "Health factor would be < 1");
+                }
+                
+                u.useAsCollateral = false;
+                emit CollateralDisabled(msg.sender, asset);
+            }
+        }
+    }
+    
+    /**
+     * @notice Get liquidation risk for a specific asset
+     * @param user The address of the user
+     * @param asset The asset to check
+     * @return Risk in bps (0-10000), where 10000 = at liquidation threshold
+     */
+    function getLiquidationRisk(address user, address asset) external view returns (uint256) {
+        (uint256 totalColl, uint256 totalDebt, uint256 hf) = _getAccountData(user);
+        
+        if (totalDebt == 0 || hf == type(uint256).max) return 0;
+        
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        ReserveUserModels.UserReserveData storage u = userReserves[user][asset];
+        
+        if (!u.useAsCollateral) return 0;
+        
+        uint256 supply = _currentSupply(user, asset);
+        uint256 price = oracle.getAssetPrice1e18(asset);
+        uint256 assetCollValue = (supply * price * r.ltvBps) / (1e18 * 10000);
+        
+        // Calculate collateral without this asset
+        uint256 collateralWithoutAsset = totalColl - assetCollValue;
+        
+        // Calculate new HF if remove this asset
+        uint256 newHF = (collateralWithoutAsset * 1e18) / totalDebt;
+        
+        // Risk = how close to liquidation threshold (1.0)
+        if (newHF >= 1e18) return 0;
+        
+        // Return risk in bps (0-10000)
+        return ((1e18 - newHF) * 10000) / 1e18;
+    }
 
 }

@@ -20,6 +20,7 @@ import { TokenCard } from './TokenCard';
 import { useRealtimePrices } from '../hooks/useRealtimePrices';
 import { useInterestRateHistory } from '../hooks/useInterestRateHistory';
 import { InterestRateChart } from './InterestRateChart';
+import { CollateralManager } from './CollateralManager';
 import { PriceOracleAddress } from '../addresses';
 
 export function SimpleDashboard() {
@@ -604,6 +605,14 @@ export function SimpleDashboard() {
             </CardHeader>
           </Card>
 
+          {/* Collateral Management - Commented until contract is redeployed */}
+          {/* <CollateralManager
+            poolAddress={CONFIG.LENDING_POOL}
+            provider={provider}
+            signer={signer}
+            onRefresh={refresh}
+          /> */}
+
           {/* Live Interest Rate Chart */}
           <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader>
@@ -654,6 +663,7 @@ export function SimpleDashboard() {
                       onWithdrawClick={() => handleWithdrawClick(token)}
                       onRepayClick={() => handleRepayClick(token)}
                       onWrapEthClick={handleWrapEthClick}
+                      signer={signer}
                     />
                   ))}
                 </div>

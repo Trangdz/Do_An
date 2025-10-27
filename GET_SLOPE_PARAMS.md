@@ -94,3 +94,4 @@ Rmax:        53% APR
 | Optimal U | 80% | 92% |
 | Rmax | 1.3% | 53% |
 
+

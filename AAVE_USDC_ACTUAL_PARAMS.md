@@ -162,3 +162,4 @@ Rmax:   53% APR    ⚠️ (Extreme!)
 
 **Recommendation**: Use **Balanced Approach** for production!
 
+

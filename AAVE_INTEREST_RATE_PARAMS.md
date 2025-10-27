@@ -104,3 +104,4 @@ await pool.initReserve(
 **Last Updated**: 2024
 **Source**: Aave Protocol V3, Ethereum Mainnet
 
+
