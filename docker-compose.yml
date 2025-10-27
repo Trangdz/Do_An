@@ -1,81 +1,146 @@
 version: '3.8'
 
 services:
-  # MongoDB Local (Optional - for development)
-  mongodb:
-    image: mongo:7.0
-    container_name: lendhub-mongodb
+  # Ganache Local Blockchain
+  ganache:
+    image: trufflesuite/ganache-cli:latest
+    container_name: ganache
+    command: ganache-cli --host 0.0.0.0 --port 8545 --networkId 1337 --chainId 1337 --gasLimit 10000000 --gasPrice 20000000000 --accounts 10 --defaultBalanceEther 1000 --deterministic --mnemonic "test test test test test test test test test test test junk"
     ports:
-      - "27017:27017"
+      - "8545:8545"
+    networks:
+      - chainlink-local
+
+  # PostgreSQL for Chainlink Node 1
+  postgres1:
+    image: postgres:13
+    container_name: postgres1
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
-      MONGO_INITDB_DATABASE: lendhub
+      POSTGRES_USER: chainlink
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: chainlink_node1
     volumes:
-      - mongodb_data:/data/db
-      - ./mongodb-init:/docker-entrypoint-initdb.d
-    networks:
-      - lendhub-network
-    profiles:
-      - local
-
-  # MongoDB Admin UI
-  mongo-express:
-    image: mongo-express:1.0.0
-    container_name: lendhub-mongo-express
+      - postgres1_data:/var/lib/postgresql/data
     ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
-      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
-      ME_CONFIG_BASICAUTH_USERNAME: admin
-      ME_CONFIG_BASICAUTH_PASSWORD: admin123
-    depends_on:
-      - mongodb
+      - "5433:5432"
     networks:
-      - lendhub-network
-    profiles:
-      - local
+      - chainlink-local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainlink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # LendHub Indexer
-  indexer:
-    build: ./indexer
-    container_name: lendhub-indexer
+  # PostgreSQL for Chainlink Node 2
+  postgres2:
+    image: postgres:13
+    container_name: postgres2
     environment:
-      MONGODB_URI: mongodb://admin:password123@mongodb:27017/lendhub
-      RPC_URL: http://host.docker.internal:8545
-      LENDING_POOL_ADDRESS: ${LENDING_POOL_ADDRESS}
-      ORACLE_ADDRESS: ${ORACLE_ADDRESS}
-    depends_on:
-      - mongodb
+      POSTGRES_USER: chainlink
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: chainlink_node2
+    volumes:
+      - postgres2_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
     networks:
-      - lendhub-network
+      - chainlink-local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainlink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Chainlink Node 1
+  chainlink-node1:
+    image: smartcontract/chainlink:1.13.0
+    container_name: chainlink-node1
+    depends_on:
+      - ganache
+      - postgres1
+    environment:
+      - DATABASE_URL=postgresql://chainlink:password@postgres1:5432/chainlink_node1?sslmode=disable
+      - ETH_URL=http://ganache:8545
+      - ETH_CHAIN_ID=1337
+      - CHAINLINK_TLS_PORT=0
+      - SECURE_COOKIES=false
+      - LOG_LEVEL=debug
+      - MINIMUM_CONTRACT_PAYMENT_LINK_JUELS=1000000000000000000
+      - MINIMUM_CONTRACT_PAYMENT_PLINK_JUELS=1000000000000000000
+    volumes:
+      - ./node1/chainlink-data:/chainlink
+      - ./node1/.env:/chainlink/.env
+      - ./node1/api:/chainlink/api
+      - ./node1/password:/chainlink/password
+    ports:
+      - "6688:6688"
+    networks:
+      - chainlink-local
     restart: unless-stopped
 
-  # Frontend
-  frontend:
-    build: ./lendhub-frontend-nextjs
-    container_name: lendhub-frontend
-    ports:
-      - "3001:3000"
-    environment:
-      MONGODB_URI: mongodb://admin:password123@mongodb:27017/lendhub
-      NEXT_PUBLIC_RPC_URL: http://host.docker.internal:8545
+  # Chainlink Node 2
+  chainlink-node2:
+    image: smartcontract/chainlink:1.13.0
+    container_name: chainlink-node2
     depends_on:
-      - mongodb
+      - ganache
+      - postgres2
+    environment:
+      - DATABASE_URL=postgresql://chainlink:password@postgres2:5432/chainlink_node2?sslmode=disable
+      - ETH_URL=http://ganache:8545
+      - ETH_CHAIN_ID=1337
+      - CHAINLINK_TLS_PORT=0
+      - SECURE_COOKIES=false
+      - LOG_LEVEL=debug
+      - MINIMUM_CONTRACT_PAYMENT_LINK_JUELS=1000000000000000000
+      - MINIMUM_CONTRACT_PAYMENT_PLINK_JUELS=1000000000000000000
+    volumes:
+      - ./node2/chainlink-data:/chainlink
+      - ./node2/.env:/chainlink/.env
+      - ./node2/api:/chainlink/api
+      - ./node2/password:/chainlink/password
+    ports:
+      - "6689:6688"
     networks:
-      - lendhub-network
+      - chainlink-local
     restart: unless-stopped
 
-volumes:
-  mongodb_data:
+  # Chainlink Node 1 Database Migration
+  chainlink-node1-migrate:
+    image: smartcontract/chainlink:1.13.0
+    container_name: chainlink-node1-migrate
+    depends_on:
+      - postgres1
+    environment:
+      - DATABASE_URL=postgresql://chainlink:password@postgres1:5432/chainlink_node1?sslmode=disable
+    command: ["chainlink", "migrate", "-c", "/chainlink/.env"]
+    volumes:
+      - ./node1/.env:/chainlink/.env
+    networks:
+      - chainlink-local
+    restart: "no"
+
+  # Chainlink Node 2 Database Migration
+  chainlink-node2-migrate:
+    image: smartcontract/chainlink:1.13.0
+    container_name: chainlink-node2-migrate
+    depends_on:
+      - postgres2
+    environment:
+      - DATABASE_URL=postgresql://chainlink:password@postgres2:5432/chainlink_node2?sslmode=disable
+    command: ["chainlink", "migrate", "-c", "/chainlink/.env"]
+    volumes:
+      - ./node2/.env:/chainlink/.env
+    networks:
+      - chainlink-local
+    restart: "no"
 
 networks:
-  lendhub-network:
+  chainlink-local:
     driver: bridge
 
-
-
-
-
+volumes:
+  postgres1_data:
+    driver: local
+  postgres2_data:
+    driver: local

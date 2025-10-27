@@ -1,0 +1,47 @@
+// COPY FUNCTION NÀY VÀO LendingPool.sol
+// Đặt sau function initReserve()
+
+/**
+ * @notice Update interest rate parameters for an existing reserve
+ * @dev Only owner can update, reserve must be initialized
+ */
+function updateInterestRateParams(
+    address asset,
+    uint16 newOptimalU,
+    uint64 newBase,
+    uint64 newSlope1,
+    uint64 newSlope2
+) external onlyOwner {
+    ReserveUserModels.ReserveData storage r = reserves[asset];
+    
+    // Check reserve already initialized
+    require(r.lastUpdate != 0, "Reserve not initialized");
+    
+    // Validate parameters
+    require(newOptimalU > 0 && newOptimalU <= 10000, "Invalid optimal U");
+    require(newSlope2 >= newSlope1, "Slope2 must be >= Slope1");
+    
+    // Update parameters
+    r.optimalUBps = newOptimalU;
+    r.baseRateRayPerSec = newBase;
+    r.slope1RayPerSec = newSlope1;
+    r.slope2RayPerSec = newSlope2;
+    
+    emit InterestRateParamsUpdated(
+        asset,
+        newOptimalU,
+        newBase,
+        newSlope1,
+        newSlope2
+    );
+}
+
+// Thêm event này vào đầu contract:
+event InterestRateParamsUpdated(
+    address indexed asset,
+    uint16 optimalUBps,
+    uint64 baseRateRayPerSec,
+    uint64 slope1RayPerSec,
+    uint64 slope2RayPerSec
+);
+

@@ -268,28 +268,61 @@ class LendHubIndexer {
 
   async calculateUSD(amount, assetAddress) {
     try {
-      // Try to get price from database first (updated by realtime updater)
       let price = null;
+      let priceSource = 'unknown';
+      
+      // 1. Try Oracle contract first (production method)
       try {
-        const asset = await this.db.collection('assets').findOne({ address: assetAddress });
-        if (asset && asset.currentPrice) {
-          price = asset.currentPrice;
-          console.log(`💰 Using cached price: $${price}`);
+        if (this.oracleAddress) {
+          const oracleABI = [
+            'function getAssetPrice1e18(address token) external view returns (uint256)'
+          ];
+          const oracle = new ethers.Contract(this.oracleAddress, oracleABI, this.provider);
+          const priceWei = await oracle.getAssetPrice1e18(assetAddress);
+          price = parseFloat(ethers.formatEther(priceWei));
+          priceSource = 'oracle-contract';
+          console.log(`💰 Using Oracle contract price: $${price}`);
         }
-      } catch (dbError) {
-        console.warn('⚠️ Database price lookup failed:', dbError.message);
+      } catch (oracleError) {
+        console.warn(`⚠️ Oracle contract failed for ${assetAddress}:`, oracleError.message);
       }
       
-      // Fallback to CoinGecko API if no cached price
+      // 2. Fallback to database cache (updated by realtime updater)
       if (!price) {
-        price = await this.priceService.getPrice(assetAddress);
-        console.log(`💰 Using CoinGecko price: $${price}`);
+        try {
+          const asset = await this.db.collection('assets').findOne({ address: assetAddress });
+          if (asset && asset.currentPrice) {
+            price = asset.currentPrice;
+            priceSource = 'database-cache';
+            console.log(`💰 Using cached price: $${price}`);
+          }
+        } catch (dbError) {
+          console.warn('⚠️ Database price lookup failed:', dbError.message);
+        }
+      }
+      
+      // 3. Fallback to CoinGecko API
+      if (!price) {
+        try {
+          price = await this.priceService.getPrice(assetAddress);
+          priceSource = 'coingecko-api';
+          console.log(`💰 Using CoinGecko price: $${price}`);
+        } catch (coingeckoError) {
+          console.warn('⚠️ CoinGecko API failed:', coingeckoError.message);
+        }
+      }
+      
+      // 4. Final fallback to estimated value
+      if (!price) {
+        price = 100; // Default estimation
+        priceSource = 'fallback-estimation';
+        console.log(`💰 Using fallback estimation: $${price}`);
       }
       
       const amountFloat = parseFloat(ethers.formatUnits(amount, 18));
       const usdValue = amountFloat * price;
       
-      console.log(`💰 Final USD: ${amountFloat} * $${price} = $${usdValue.toFixed(2)}`);
+      console.log(`💰 Final USD: ${amountFloat} * $${price} = $${usdValue.toFixed(2)} (source: ${priceSource})`);
       return usdValue;
     } catch (error) {
       console.warn(`⚠️ Failed to calculate USD for asset ${assetAddress}:`, error.message);
