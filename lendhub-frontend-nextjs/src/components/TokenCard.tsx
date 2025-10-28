@@ -388,6 +388,7 @@ export function TokenCard({
                     decimals={2}
                     currentAPR={supplyAPR} // ✅ APR biến động từ blockchain!
                     initialInterestAccrued={supplyInterestData.interestAccrued} // Lãi đã tích lũy từ blockchain
+                    lastUpdateTimestamp={Math.floor(supplyInterestData.lastUpdate / 1000)} // Timestamp từ hook
                   />
                 ) : (
                   `0.00 ${token.symbol}`
@@ -407,6 +408,7 @@ export function TokenCard({
                     decimals={2}
                     currentAPR={borrowAPR} // ✅ APR biến động từ blockchain!
                     initialInterestAccrued={borrowInterestData.interestAccrued} // Lãi đã tích lũy từ blockchain
+                    lastUpdateTimestamp={Math.floor(borrowInterestData.lastUpdate / 1000)} // Timestamp từ hook
                   />
                 ) : (
                   `0.00 ${token.symbol}`
