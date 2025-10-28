@@ -97,23 +97,102 @@ export function calculateHealthFactor(
 
 /**
  * Calculate max withdraw amount with HF constraint
- * x_max = ((CollateralUSD - DebtUSD) * 10000) / (Price(asset) * liqThresholdBps_asset)
+ * Matches smart contract logic in _maxWithdrawAllowed()
+ * 
+ * Smart contract logic:
+ * 1. If no debt -> can withdraw all
+ * 2. Calculate weightedCollateral = supply * price * LTV / 10000
+ * 3. Check if removing full asset would make HF < 1
+ * 4. If yes: calculate partial withdraw using maxCollateralToRemove
  */
 export function calculateMaxWithdraw(
-  collateralValue: BigNumberish,
-  debtValue: BigNumberish,
-  assetPrice: number,
-  liquidationThreshold: number
+  totalCollateralUSD: number,  // Total collateral value (already weighted by LTV)
+  totalDebtUSD: number,         // Total debt value
+  userSupply: number,           // User's supply balance of this asset (in tokens)
+  assetPrice: number,           // Price of asset (USD per token)
+  ltvBps: number                // LTV in bps (NOT liquidation threshold!)
 ): number {
-  const collateral = toNumber(collateralValue);
-  const debt = toNumber(debtValue);
+  console.log('🔍 calculateMaxWithdraw inputs:', {
+    totalCollateralUSD,
+    totalDebtUSD,
+    userSupply,
+    assetPrice,
+    ltvBps
+  });
   
-  if (collateral <= debt) return 0;
+  // If no supply, cannot withdraw
+  if (userSupply <= 0) {
+    console.log('❌ No supply');
+    return 0;
+  }
   
-  const netCollateral = collateral - debt;
-  const maxWithdrawUSD = (netCollateral * 10000) / (assetPrice * liquidationThreshold);
+  // If no debt, can withdraw all (matching smart contract line 228-230)
+  if (totalDebtUSD <= 0) {
+    console.log('✅ No debt, can withdraw all:', userSupply);
+    return userSupply;
+  }
   
-  return maxWithdrawUSD / assetPrice; // Convert back to token amount
+  if (assetPrice === 0 || ltvBps === 0) {
+    console.log('❌ Price or LTV is 0');
+    return 0;
+  }
+  
+  // Calculate weighted collateral of this asset (matching smart contract line 237)
+  // weightedCollateral = supply * price * LTV / 10000
+  const supplyValueUSD = userSupply * assetPrice;
+  const weightedCollateral = (supplyValueUSD * ltvBps) / 10000;
+  
+  console.log('📊 Weighted collateral:', {
+    supplyValueUSD,
+    weightedCollateral,
+    formula: `(${userSupply} × ${assetPrice} × ${ltvBps}) / 10000`
+  });
+  
+  // Check if removing this collateral would make HF < 1 (matching smart contract line 240-241)
+  const collateralAfter = totalCollateralUSD - weightedCollateral;
+  
+  console.log('📊 HF check:', {
+    totalCollateralUSD,
+    weightedCollateral,
+    collateralAfter,
+    totalDebtUSD
+  });
+  
+  if (collateralAfter >= totalDebtUSD) {
+    // Can withdraw all - removing this asset won't make HF < 1 (matching smart contract line 258-259)
+    console.log('✅ Can withdraw all, HF still safe:', userSupply);
+    return userSupply;
+  }
+  
+  // Need to calculate partial withdraw (matching smart contract line 242-254)
+  const maxCollateralToRemove = totalCollateralUSD - totalDebtUSD;
+  
+  console.log('📊 Partial withdraw calculation:', {
+    maxCollateralToRemove,
+    weightedCollateral
+  });
+  
+  if (maxCollateralToRemove <= 0) {
+    console.log('❌ Cannot withdraw - would make HF < 1');
+    return 0;
+  }
+  
+  if (maxCollateralToRemove >= weightedCollateral) {
+    // Can still withdraw all (matching smart contract line 247-249)
+    console.log('✅ Can withdraw all despite debt:', userSupply);
+    return userSupply;
+  }
+  
+  // Calculate partial amount (matching smart contract line 253)
+  // Formula: (supply × maxCollateralToRemove) / weightedCollateral
+  const maxWithdrawTokens = (userSupply * maxCollateralToRemove) / weightedCollateral;
+  
+  console.log('✅ Partial withdraw result:', {
+    maxWithdrawTokens,
+    formula: `(${userSupply} × ${maxCollateralToRemove}) / ${weightedCollateral} = ${maxWithdrawTokens}`
+  });
+  
+  return maxWithdrawTokens;
 }
 
 /**
@@ -143,23 +222,26 @@ export function formatNumber(value: number, decimals: number = 2): string {
  * Format balance with more precision for large numbers
  */
 export function formatBalance(value: number, decimals: number = 4): string {
-  if (value === 0) return '0';
+  if (!value || value === 0) return '0.00';
   if (value < 0.0001) return '< 0.0001';
   
-  // For very large numbers, show more precision
+  // For very large numbers, use compact notation
+  if (value >= 1000000000) {
+    const billions = value / 1000000000;
+    return `${billions.toFixed(2)}B`;
+  }
+  
   if (value >= 1000000) {
     const millions = value / 1000000;
-    if (millions >= 100) {
-      return `${millions.toFixed(0)}M`;
-    } else if (millions >= 10) {
-      return `${millions.toFixed(1)}M`;
-    } else {
-      // Show 4 decimal places for numbers < 10M to see the difference
-      return `${millions.toFixed(4)}M`;
-    }
+    return `${millions.toFixed(2)}M`;
   }
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
   
+  if (value >= 1000) {
+    const thousands = value / 1000;
+    return `${thousands.toFixed(2)}K`;
+  }
+  
+  // For smaller numbers, use specified decimals
   return value.toFixed(decimals);
 } 
 

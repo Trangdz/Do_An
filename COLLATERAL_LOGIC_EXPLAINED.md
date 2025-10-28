@@ -142,3 +142,4 @@ if (u.useAsCollateral && supply > 0) {
 **Logic hoàn toàn đúng như bạn mô tả!** 🎉
 
 
+

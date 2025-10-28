@@ -91,9 +91,9 @@ export async function getReserveAPRData(
     try {
       reserveRaw = await pool.reserves(assetAddress);
     } catch (callError: any) {
-      console.error('❌ Cannot call reserves():', callError.message);
+      // Silently return zero values if reserve not initialized
       if (callError.code === 'BAD_DATA' || callError.code === 'CALL_EXCEPTION') {
-        console.warn('⚠️ Reserve not initialized or contract error');
+        console.debug('Reserve not initialized for:', assetAddress);
         return {
           supplyAPR: 0,
           borrowAPR: 0,
@@ -107,7 +107,7 @@ export async function getReserveAPRData(
     
     // Check if reserve is initialized (lastUpdate == 0 means not initialized)
     if (!reserveRaw || reserveRaw.lastUpdate === 0) {
-      console.warn('⚠️ Reserve not initialized for:', assetAddress);
+      console.debug('Reserve not initialized for:', assetAddress);
       return {
         supplyAPR: 0,
         borrowAPR: 0,

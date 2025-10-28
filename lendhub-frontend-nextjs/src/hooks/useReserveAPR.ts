@@ -59,13 +59,21 @@ export function useReserveAPR(
             error: null
           });
         }
-      } catch (error) {
-        console.error('Error fetching reserve APR:', error);
-        
-        // If reserve not initialized, return zeros instead of error
+      } catch (error: any) {
+        // Check if it's a circuit breaker error
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const isCircuitBreakerError = 
+          errorMessage.includes('circuit breaker is open') ||
+          error?.code === 'CALL_EXCEPTION' ||
+          error?.code === -32603;
+        
         const isReserveNotInitialized = errorMessage.includes('Reserve not initialized') || 
                                         errorMessage.includes('could not decode result data');
+        
+        // Only log non-circuit breaker errors
+        if (!isCircuitBreakerError && !isReserveNotInitialized) {
+          console.error('Error fetching reserve APR:', error);
+        }
         
         if (isMounted) {
           if (isReserveNotInitialized) {
@@ -79,6 +87,9 @@ export function useReserveAPR(
               isLoading: false,
               error: null // Don't show error, just zeros
             });
+          } else if (isCircuitBreakerError) {
+            // Don't update error state for circuit breaker - just keep previous data
+            // This prevents spamming the console
           } else {
             // Real error - show it
             setData(prev => ({

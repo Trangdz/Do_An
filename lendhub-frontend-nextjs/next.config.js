@@ -17,9 +17,7 @@ const nextConfig = {
     config.cache = false;
     return config;
   },
-  experimental: {
-    serverComponentsExternalPackages: ['mongodb', 'ethers'],
-  },
+  // Remove experimental to avoid warnings
 };
 
 module.exports = nextConfig;

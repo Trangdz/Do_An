@@ -58,22 +58,113 @@ export function BorrowModal({
     return () => { mounted = false; };
   }, [provider, poolAddress]);
 
+  // Fetch actual collateral and debt from contract if provided values are 0
+  const [actualCollateral, setActualCollateral] = useState(collateralUSD);
+  const [actualDebt, setActualDebt] = useState(debtUSD);
+  const [maxBorrowable, setMaxBorrowable] = useState(0);
+
+  useEffect(() => {
+    // Always fetch from contract when modal opens
+    if (open && signer && provider && poolAddress) {
+      (async () => {
+        try {
+          const userAddress = await signer.getAddress();
+          const abi = ['function getAccountData(address user) view returns (uint256 collateralValue1e18, uint256 debtValue1e18, uint256 healthFactor1e18)'];
+          const pool = new ethers.Contract(poolAddress, abi, provider);
+          const accountData = await pool.getAccountData(userAddress);
+          
+          const fetchedCollateral = parseFloat(ethers.formatEther(accountData.collateralValue1e18));
+          const fetchedDebt = parseFloat(ethers.formatEther(accountData.debtValue1e18));
+          
+          console.log('📊 Fetched Account Data:', {
+            collateralUSD: fetchedCollateral,
+            debtUSD: fetchedDebt,
+            healthFactor: ethers.formatEther(accountData.healthFactor1e18)
+          });
+          
+          setActualCollateral(fetchedCollateral);
+          setActualDebt(fetchedDebt);
+
+          // Calculate max borrowable using proper LTV formula
+          // Contract's getMaxBorrowable already handles LTV properly
+          // Try to call it directly if the function exists
+          try {
+            const getMaxBorrowableAbi = ['function getMaxBorrowable(address user, address asset) view returns (uint256)'];
+            const poolWithMaxBorrow = new ethers.Contract(poolAddress, getMaxBorrowableAbi, provider);
+            const maxBorrowAmount = await poolWithMaxBorrow.getMaxBorrowable(userAddress, token.address);
+            const maxBorrowParsed = parseFloat(ethers.formatEther(maxBorrowAmount));
+            
+            console.log('📊 Max Borrowable from Contract:', {
+              maxBorrowAmount: maxBorrowAmount.toString(),
+              maxBorrowParsed
+            });
+            
+            setMaxBorrowable(maxBorrowParsed);
+          } catch (maxBorrowError: any) {
+            console.log('⚠️ getMaxBorrowable not available, calculating manually:', maxBorrowError?.message || String(maxBorrowError));
+            
+            // Fallback: Calculate manually
+            // Max borrow = (available collateral) / (borrow asset price)
+            // Where available collateral = total collateral - total debt
+            const availableCollateral = fetchedCollateral - fetchedDebt;
+            const maxBorrowUSD = Math.max(0, availableCollateral);
+            const maxBorrowTokens = price > 0 ? maxBorrowUSD / price : 0;
+            
+            console.log('📊 Manual Max Borrowable Calculation:', {
+              availableCollateral,
+              maxBorrowUSD,
+              maxBorrowTokens,
+              assetPrice: price
+            });
+            
+            setMaxBorrowable(maxBorrowTokens);
+          }
+        } catch (error) {
+          console.error('❌ Failed to fetch account data:', error);
+          // On error, fall back to props
+          setActualCollateral(collateralUSD);
+          setActualDebt(debtUSD);
+        }
+      })();
+    }
+  }, [open, signer, provider, poolAddress, token.address, price]);
+
   // Calculate HF_after
   const calculateHFAfter = (borrowAmount: number) => {
     if (price === 0) return 0;
     
-    const debtAfterUSD = debtUSD + (borrowAmount * price);
+    const debtAfterUSD = actualDebt + (borrowAmount * price);
     if (debtAfterUSD === 0) return Number.MAX_SAFE_INTEGER;
     
-    return collateralUSD / debtAfterUSD;
+    return actualCollateral / debtAfterUSD;
   };
 
   const hfAfter = calculateHFAfter(parseFloat(amount) || 0);
   const isHealthyAfter = hfAfter >= 1;
   // Protect against empty or zero liquidity
   const poolLiquidityNum = Math.max(0, parseFloat(poolLiquidity || '0'));
-  const collateralCap = price > 0 ? (collateralUSD * 0.8) / price : 0; // 80% LTV cap for UI
-  const maxBorrow = Math.max(0, Math.min(poolLiquidityNum, collateralCap));
+  
+  // Calculate max borrow based on collateral and LTV
+  // Max Borrow = (Collateral Value - Debt Value) / Asset Price
+  const availableCollateralUSD = actualCollateral - actualDebt;
+  const calculatedMaxBorrowFromCollateral = price > 0 ? availableCollateralUSD / price : 0;
+  
+  // Use the higher value between fetched maxBorrowable and calculated from collateral
+  const calculatedMaxBorrow = maxBorrowable > 0 
+    ? Math.max(maxBorrowable, calculatedMaxBorrowFromCollateral)
+    : calculatedMaxBorrowFromCollateral;
+  
+  // Finally, limit by pool liquidity
+  const maxBorrow = Math.max(0, Math.min(poolLiquidityNum, calculatedMaxBorrow));
+  
+  console.log('📊 Max Borrow Calculation:', {
+    availableCollateralUSD,
+    calculatedMaxBorrowFromCollateral,
+    maxBorrowable,
+    calculatedMaxBorrow,
+    poolLiquidityNum,
+    finalMaxBorrow: maxBorrow
+  });
 
   const handleAmountChange = (value: string) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
@@ -150,6 +241,69 @@ export function BorrowModal({
       : (noLiquidity ? 'Pool has zero liquidity for this asset.' : undefined);
   const isDisabled = !signer || isEth || !poolValid || noLiquidity || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > maxBorrow || !isHealthyAfter;
 
+  // Debug logging to help identify issue
+  useEffect(() => {
+    if (open) {
+      console.log('📊 Borrow Modal Debug Info:', {
+        collateralUSD: actualCollateral,
+        debtUSD: actualDebt,
+        hfAfter,
+        isHealthyAfter,
+        maxBorrow,
+        poolLiquidityNum,
+        calculatedMaxBorrow,
+        isEth,
+        noLiquidity,
+        poolValid,
+        amount: parseFloat(amount),
+        isDisabled,
+        reasons: {
+          noSigner: !signer,
+          isEth,
+          invalidPool: !poolValid,
+          noLiquidity,
+          noAmount: !amount || parseFloat(amount) <= 0,
+          exceedsMax: parseFloat(amount) > maxBorrow,
+          unhealthy: !isHealthyAfter
+        }
+      });
+
+      // Additional debug: Check if collateral is actually enabled
+      if (signer && provider) {
+        (async () => {
+          try {
+            const userAddress = await signer.getAddress();
+            const abi = ['function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'];
+            const pool = new ethers.Contract(poolAddress, abi, provider);
+            
+            // Check USDC collateral status
+            const usdcAddress = token.address;
+            const userReserve = await pool.userReserves(userAddress, usdcAddress);
+            
+            console.log('🔍 Debug - User Reserve for USDC:', {
+              supplyPrincipal: userReserve.supply.principal.toString(),
+              useAsCollateral: userReserve.useAsCollateral,
+              hasCollateral: userReserve.useAsCollateral && userReserve.supply.principal > 0
+            });
+
+            // Try to get account data
+            const accountDataAbi = ['function getAccountData(address user) view returns (uint256 collateralValue1e18, uint256 debtValue1e18, uint256 healthFactor1e18)'];
+            const poolWithAccountData = new ethers.Contract(poolAddress, accountDataAbi, provider);
+            const accountData = await poolWithAccountData.getAccountData(userAddress);
+            
+            console.log('🔍 Debug - Account Data from Contract:', {
+              collateralUSD: ethers.formatEther(accountData.collateralValue1e18),
+              debtUSD: ethers.formatEther(accountData.debtValue1e18),
+              healthFactor: ethers.formatEther(accountData.healthFactor1e18)
+            });
+          } catch (error) {
+            console.error('❌ Debug check failed:', error);
+          }
+        })();
+      }
+    }
+  }, [open, collateralUSD, debtUSD, hfAfter, isHealthyAfter, maxBorrow, poolLiquidityNum, isEth, noLiquidity, poolValid, amount, isDisabled, signer, poolAddress, provider, token.address]);
+
   if (!open) return null;
 
   return (
@@ -170,13 +324,13 @@ export function BorrowModal({
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Collateral USD</span>
               <span className="text-sm font-mono text-gray-900">
-                {formatCurrency(collateralUSD)}
+                {formatCurrency(actualCollateral)}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Current Debt USD</span>
               <span className="text-sm font-mono text-gray-900">
-                {formatCurrency(debtUSD)}
+                {formatCurrency(actualDebt)}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -241,7 +395,7 @@ export function BorrowModal({
                   Current HF:
                 </span>
                 <span className={isHealthyAfter ? 'text-green-700' : 'text-red-700'}>
-                  {debtUSD > 0 ? formatNumber(collateralUSD / debtUSD, 2) : '∞'}
+                  {actualDebt > 0 ? formatNumber(actualCollateral / actualDebt, 2) : '∞'}
                 </span>
               </div>
               <div className="flex justify-between">

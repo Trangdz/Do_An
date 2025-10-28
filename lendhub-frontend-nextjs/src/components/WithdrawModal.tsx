@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ethers } from 'ethers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -46,63 +46,143 @@ export function WithdrawModal({
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCollateral, setIsCollateral] = useState(false);
+  const [ltvBps, setLtvBps] = useState(7500); // Default 75%
+  const [actualCollateralUSD, setActualCollateralUSD] = useState(0);
+  const [actualDebtUSD, setActualDebtUSD] = useState(0);
   const { showToast } = useToast();
 
-  // Check if asset is used as collateral
+  // Fetch actual account data from smart contract
   useEffect(() => {
-    const checkCollateralStatus = async () => {
+    const fetchAccountData = async () => {
       if (!provider || !signer || !poolAddress) return;
       
       try {
         const abi = [
-          'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
+          'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)',
+          'function reserves(address asset) view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint40 lastUpdate, uint16 ltvBps, uint16 liquidationThresholdBps, uint16 liquidationBonusBps, uint16 closeFactorBps, bool isBorrowable, uint16 optimalUBps, uint8 decimals, uint128 liquidityIndex, uint128 variableBorrowIndex, uint128 reserveFactorBps))',
+          'function getAccountData(address user) view returns (uint256 collateralValue1e18, uint256 debtValue1e18, uint256 healthFactor1e18)'
         ];
         const pool = new ethers.Contract(poolAddress, abi, provider);
         const userAddress = await signer.getAddress();
+        
+        // Get account data from smart contract
+        const [collValue, debtValue, hf] = await pool.getAccountData(userAddress);
+        const actualColl = parseFloat(ethers.formatEther(collValue));
+        const actualDebt = parseFloat(ethers.formatEther(debtValue));
+        
+        setActualCollateralUSD(actualColl);
+        setActualDebtUSD(actualDebt);
+        
+        console.log('📊 Fetched account data from contract:', {
+          collateralUSD: actualColl,
+          debtUSD: actualDebt,
+          healthFactor: parseFloat(ethers.formatEther(hf))
+        });
+        
+        // Get collateral status
         const userReserve = await pool.userReserves(userAddress, token.address);
         setIsCollateral(userReserve.useAsCollateral);
+        
+        // Get LTV from reserve data
+        const reserveData = await pool.reserves(token.address);
+        setLtvBps(Number(reserveData.ltvBps));
+        
+        console.log('📊 Asset data:', {
+          isCollateral: userReserve.useAsCollateral,
+          ltvBps: Number(reserveData.ltvBps)
+        });
       } catch (error) {
-        console.error('Error checking collateral status:', error);
+        console.error('Error fetching account data:', error);
+        // Fallback to props if contract call fails
+        setActualCollateralUSD(collateralUSD);
+        setActualDebtUSD(debtUSD);
         setIsCollateral(false);
       }
     };
     
     if (open) {
-      checkCollateralStatus();
+      fetchAccountData();
     }
   }, [open, provider, signer, poolAddress, token.address]);
 
   // Calculate x_max based on whether asset is collateral
-  const calculateXMax = () => {
-    const userSupplyNum = parseFloat(userSupply);
-    const poolLiquidityNum = parseFloat(poolLiquidity);
+  // Use useMemo to recalculate when dependencies change
+  const xMax = useMemo(() => {
+    const userSupplyNum = parseFloat(userSupply || '0');
+    const poolLiquidityNum = parseFloat(poolLiquidity || '0');
     
-    // If not used as collateral, can withdraw all (limited by supply & liquidity)
-    if (!isCollateral) {
-      return Math.min(userSupplyNum, poolLiquidityNum);
+    console.log('🔍 Calculate xMax with:', {
+      userSupply: userSupply,
+      userSupplyNum,
+      poolLiquidity: poolLiquidity,
+      poolLiquidityNum,
+      isCollateral,
+      price,
+      ltvBps,
+      collateralUSD: actualCollateralUSD,
+      debtUSD: actualDebtUSD
+    });
+    
+    // If user has no supply, cannot withdraw
+    if (userSupplyNum <= 0) {
+      console.log('❌ No supply - cannot withdraw');
+      return 0;
     }
     
-    // If used as collateral, check Health Factor
-    if (price === 0 || liquidationThreshold === 0) return 0;
+    // IMPORTANT: Check if this asset is used as collateral
+    console.log('📊 Collateral check:', {
+      isCollateral,
+      collateralUSD: actualCollateralUSD,
+      debtUSD: actualDebtUSD
+    });
     
-    // x_max = ((CollateralUSD - DebtUSD) * 10000) / (Price * liqThresholdBps)
-    const maxWithdrawUSD = calculateMaxWithdraw(
-      collateralUSD * 1e18, // Convert to wei
-      debtUSD * 1e18, // Convert to wei
-      price,
-      liquidationThreshold
+    // If NOT used as collateral, can withdraw all
+    if (!isCollateral) {
+      const result = Math.min(userSupplyNum, poolLiquidityNum);
+      console.log('✅ Not collateral - can withdraw all:', result);
+      return result;
+    }
+    
+    // If used as collateral, we need to check Health Factor
+    console.log('📊 Asset is collateral, checking conditions...');
+    
+    if (price === 0) {
+      console.log('❌ Price is 0 - cannot calculate');
+      return 0;
+    }
+    
+    if (ltvBps === 0) {
+      console.log('❌ LTV is 0 - cannot calculate');
+      return 0;
+    }
+    
+    console.log('📊 Calling calculateMaxWithdraw with:', {
+      totalCollateralUSD: actualCollateralUSD,
+      totalDebtUSD: actualDebtUSD,
+      userSupply: userSupplyNum,
+      assetPrice: price,
+      ltvBps
+    });
+    
+    // Use smart contract logic (matching _maxWithdrawAllowed)
+    const maxWithdrawTokens = calculateMaxWithdraw(
+      actualCollateralUSD,        // Total collateral USD from contract
+      actualDebtUSD,              // Total debt USD from contract
+      userSupplyNum,              // User supply of this asset
+      price,                      // Asset price
+      ltvBps                      // LTV (matching smart contract)
     );
     
-    // Convert back to token units
-    const maxWithdrawTokens = maxWithdrawUSD / price;
+    console.log('📊 Max withdraw tokens calculated:', maxWithdrawTokens);
     
-    // Clamp by user supply and pool liquidity
-    return Math.min(maxWithdrawTokens, userSupplyNum, poolLiquidityNum);
-  };
-
-  const xMax = calculateXMax();
-  const isHealthy = collateralUSD >= debtUSD;
-  const hasDebt = debtUSD > 0;
+    // Clamp by pool liquidity
+    const result = Math.min(maxWithdrawTokens, poolLiquidityNum);
+    console.log('✅ Final xMax (collateral):', result);
+    
+    return result;
+  }, [userSupply, poolLiquidity, isCollateral, price, ltvBps, actualCollateralUSD, actualDebtUSD]);
+  const isHealthy = actualCollateralUSD >= actualDebtUSD;
+  const hasDebt = actualDebtUSD > 0;
   
   // Only show warning if: is collateral AND has debt AND unhealthy
   const showWarning = isCollateral && hasDebt && !isHealthy;
@@ -123,10 +203,40 @@ export function WithdrawModal({
   const handleWithdraw = async () => {
     if (!signer || !amount || parseFloat(amount) <= 0) return;
 
+    const withdrawAmount = parseFloat(amount);
+    
+    // Validate amount before sending transaction
+    if (withdrawAmount > xMax) {
+      showToast({
+        type: 'error',
+        title: 'Invalid Amount',
+        message: `Cannot withdraw more than ${xMax.toFixed(4)} ${token.symbol}. Max withdraw is ${xMax.toFixed(4)} ${token.symbol}`
+      });
+      return;
+    }
+    
+    if (withdrawAmount <= 0) {
+      showToast({
+        type: 'error',
+        title: 'Invalid Amount',
+        message: 'Withdraw amount must be greater than 0'
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const amountBN = parseTokenAmount(amount, token.decimals);
+      
+      console.log('💸 Withdraw transaction:', {
+        amount,
+        amountBN: amountBN.toString(),
+        xMax,
+        isCollateral,
+        actualCollateralUSD,
+        actualDebtUSD
+      });
       
       // Use transaction service
       const result = await withdraw(signer, token.address, amountBN);
@@ -145,13 +255,32 @@ export function WithdrawModal({
       onClose();
 
     } catch (error: any) {
-      console.error('Error withdrawing:', error);
+      console.error('❌ Error withdrawing:', error);
+      
+      // Parse error message
+      let errorMessage = 'Failed to withdraw tokens';
+      if (error.reason) {
+        errorMessage = error.reason;
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.data?.message) {
+        errorMessage = error.data.message;
+      }
+      
+      // Check for specific revert reasons
+      if (errorMessage.includes('HealthFactorTooLow') || errorMessage.includes('Health factor')) {
+        errorMessage = 'Cannot withdraw: Health Factor would be too low. Try withdrawing a smaller amount.';
+      } else if (errorMessage.includes('Insufficient liquidity')) {
+        errorMessage = 'Pool does not have enough liquidity. Try withdrawing less.';
+      } else if (errorMessage.includes('Internal JSON-RPC error')) {
+        errorMessage = 'Transaction failed: Health Factor too low or insufficient liquidity. Try a smaller amount.';
+      }
       
       // Show error toast
       showToast({
         type: 'error',
         title: 'Withdraw Failed',
-        message: error.message || 'Transaction failed'
+        message: errorMessage
       });
     } finally {
       setIsLoading(false);
@@ -267,15 +396,15 @@ export function WithdrawModal({
               <div className="space-y-1 text-xs text-blue-700">
                 <div className="flex justify-between">
                   <span>Collateral USD:</span>
-                  <span>{formatCurrency(collateralUSD)}</span>
+                  <span>{formatCurrency(actualCollateralUSD)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Debt USD:</span>
-                  <span>{formatCurrency(debtUSD)}</span>
+                  <span>{formatCurrency(actualDebtUSD)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Net Collateral:</span>
-                  <span>{formatCurrency(collateralUSD - debtUSD)}</span>
+                  <span>{formatCurrency(actualCollateralUSD - actualDebtUSD)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Liquidation Threshold:</span>

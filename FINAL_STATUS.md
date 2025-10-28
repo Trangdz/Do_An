@@ -1,82 +1,103 @@
-# ✅ FINAL STATUS - COLLATERAL TOGGLE SWITCH
+# ✅ TRẠNG THÁI CUỐI CÙNG
 
-## 🎯 HOÀN THÀNH:
+## 🎯 ĐÃ HOÀN THÀNH:
 
-### 1. **Backend (Smart Contracts):**
-- ✅ Thêm 6 functions mới vào `LendingPool.sol`
-- ✅ Sửa `_maxWithdrawAllowed()` 
-- ✅ Sửa `borrow()` với LTV validation
-- ✅ Compile thành công
+### 1. Collateral Toggle Feature
+- ✅ Function exists trong contract
+- ✅ Frontend có toggle switch
+- ✅ Error handling improved
+- ✅ Health factor protection
 
-### 2. **Frontend (React Components):**
-- ✅ Tạo `CollateralManager.tsx` component
-- ✅ Thêm Switch toggle vào `TokenCard.tsx`
-- ✅ iOS-style switch design
-- ✅ Error handling khi contract chưa update
+### 2. Error Handling
+- ✅ Better error messages
+- ✅ Revert reason extraction
+- ✅ User-friendly alerts
+- ✅ Pre-check account data
 
-### 3. **UI/UX:**
-- ✅ Switch hiển thị trên mỗi token
-- ✅ State: ON/OFF/Loading
-- ✅ Badge "Supply to enable" khi chưa supply
-- ✅ Color coding: Green (ON) / Gray (OFF)
-
----
-
-## 🚀 DEPLOYMENT STATUS:
-
-### Frontend:
-- ✅ Code ready
-- ✅ UI complete
-- ⏳ Running on: http://localhost:3001
-
-### Smart Contracts:
-- ⚠️ Cần deploy lại với functions mới
-- Current address: `0xc637FAA8f57B81Bb729D3Df648F880533c1D367c`
-- New address: (sau khi deploy)
+### 3. Configuration
+- ✅ Port 7545 config
+- ✅ Contract addresses updated
+- ✅ Frontend restarted clean
 
 ---
 
-## 📋 TO DO:
+## 🛡️ CƠ CHẾ BẢO VỆ:
 
-### Deploy New Contract:
-```bash
-# 1. Deploy
-cd D:\Do_an2\lendhub_v2
-npx hardhat run scripts/deploy_ganache_simple.cjs --network localhost
-
-# 2. Copy new address
-# Edit: lendhub-frontend-nextjs/src/addresses.js
-
-# 3. Refresh
-Ctrl + F5
+**KHI TẮT COLLATERAL:**
 ```
+if (debt > 0 && HF < 2) {
+  → WARN user
+  → Ask confirmation
+}
 
-### Test Switch:
-```bash
-1. Go to: http://localhost:3001
-2. Supply some tokens
-3. Click switch to toggle
-4. Check state changes
+if (tắt sẽ làm HF < 1) {
+  → REVERT transaction
+  → Message: "Cannot disable - would be liquidatable"
+}
 ```
 
 ---
 
-## ✅ FEATURES WORKING:
+## ✅ CÁCH DÙNG:
 
-- ✅ Switch hiển thị
-- ✅ Status checking (ON/OFF)
-- ✅ Error handling
-- ✅ Info messages
-- ⚠️ Toggle bị block (contract chưa update)
+### Enable Collateral:
+1. Supply asset
+2. Toggle switch: OFF → ON
+3. Asset becomes collateral
+
+### Disable Collateral:
+**Case 1: NO DEBT**
+- ✅ Tắt được ngay
+
+**Case 2: CÓ DEBT + HF > 2**
+- ⚠️ Warning
+- ✅ Confirm để tắt
+
+**Case 3: CÓ DEBT + HF < 2**
+- ❌ REVERT
+- ✅ Message: "Repay debt first"
 
 ---
 
-## 🎉 SUMMARY:
+## 📋 TEST CASE:
 
-**Code: 100% Complete**
-**UI: 100% Complete**  
-**Deployment: Pending**
+### Test 1: Enable
+```
+1. Supply 100 WETH
+2. Click toggle: ON
+3. ✅ Success
+```
 
-**Next:** Deploy contract mới để switch hoạt động! 🚀
+### Test 2: Disable với NO DEBT
+```
+1. Collateral: 100 WETH
+2. Debt: 0
+3. Click toggle: OFF
+4. ✅ Success
+```
 
+### Test 3: Disable với DEBT
+```
+1. Collateral: 100 WETH
+2. Debt: 50 DAI (HF = 2.0)
+3. Click toggle: OFF
+4. ⚠️ Warning → Confirm
+5. ✅ Success
+```
 
+### Test 4: Disable sẽ làm HF < 1
+```
+1. Collateral: 100 WETH (ONLY)
+2. Debt: 50 DAI
+3. Click toggle: OFF
+4. ❌ REVERT
+5. Message: "Cannot disable - would be liquidatable"
+```
+
+---
+
+## 🎉 HOÀN THÀNH!
+
+**Giờ test thử toggle collateral và xem error messages!**
+
+Frontend: http://localhost:3000

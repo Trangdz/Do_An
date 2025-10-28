@@ -125,9 +125,11 @@ export function SimpleDashboard() {
       price: price,
       userBalance: parseFloat(asset.balance || '0'),
       userBalanceUSD: asset.balanceUSD || 0,
-      userSupply: supply ? parseFloat(supply.supplyPrincipal || '0') : 0,
+      // ✅ Dùng supplyBalance với interest, không phải principal
+      userSupply: supply ? parseFloat(supply.supplyBalance || supply.supplyPrincipal || '0') : 0,
       userSupplyUSD: supply ? supply.balanceUSD || 0 : 0,
-      userBorrow: borrow ? parseFloat(borrow.borrowPrincipal || '0') : 0,
+      // ✅ Dùng borrowBalance với interest, không phải principal
+      userBorrow: borrow ? parseFloat(borrow.borrowBalance || borrow.borrowPrincipal || '0') : 0,
       userBorrowUSD: borrow ? borrow.balanceUSD || 0 : 0,
       supplyAPR: 0, // Will be updated by useReserveAPR hook
       borrowAPR: 0, // Will be updated by useReserveAPR hook
@@ -162,6 +164,25 @@ export function SimpleDashboard() {
     if (isConnected && provider) {
       refresh();
     }
+  }, [isConnected, provider, refresh]);
+
+  // Auto-refresh balance with interest every 30 seconds
+  useEffect(() => {
+    if (!isConnected || !provider) return;
+    
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing balance with interest...');
+      console.log('📊 Current tokens:', tokens.length);
+      if (tokens.length > 0) {
+        const usdc = tokens.find(t => t.symbol === 'USDC');
+        if (usdc) {
+          console.log('📊 USDC supply:', usdc.userSupply);
+        }
+      }
+      refresh();
+    }, 30000); // Every 30 seconds
+    
+    return () => clearInterval(interval);
   }, [isConnected, provider, refresh]);
 
   // Debug log for supplyAssets

@@ -156,3 +156,4 @@ User supply → LTV = 0? → No → Không làm collateral
 **→ TRONG DỰ ÁN BẠN: TẤT CẢ 4 ASSETS ĐỀU CÓ THỂ THẾ CHẤP (LTV = 75%)!**
 
 
+

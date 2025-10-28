@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "trend payment aisle ski violin melt connect latin radio recipe milk hunt",
+        mnemonic: "lunar release glue network gas dinner climb solve vacant uncover asset crawl",
         count: 10, // Generate 10 accounts
       },
     },

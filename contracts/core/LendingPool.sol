@@ -284,9 +284,12 @@ function lend(address asset, uint256 amount) external {
     u.supply.principal = uint128(sNew);
     u.supply.index = r.liquidityIndex;
     
-    // Note: NOT auto-enabling as collateral
-    // User must manually enable collateral via setUserUseReserveAsCollateral()
-    // This gives users full control over their collateral positions
+    // Auto-enable as collateral if asset has LTV > 0
+    // This provides better UX - users don't need to manually enable collateral
+    if (r.ltvBps > 0 && !u.useAsCollateral) {
+        u.useAsCollateral = true;
+        emit CollateralEnabled(msg.sender, asset);
+    }
 
     // 4) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
@@ -793,13 +796,17 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
         uint256 borrowAssetPrice = oracle.getAssetPrice1e18(asset);
         if (borrowAssetPrice == 0) return 0;
         
-        // Get LTV of asset to borrow
+        // Check if asset is borrowable
         ReserveUserModels.ReserveData storage borrowAssetData = reserves[asset];
-        if (borrowAssetData.ltvBps == 0) return 0;
+        if (!borrowAssetData.isBorrowable) return 0;
         
         // Calculate max borrow amount
-        uint256 maxBorrowValue = (availableCollateral * borrowAssetData.ltvBps) / 10000;
-        uint256 maxBorrowAmount = (maxBorrowValue * 1e18) / borrowAssetPrice;
+        // Formula: availableCollateral (already in USD) / borrowAssetPrice (in 1e18)
+        // We already have availableCollateral in USD, so we just convert to token amount
+        // availableCollateral is the amount of USD collateral available to borrow
+        // We don't apply LTV again because the collateral is already weighted by collateral's LTV
+        
+        uint256 maxBorrowAmount = (availableCollateral * 1e18) / borrowAssetPrice;
         
         return maxBorrowAmount;
     }

@@ -61,15 +61,14 @@ export function useRealtimePrices(
               lastUpdate: Date.now()
             };
           } catch (error) {
-            console.error(`Error fetching price for ${address}:`, error);
-            // Keep old price if fetch fails
-            if (data.prices[address]) {
-              newPrices[address] = data.prices[address];
-            }
+            // Silently skip if oracle fails - use price from LendState context
+            console.debug(`Skipping realtime price for ${address}: oracle not available`);
+            // Don't add to newPrices - let LendState handle it
           }
         });
 
-        await Promise.all(pricePromises);
+        // Wait for all promises to complete (even if some fail)
+        await Promise.allSettled(pricePromises);
 
         if (isMounted) {
           setData({

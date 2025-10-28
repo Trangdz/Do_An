@@ -1,6 +1,6 @@
 // Auto-generated addresses
-export const PriceOracleAddress = "0x94440EAfdeE780c85ED52888cF82DDDCf82bFCf7";
-export const LendingPoolAddress = "0x56328671A331a3563e86C4CC53b5E1945733A3E3"; // Update with your pool address
+export const PriceOracleAddress = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+export const LendingPoolAddress = "0x0165878A594ca255338adfa4d48449f69242Eb8F"; // Updated from deploy
 
 // Chainlink Aggregators
 export const ETH_USD_AGGREGATOR = "0x650886892051B76D6992e3f19Df05D754221dD29";
@@ -8,6 +8,7 @@ export const USDC_USD_AGGREGATOR = "0x3d9232fB927872EF651019eB90F09DFF22f0b94d";
 export const DAI_USD_AGGREGATOR = "0x1571C1B521bB756E2aF21fA99ff3F3EFAD56f89E";
 
 // Token Addresses
-export const WETH_ADDRESS = "0x7e1600E50472a5850A295cB8eeEB5C323c1f6254";
-export const USDC_ADDRESS = "0x92c2Dc1Fc29b180de2dA0FdB217823D939b6E0A5";
-export const DAI_ADDRESS = "0x2d45297410159D48CE557EDf07fCBF2919F6a7Bf";
+export const WETH_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+export const USDC_ADDRESS = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+export const DAI_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+export const LINK_ADDRESS = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";

@@ -1,5 +1,8 @@
 import React from 'react';
 import { useReserveAPR } from '../hooks/useReserveAPR';
+import { useRealtimeInterest } from '../hooks/useRealtimeInterest';
+import { RealtimeBalanceCompact } from './RealtimeInterestBalance';
+import { SimpleRealtimeBalance } from './SimpleRealtimeBalance';
 import { formatPercentage, formatNumber, formatCurrency, formatBalance } from '../lib/math';
 import { Button } from './ui/Button';
 import { ethers } from 'ethers';
@@ -48,14 +51,34 @@ export function TokenCard({
     }
   }, [token.price]);
 
-  // Real-time APR data (fetch every 5 seconds)
+  // Real-time interest data for supply position
+  const supplyInterestData = useRealtimeInterest(
+    provider,
+    poolAddress,
+    signer ? signer.address : null,
+    token.address,
+    30000, // Refresh every 30 seconds (reduced to avoid circuit breaker)
+    true  // isSupply
+  );
+
+  // Real-time interest data for borrow position
+  const borrowInterestData = useRealtimeInterest(
+    provider,
+    poolAddress,
+    signer ? signer.address : null,
+    token.address,
+    30000, // Refresh every 30 seconds (reduced to avoid circuit breaker)
+    false // isSupply = false for borrow
+  );
+
+  // Real-time APR data (fetch every 30 seconds)
   const shouldFetchAPR = token.symbol !== 'ETH' && provider !== null && poolAddress && poolAddress !== '0x0000000000000000000000000000000000000000';
   
   const aprData = useReserveAPR(
     shouldFetchAPR ? provider : null,
     poolAddress,
     token.address,
-    5000 // Refresh every 5 seconds for real-time updates
+    30000 // Refresh every 30 seconds (reduced to avoid circuit breaker)
   );
 
   // Use APR data from hook
@@ -357,7 +380,18 @@ export function TokenCard({
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-green-600">
-                {formatNumber(token.userSupply || 0, 4)} {token.symbol}
+                {token.userSupply > 0 ? (
+                  <SimpleRealtimeBalance
+                    principal={BigInt(Math.floor(token.userSupply * 1e18))}
+                    tokenSymbol={token.symbol}
+                    priceUSD={token.price}
+                    decimals={2}
+                    currentAPR={supplyAPR} // ✅ APR biến động từ blockchain!
+                    initialInterestAccrued={supplyInterestData.interestAccrued} // Lãi đã tích lũy từ blockchain
+                  />
+                ) : (
+                  `0.00 ${token.symbol}`
+                )}
               </div>
               <div className="text-xs text-green-600/70">
                 Supplied (${formatCurrency(token.userSupplyUSD || 0)})
@@ -365,11 +399,27 @@ export function TokenCard({
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-red-600">
-                {formatBalance(token.userBorrow || 0, 4)} {token.symbol}
+                {borrowInterestData.balanceWithInterest > BigInt(0) ? (
+                  <SimpleRealtimeBalance
+                    principal={borrowInterestData.principal}
+                    tokenSymbol={token.symbol}
+                    priceUSD={token.price}
+                    decimals={2}
+                    currentAPR={borrowAPR} // ✅ APR biến động từ blockchain!
+                    initialInterestAccrued={borrowInterestData.interestAccrued} // Lãi đã tích lũy từ blockchain
+                  />
+                ) : (
+                  `0.00 ${token.symbol}`
+                )}
               </div>
               <div className="text-xs text-red-600/70">
                 Borrowed (${formatCurrency(token.userBorrowUSD || 0)})
               </div>
+              {borrowAPR > 0 && borrowInterestData.balanceWithInterest > BigInt(0) && (
+                <div className="text-xs text-red-500 mt-1 font-medium">
+                  Borrow APR: {formatPercentage(borrowAPR)}
+                </div>
+              )}
             </div>
           </div>
         </div>

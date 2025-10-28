@@ -70,3 +70,4 @@ Nếu không muốn deploy lại, có thể comment out component trong `SimpleD
 **Recommend: Option 1** - Deploy lại để test đầy đủ! 🚀
 
 
+
