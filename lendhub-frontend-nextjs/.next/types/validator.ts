@@ -110,6 +110,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/api/snapshot/get/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/snapshot/get">> = Specific
+  const handler = {} as typeof import("../../src/app/api/snapshot/get/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/snapshot/save/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/snapshot/save">> = Specific
+  const handler = {} as typeof import("../../src/app/api/snapshot/save/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/pages/_app.tsx
 {
   type __IsExpected<Specific extends PagesPageConfig> = Specific

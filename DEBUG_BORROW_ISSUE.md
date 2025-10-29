@@ -88,3 +88,4 @@ The most likely issue is either:
 - Collateral not properly enabled
 
 Let me know what error you see in the console!
+

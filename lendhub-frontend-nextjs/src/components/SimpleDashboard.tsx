@@ -43,6 +43,22 @@ export function SimpleDashboard() {
   const provider = metamaskDetails.provider;
   const signer = metamaskDetails.signer;
   
+  // Debug: Log signer changes
+  console.log('🔍 SimpleDashboard signer debug:', {
+    isConnected,
+    hasProvider: !!provider,
+    hasSigner: !!signer,
+    signerType: typeof signer,
+    signerAddress: signer?.address,
+    currentAccount: metamaskDetails.currentAccount,
+    metamaskDetails: {
+      currentAccount: metamaskDetails.currentAccount,
+      chainId: metamaskDetails.chainId,
+      hasProvider: !!metamaskDetails.provider,
+      hasSigner: !!metamaskDetails.signer
+    }
+  });
+  
   // Account data
   const collateralValue = parseFloat(accountData.collateralUSD || '0');
   const debtValue = parseFloat(accountData.debtUSD || '0');

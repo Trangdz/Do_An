@@ -67,3 +67,4 @@ The calculation is correct but the precision might be lost due to BigInt operati
 1. Use higher precision for intermediate calculations
 2. Ensure proper rounding
 3. Add logging to verify each step
+

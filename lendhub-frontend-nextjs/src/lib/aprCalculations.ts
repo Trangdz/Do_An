@@ -7,6 +7,8 @@ import { ethers } from 'ethers';
  * @returns APR as percentage (e.g., 5.25 for 5.25%)
  */
 export function rayPerSecToAPR(rateRayPerSec: bigint): number {
+  if (rateRayPerSec === BigInt(0)) return 0;
+  
   const SECONDS_PER_YEAR = BigInt(365 * 24 * 60 * 60); // 31,536,000
   const RAY = BigInt(10 ** 27);
   
@@ -14,13 +16,14 @@ export function rayPerSecToAPR(rateRayPerSec: bigint): number {
   // ratePerYear = ratePerSec * secondsPerYear
   const ratePerYear = rateRayPerSec * SECONDS_PER_YEAR;
   
-  // Convert from Ray (1e27) to percentage with precision
+  // Convert from Ray (1e27) to percentage with more precision
   // APR% = (ratePerYear / 1e27) * 100
-  // To preserve precision, multiply by 10000 first (for 4 decimal places)
-  const aprBigInt = (ratePerYear * BigInt(10000)) / RAY;
+  // Use more precision for small rates - multiply by 1000000 for 6 decimal places
+  const aprBigInt = (ratePerYear * BigInt(1000000)) / RAY;
   
-  // Convert to number and divide by 100 to get percentage with 2 decimals
-  return Number(aprBigInt) / 100;
+  // Convert to number and divide by 10000 to get percentage with 4 decimals
+  // This preserves precision for small rates like 0.0086%
+  return Number(aprBigInt) / 10000;
 }
 
 /**

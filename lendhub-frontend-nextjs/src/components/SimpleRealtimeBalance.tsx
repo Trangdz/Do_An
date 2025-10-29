@@ -1,240 +1,140 @@
 /**
- * SimpleRealtimeBalance Component
- * Tăng dần số dư mỗi giây cho mượt mà
+ * Simple Realtime Balance - Logic đơn giản, chắc chắn hoạt động
  */
+
 import React, { useState, useEffect, useRef } from 'react';
-import { ethers } from 'ethers';
-import { formatCurrency } from '../lib/math';
+
+const SECONDS_PER_YEAR = 31536000;
 
 interface SimpleRealtimeBalanceProps {
-  principal: bigint;
   tokenSymbol: string;
   priceUSD: number;
-  decimals?: number;
-  currentAPR?: number; // ✅ APR biến động từ blockchain
-  initialInterestAccrued?: bigint; // Lãi đã tích lũy từ blockchain
-  lastUpdateTimestamp?: number; // Timestamp của lần update cuối từ database/blockchain
 }
 
-export function SimpleRealtimeBalance({
-  principal,
-  tokenSymbol,
-  priceUSD,
-  decimals = 2,
-  currentAPR = 0, // Default 0% - dùng APR từ blockchain
-  initialInterestAccrued = BigInt(0), // Lãi đã tích lũy từ blockchain
-  lastUpdateTimestamp // Timestamp từ database/blockchain
-}: SimpleRealtimeBalanceProps) {
-  // Create unique storage key based on principal (unique per position)
-  const storageKey = `balance_${principal.toString()}_${tokenSymbol}`;
+export function SimpleRealtimeBalance({ tokenSymbol, priceUSD }: SimpleRealtimeBalanceProps) {
+  // Dữ liệu giả lập
+  const principal = 100; // $100
+  const apr = 5; // 5% APY
   
-  // Load last balance from localStorage
-  const getLastBalance = (): number => {
+  // Load từ localStorage nếu có
+  const getStoredData = () => {
     try {
-      const stored = localStorage.getItem(storageKey);
+      const stored = localStorage.getItem(`simple_realtime_${tokenSymbol}`);
       if (stored) {
         const data = JSON.parse(stored);
-        const storedTime = data.timestamp || 0;
-        const now = Math.floor(Date.now() / 1000);
-        const timeDiff = now - storedTime;
-        
-        // Only use stored balance if it's recent (less than 5 minutes old)
-        if (timeDiff < 300) {
-          return data.balance || 0;
-        }
+        console.log('📱 Loaded from localStorage:', data);
+        return data;
       }
-    } catch (e) {
-      // Ignore errors
+    } catch (error) {
+      console.warn('⚠️ Failed to load from localStorage:', error);
     }
-    return 0;
+    return null;
   };
   
-  // Save balance to localStorage
-  const saveBalance = (balance: number) => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify({
-        balance,
-        timestamp: Math.floor(Date.now() / 1000)
-      }));
-    } catch (e) {
-      // Ignore errors
-    }
-  };
+  const storedData = getStoredData();
+  const initialBalance = storedData ? storedData.balance : principal;
+  const initialStartTime = storedData ? storedData.startTime : Date.now();
   
-  const principalNum = Number(principal) / 1e18;
-  const initialInterestNum = Number(initialInterestAccrued) / 1e18;
-  const baseBalance = principalNum + initialInterestNum;
-  
-  // Initialize with last balance or calculate from scratch
-  const [displayBalance, setDisplayBalance] = useState<number>(() => {
-    const lastBalance = getLastBalance();
-    if (lastBalance > baseBalance) {
-      // Use stored balance if it's higher (more interest accrued)
-      return lastBalance;
-    }
-    // Otherwise calculate from current data
-    const now = Math.floor(Date.now() / 1000);
-    const dbTimestamp = lastUpdateTimestamp || now;
-    if (dbTimestamp < now && currentAPR > 0) {
-      const timeSinceUpdate = now - dbTimestamp;
-      const SECONDS_PER_YEAR = 31536000;
-      const ratePerSec = currentAPR / 100 / SECONDS_PER_YEAR;
-      const additionalInterest = baseBalance * ratePerSec * timeSinceUpdate;
-      return baseBalance + additionalInterest;
-    }
-    return baseBalance;
-  });
-  
-  const principalRef = useRef<bigint>(BigInt(0));
-  const initialInterestRef = useRef<bigint>(BigInt(0));
-  const lastTimestampRef = useRef<number>(0);
-  const lastUpdateTimestampRef = useRef<number>(Math.floor(Date.now() / 1000));
+  const [displayBalance, setDisplayBalance] = useState<number>(initialBalance);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Helper function to calculate balance from current state
-  const calculateBalanceFromTimestamp = (principalNum: number, initialInterestNum: number, timestamp: number, now: number, apr: number): number => {
-    let balance = principalNum + initialInterestNum;
-    
-    // If we have a timestamp in the past, calculate additional interest
-    if (timestamp < now && apr > 0 && principalNum > 0) {
-      const timeSinceUpdate = now - timestamp;
-      const SECONDS_PER_YEAR = 31536000;
-      const ratePerSec = apr / 100 / SECONDS_PER_YEAR;
-      // Use compound interest: balance × (1 + rate × time)
-      const additionalInterest = balance * ratePerSec * timeSinceUpdate;
-      balance = balance + additionalInterest;
+  const startTimeRef = useRef<number>(initialStartTime);
+  
+  // Save to localStorage
+  const saveToStorage = (balance: number) => {
+    try {
+      const data = {
+        balance,
+        startTime: startTimeRef.current,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`simple_realtime_${tokenSymbol}`, JSON.stringify(data));
+    } catch (error) {
+      console.warn('⚠️ Failed to save to localStorage:', error);
     }
-    
-    return balance;
   };
-
+  
   useEffect(() => {
-    // Update refs when props change
-    const principalNumEffect = Number(principal) / 1e18;
-    const initialInterestNumEffect = Number(initialInterestAccrued) / 1e18;
-    const now = Math.floor(Date.now() / 1000);
+    console.log('💰 SimpleRealtimeBalance mounted');
     
-    // Use provided lastUpdateTimestamp if available, otherwise use current time
-    const dbTimestamp = lastUpdateTimestamp || now;
-    
-    // Check if we need to update base values
-    const principalChanged = principal !== principalRef.current;
-    const interestChanged = initialInterestAccrued !== initialInterestRef.current;
-    const timestampChanged = dbTimestamp !== lastTimestampRef.current;
-    
-    // Update if any relevant value changed
-    if (principalChanged || interestChanged || timestampChanged) {
-      console.log('🔄 SimpleRealtimeBalance updating:', {
-        principalChanged,
-        interestChanged,
-        timestampChanged,
-        principal: principalNumEffect,
-        initialInterest: initialInterestNumEffect,
-        dbTimestamp,
-        now,
-        timeDiff: now - dbTimestamp,
-        currentAPR
-      });
-      
-      principalRef.current = principal;
-      initialInterestRef.current = initialInterestAccrued;
-      lastTimestampRef.current = dbTimestamp;
-      
-      // Index calculation removed - using simple interest instead
-      
-      // Use database timestamp
-      lastUpdateTimestampRef.current = dbTimestamp;
-      
-      // Calculate initial display balance
-      const displayBalanceNum = calculateBalanceFromTimestamp(
-        principalNum, 
-        initialInterestNum, 
-        dbTimestamp, 
-        now, 
-        currentAPR
-      );
-      
-      console.log('💰 Calculated balance:', {
-        baseBalance: principalNum + initialInterestNum,
-        displayBalance: displayBalanceNum,
-        additionalInterest: displayBalanceNum - (principalNum + initialInterestNum)
-      });
-      
-      // Only update if new balance is higher (more interest)
-      if (displayBalanceNum >= displayBalance) {
-        setDisplayBalance(displayBalanceNum);
-        saveBalance(displayBalanceNum);
-      }
+    // Clear previous interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
     }
-
-    // Simulate interest growth continuously using simple interest formula
-    const simulateInterest = () => {
-      if (currentAPR <= 0 || principalRef.current === BigInt(0)) {
-        return;
-      }
+    
+    startTimeRef.current = Date.now();
+    setIsRunning(true);
+    
+    console.log('💰 Starting simple real-time updates:', {
+      principal,
+      apr,
+      ratePerSecond: apr / 100 / SECONDS_PER_YEAR
+    });
+    
+    const updateBalance = () => {
+      const now = Date.now();
+      const timeElapsed = (now - startTimeRef.current) / 1000; // seconds
       
-      const now = Math.floor(Date.now() / 1000);
-      const timeDiff = now - lastUpdateTimestampRef.current;
+      // Simple compound interest: balance = principal * (1 + rate)^time
+      // rate per second = APR / 100 / SECONDS_PER_YEAR
+      const ratePerSecond = apr / 100 / SECONDS_PER_YEAR;
+      const multiplier = Math.pow(1 + ratePerSecond, timeElapsed);
+      const currentBalance = principal * multiplier;
       
-      if (timeDiff <= 0) return;
+      console.log('💰 Simple balance update:', {
+        timeElapsed: timeElapsed.toFixed(2) + 's',
+        ratePerSecond: ratePerSecond.toExponential(6),
+        multiplier: multiplier.toFixed(12),
+        currentBalance: currentBalance.toFixed(8),
+        principal,
+        interest: (currentBalance - principal).toFixed(8),
+        apr: apr + '%'
+      });
       
-      const principalNumSim = Number(principalRef.current) / 1e18;
-      const initialInterestNumSim = Number(initialInterestRef.current) / 1e18;
-      const baseBalanceCurrent = principalNumSim + initialInterestNumSim;
-      
-      // Simple interest: additional = base × rate × time
-      const SECONDS_PER_YEAR = 31536000;
-      const ratePerSec = currentAPR / 100 / SECONDS_PER_YEAR;
-      const additionalInterest = baseBalanceCurrent * ratePerSec * timeDiff;
-      const newBalance = baseBalanceCurrent + additionalInterest;
-      
-      if (isFinite(newBalance) && newBalance >= principalNumSim) {
-        setDisplayBalance(newBalance);
-        saveBalance(newBalance);
-      }
+      setDisplayBalance(currentBalance);
     };
-
-    // Update every second
-    intervalRef.current = setInterval(simulateInterest, 1000);
-
+    
+    // Initial update
+    updateBalance();
+    
+    // Update every 1 second
+    intervalRef.current = setInterval(updateBalance, 1000);
+    
     return () => {
+      console.log('💰 SimpleRealtimeBalance unmounted');
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      setIsRunning(false);
     };
-  }, [principal, currentAPR, initialInterestAccrued, lastUpdateTimestamp]);
-
-  // Show more decimal places to see tiny interest amounts accurately
-  const formatted = new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 10,
-    maximumFractionDigits: 12
-  }).format(displayBalance);
-
-  const principalNumDisplay = Number(principal) / 1e18;
-  const interestAccrued = displayBalance - principalNumDisplay;
+  }, []); // Empty dependency array
+  
+  const interestAccrued = displayBalance - principal;
   const valueUSD = displayBalance * priceUSD;
   const interestUSD = interestAccrued * priceUSD;
-
+  
   return (
-    <div className="text-center">
+    <div className="text-center border-2 border-purple-300 p-4 rounded-lg bg-purple-50">
+      <div className="text-sm text-purple-600 mb-2">
+        💰 SIMPLE REALTIME {isRunning ? '🟢' : '🔴'}
+      </div>
       <div className="font-semibold text-gray-900">
-        {formatted} {tokenSymbol}
+        {displayBalance.toFixed(8)} {tokenSymbol}
       </div>
       {interestAccrued > 0 && (
         <div className="text-green-600 text-xs mt-1">
-          +{interestAccrued.toFixed(12)} {tokenSymbol} earned
+          +{interestAccrued.toFixed(8)} {tokenSymbol} earned
         </div>
       )}
-         {/* Debug: Show APR and rate info */}
-         <div className="text-xs mt-1">
-           <div className="text-green-600">
-           APR: {currentAPR.toFixed(3)}% | Rate/s: {(currentAPR / 100 / 31536000).toExponential(2)}
-           </div>
-        <div className="text-gray-400 text-xs mt-1">
-          Interest earned: {interestAccrued.toFixed(12)} {tokenSymbol} ≈ ${(interestAccrued * priceUSD).toFixed(6)}
-        </div>
+      <div className="text-xs mt-1 text-gray-400">
+        ${valueUSD.toFixed(2)} (+${interestUSD.toFixed(6)})
+      </div>
+      <div className="text-xs mt-1 text-purple-500">
+        APY: {apr}%
+      </div>
+      <div className="text-xs mt-1 text-gray-500">
+        Running: {isRunning ? 'Yes' : 'No'} | Restored: {storedData ? 'Yes' : 'No'}
       </div>
     </div>
   );
 }
-

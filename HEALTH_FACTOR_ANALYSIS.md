@@ -120,3 +120,4 @@ console.log('HF Debug:', {
 4. **Verify HF calculation** is consistent
 
 The main issue is likely USDC having `ltvBps = 0`, making it unusable as collateral.
+

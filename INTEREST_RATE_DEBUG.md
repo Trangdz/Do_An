@@ -133,3 +133,4 @@ Reserve Cash: 0
 4. **Try borrowing** after fixing issues
 
 The main issue is likely **pool has no liquidity** (reserveCash = 0), making utilization = 100% and supply rate = 0.
+

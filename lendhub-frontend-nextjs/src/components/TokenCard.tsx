@@ -2,7 +2,8 @@ import React from 'react';
 import { useReserveAPR } from '../hooks/useReserveAPR';
 import { useRealtimeInterest } from '../hooks/useRealtimeInterest';
 import { RealtimeBalanceCompact } from './RealtimeInterestBalance';
-import { SimpleRealtimeBalance } from './SimpleRealtimeBalance';
+import { OnChainRealtimeBalance } from './OnChainRealtimeBalance';
+// import { DebugOnChain } from './DebugOnChain';
 import { formatPercentage, formatNumber, formatCurrency, formatBalance } from '../lib/math';
 import { Button } from './ui/Button';
 import { ethers } from 'ethers';
@@ -51,11 +52,21 @@ export function TokenCard({
     }
   }, [token.price]);
 
+  // Debug: Log signer info
+  console.log('🔍 TokenCard signer debug:', {
+    tokenSymbol: token.symbol,
+    hasSigner: !!signer,
+    signerType: typeof signer,
+    signerAddress: signer?.address,
+    signerAddressType: typeof signer?.address,
+    signerAddressLength: signer?.address?.length
+  });
+
   // Real-time interest data for supply position
   const supplyInterestData = useRealtimeInterest(
     provider,
     poolAddress,
-    signer ? signer.address : null,
+    signer?.address || null,
     token.address,
     30000, // Refresh every 30 seconds (reduced to avoid circuit breaker)
     true  // isSupply
@@ -65,7 +76,7 @@ export function TokenCard({
   const borrowInterestData = useRealtimeInterest(
     provider,
     poolAddress,
-    signer ? signer.address : null,
+    signer?.address || null,
     token.address,
     30000, // Refresh every 30 seconds (reduced to avoid circuit breaker)
     false // isSupply = false for borrow
@@ -380,16 +391,18 @@ export function TokenCard({
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-green-600">
-                {token.userSupply > 0 ? (
-                  <SimpleRealtimeBalance
-                    principal={BigInt(Math.floor(token.userSupply * 1e18))}
+                {token.userSupply > 0 && signer?.address ? (
+                  <OnChainRealtimeBalance
+                    provider={provider}
+                    poolAddress={poolAddress}
+                    userAddress={signer.address}
+                    assetAddress={token.address}
                     tokenSymbol={token.symbol}
                     priceUSD={token.price}
-                    decimals={2}
-                    currentAPR={supplyAPR} // ✅ APR biến động từ blockchain!
-                    initialInterestAccrued={supplyInterestData.interestAccrued} // Lãi đã tích lũy từ blockchain
-                    lastUpdateTimestamp={Math.floor(supplyInterestData.lastUpdate / 1000)} // Timestamp từ hook
+                    isSupply={true}
                   />
+                ) : token.userSupply > 0 ? (
+                  `${formatBalance(token.userSupply, 4)} ${token.symbol}`
                 ) : (
                   `0.00 ${token.symbol}`
                 )}
@@ -400,16 +413,18 @@ export function TokenCard({
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-red-600">
-                {borrowInterestData.balanceWithInterest > BigInt(0) ? (
-                  <SimpleRealtimeBalance
-                    principal={borrowInterestData.principal}
+                {borrowInterestData.balanceWithInterest > BigInt(0) && signer?.address ? (
+                  <OnChainRealtimeBalance
+                    provider={provider}
+                    poolAddress={poolAddress}
+                    userAddress={signer.address}
+                    assetAddress={token.address}
                     tokenSymbol={token.symbol}
                     priceUSD={token.price}
-                    decimals={2}
-                    currentAPR={borrowAPR} // ✅ APR biến động từ blockchain!
-                    initialInterestAccrued={borrowInterestData.interestAccrued} // Lãi đã tích lũy từ blockchain
-                    lastUpdateTimestamp={Math.floor(borrowInterestData.lastUpdate / 1000)} // Timestamp từ hook
+                    isSupply={false}
                   />
+                ) : token.userBorrow > 0 ? (
+                  `${formatBalance(token.userBorrow, 4)} ${token.symbol}`
                 ) : (
                   `0.00 ${token.symbol}`
                 )}

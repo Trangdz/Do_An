@@ -2,15 +2,41 @@ const { MongoClient } = require('mongodb');
 const { ethers } = require('ethers');
 const CoinGeckoPriceService = require('./coingecko-price-service.cjs');
 const RealtimePriceUpdater = require('./realtime-price-updater.cjs');
-require('dotenv').config({ path: './config.env' });
+// Load environment variables
+const path = require('path');
+const envPath = path.join(__dirname, 'config.env');
+console.log(`🔧 Loading environment from: ${envPath}`);
+require('dotenv').config({ path: envPath });
 
 class LendHubIndexer {
   constructor() {
-    this.client = new MongoClient(process.env.MONGODB_URI);
+    // Validate required environment variables
+    const mongodbUri = process.env.MONGODB_URI;
+    const rpcUrl = process.env.RPC_URL;
+    const poolAddress = process.env.LENDING_POOL_ADDRESS;
+    const oracleAddress = process.env.ORACLE_ADDRESS;
+    
+    if (!mongodbUri) {
+      throw new Error('MONGODB_URI environment variable is not set. Please check your config.env file.');
+    }
+    if (!rpcUrl) {
+      throw new Error('RPC_URL environment variable is not set. Please check your config.env file.');
+    }
+    if (!poolAddress) {
+      throw new Error('LENDING_POOL_ADDRESS environment variable is not set. Please check your config.env file.');
+    }
+    
+    console.log('🔧 Environment variables loaded:');
+    console.log(`   MongoDB URI: ${mongodbUri ? 'Set' : 'Not set'}`);
+    console.log(`   RPC URL: ${rpcUrl ? 'Set' : 'Not set'}`);
+    console.log(`   Pool Address: ${poolAddress ? 'Set' : 'Not set'}`);
+    console.log(`   Oracle Address: ${oracleAddress ? 'Set' : 'Not set'}`);
+    
+    this.client = new MongoClient(mongodbUri);
     this.db = null;
-    this.provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-    this.poolAddress = process.env.LENDING_POOL_ADDRESS;
-    this.oracleAddress = process.env.ORACLE_ADDRESS;
+    this.provider = new ethers.JsonRpcProvider(rpcUrl);
+    this.poolAddress = poolAddress;
+    this.oracleAddress = oracleAddress;
     this.isRunning = false;
     this.retryCount = 0;
     this.maxRetries = parseInt(process.env.MAX_RETRIES) || 3;
