@@ -5,7 +5,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
 import { formatCurrency, formatNumber, calculateMaxWithdraw } from '../lib/math';
-import { withdraw, parseTokenAmount } from '../lib/tx';
+import { withdraw, parseTokenAmount, dryRunWithdrawAmount } from '../lib/tx';
 import { useToast } from './ui/Toast';
 
 interface WithdrawModalProps {
@@ -195,9 +195,11 @@ export function WithdrawModal({
   };
 
   const handleMaxClick = () => {
-    if (canWithdraw) {
-      setAmount(xMax.toFixed(6));
-    }
+    if (!canWithdraw) return;
+    // subtract 1 wei to avoid dust (based on token decimals)
+    const epsilon = 1 / Math.pow(10, token.decimals || 18);
+    const safeMax = Math.max(0, xMax - epsilon);
+    setAmount(safeMax > 0 ? safeMax.toFixed(Math.min(6, token.decimals || 6)) : '');
   };
 
   const handleWithdraw = async () => {
@@ -228,6 +230,11 @@ export function WithdrawModal({
 
     try {
       const amountBN = parseTokenAmount(amount, token.decimals);
+      // Refine amount with a static call to avoid leaving residual due to clamps
+      const userAddr = await signer.getAddress();
+      const providerNonNull = provider as ethers.Provider;
+      const refinedAmount = await dryRunWithdrawAmount(providerNonNull, userAddr, token.address, amountBN);
+      const finalAmountBN = refinedAmount > BigInt(0) ? refinedAmount : amountBN;
       
       console.log('💸 Withdraw transaction:', {
         amount,
@@ -239,7 +246,7 @@ export function WithdrawModal({
       });
       
       // Use transaction service
-      const result = await withdraw(signer, token.address, amountBN);
+      const result = await withdraw(signer, token.address, finalAmountBN);
       
       // Show success toast
       showToast({
@@ -286,6 +293,7 @@ export function WithdrawModal({
       setIsLoading(false);
     }
   };
+
 
   const isDisabled = !signer || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > xMax || !canWithdraw;
 

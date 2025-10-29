@@ -90,6 +90,11 @@ export function OnChainRealtimeBalance({
       formula: 'actualBalance = (scaledBalance × newLiquidityIndex) / RAY'
     });
     
+    // Resolve decimals for dust clamp (fallback for common tokens)
+    const resolvedDecimals = typeof decimals === 'number' && decimals > 0
+      ? decimals
+      : (tokenSymbol === 'USDC' || tokenSymbol === 'USDT' ? 6 : 18);
+
     // Recalculate balance every second using real-time timestamp
     const updateBalance = () => {
       const now = Math.floor(Date.now() / 1000);
@@ -121,11 +126,9 @@ export function OnChainRealtimeBalance({
         ? (savedSnapshot as any).snapshotIndex as number
         : RAY;
       let currentBalance = (savedSnapshot.scaledBalance * newLiquidityIndex) / divisor;
-      // Clamp dust to zero if below 1 wei
-      if (typeof decimals === 'number' && decimals > 0) {
-        const dust = 1 / Math.pow(10, decimals);
-        if (currentBalance < dust) currentBalance = 0;
-      }
+      // Clamp dust to zero if below 1 wei of token
+      const dust = 1 / Math.pow(10, resolvedDecimals);
+      if (currentBalance < dust) currentBalance = 0;
       
       // Log every 2 seconds để debug
       const logInterval = 2;
@@ -206,15 +209,20 @@ export function OnChainRealtimeBalance({
     );
   }
   
+  const resolvedDecimals = typeof decimals === 'number' && decimals > 0
+    ? decimals
+    : (tokenSymbol === 'USDC' || tokenSymbol === 'USDT' ? 6 : 18);
+  const dust = 1 / Math.pow(10, resolvedDecimals);
+  const clampedDisplay = displayBalance < dust ? 0 : displayBalance;
   const principalNum = snapshot.scaledBalance;
-  const interestAccrued = displayBalance - principalNum;
-  const valueUSD = displayBalance * priceUSD;
+  const interestAccrued = clampedDisplay - principalNum;
+  const valueUSD = clampedDisplay * priceUSD;
   const interestUSD = interestAccrued * priceUSD;
   
   return (
     <div className="text-center">
       <div className="font-semibold text-gray-900">
-        {displayBalance.toFixed(8)} {tokenSymbol}
+        {clampedDisplay.toFixed(8)} {tokenSymbol}
       </div>
       {interestAccrued > 0 && (
         <div className="text-green-600 text-xs mt-1">

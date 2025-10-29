@@ -175,7 +175,18 @@ export async function withdraw(
     throw new Error(friendly);
   }
 
-  const txPromise = poolContract.withdraw(tokenAddress, amount);
+  // Try to estimate gas and add 20% buffer to avoid send-time -32603
+  let overrides: any = {};
+  try {
+    const gas = await poolContract.withdraw.estimateGas(tokenAddress, amount);
+    const gasBig = BigInt(gas.toString());
+    overrides = { gasLimit: (gasBig * BigInt(12)) / BigInt(10) };
+  } catch (e) {
+    // fallback gas limit if provider couldn't estimate (still safe on L2/local)
+    overrides = { gasLimit: BigInt(500000) };
+  }
+
+  const txPromise = poolContract.withdraw(tokenAddress, amount, overrides);
 
   const result = await sendWithToast(txPromise, {
     pending: 'Withdrawing tokens...',
@@ -192,7 +203,48 @@ export async function withdraw(
     console.warn('[withdraw] post-refresh failed:', (e as any)?.message || e);
   }
 
+  // Clear realtime interest cache for this user/asset to avoid showing dust after withdraw
+  try {
+    const user = await signer.getAddress();
+    const pool = CONFIG.LENDING_POOL;
+    if (typeof window !== 'undefined') {
+      const supplyKey = `ri:${pool}:${user}:${tokenAddress}:s`;
+      const borrowKey = `ri:${pool}:${user}:${tokenAddress}:b`;
+      localStorage.removeItem(supplyKey);
+      // borrow unaffected, but clear just in case the UI shares keys
+      localStorage.removeItem(borrowKey);
+    }
+  } catch {}
+
   return result;
+}
+
+/**
+ * Simulate withdraw to determine the exact amount the contract will withdraw at this moment.
+ * Returns the token-denominated amount that should be sent to match the static result, minus 1 wei.
+ */
+export async function dryRunWithdrawAmount(
+  provider: ethers.Provider,
+  userAddress: string,
+  tokenAddress: string,
+  requestedAmount: bigint
+): Promise<bigint> {
+  const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, provider);
+  const reserve = await poolContract.reserves(tokenAddress);
+  const decimals: number = Number(reserve.decimals ?? 18);
+  // Static call to get the exact amount in 1e18 that would be withdrawn
+  let wouldWithdraw1e18: bigint = BigInt(0);
+  try {
+    wouldWithdraw1e18 = await poolContract.getFunction('withdraw').staticCall(tokenAddress, requestedAmount, { from: userAddress });
+  } catch (e) {
+    // If static call fails (e.g., HF too low), just return 0
+    return BigInt(0);
+  }
+  if (wouldWithdraw1e18 <= BigInt(0)) return BigInt(0);
+  // Convert from 1e18 to token decimals and subtract 1 wei to avoid dust
+  const scale = BigInt('1' + '0'.repeat(decimals));
+  const amountToken = (wouldWithdraw1e18 * scale) / BigInt(1e18);
+  return amountToken > BigInt(1) ? amountToken - BigInt(1) : amountToken;
 }
 
 /**
@@ -254,10 +306,13 @@ export async function withdrawMax(
 ): Promise<TxResult> {
   const provider = signer.provider as ethers.Provider;
   const user = await signer.getAddress();
-  const { amount } = await computeMaxWithdraw(provider, user, tokenAddress, priceUSD);
+  const { amount, decimals } = await computeMaxWithdraw(provider, user, tokenAddress, priceUSD);
+  // If below 1 wei of token, treat as nothing to withdraw
   if (amount <= BigInt(0)) throw new Error('Nothing to withdraw');
-  const res = await withdraw(signer, tokenAddress, amount);
-  return res;
+  // Refine using a static call to match contract's clamp exactly at this block
+  const refined = await dryRunWithdrawAmount(provider, user, tokenAddress, amount);
+  const finalAmount = refined > BigInt(0) ? refined : (amount > BigInt(1) ? amount - BigInt(1) : amount);
+  return await withdraw(signer, tokenAddress, finalAmount);
 }
 
 /**
