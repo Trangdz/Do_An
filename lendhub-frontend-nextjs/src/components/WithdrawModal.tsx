@@ -300,49 +300,66 @@ export function WithdrawModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-md bg-white shadow-2xl">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold text-gray-900">
-            Withdraw {token.symbol}
-          </CardTitle>
-          <CardDescription className="text-gray-600">
-            Withdraw your supplied {token.symbol} tokens
-          </CardDescription>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <Card className="w-full max-w-md bg-white shadow-xl rounded-2xl border border-gray-100">
+        <CardHeader className="relative pb-3">
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
+          >
+            ×
+          </button>
+          <div className="flex items-center gap-3 pr-8">
+            <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 grid place-items-center font-semibold">
+              {token.symbol?.slice(0, 3)}
+            </div>
+            <div>
+              <CardTitle className="text-xl font-semibold text-gray-900 tracking-tight">
+                Withdraw {token.symbol}
+              </CardTitle>
+              <CardDescription className="text-gray-600">
+                Withdraw your supplied {token.symbol}
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         
         <CardContent className="space-y-6">
           {/* Position Info */}
-          <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-600">You Supply</span>
-              <span className="text-sm font-mono text-gray-900">
-                {formatNumber(parseFloat(userSupply), 4)} {token.symbol}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-600">Pool Liquidity</span>
-              <span className="text-sm font-mono text-gray-900">
-                {formatNumber(parseFloat(poolLiquidity), 0)} {token.symbol}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-600">Max Withdraw (x_max)</span>
-              <span className={`text-sm font-mono ${canWithdraw ? 'text-green-600' : 'text-red-600'}`}>
-                {formatNumber(xMax, 4)} {token.symbol}
-              </span>
+          <div className="rounded-xl border border-gray-100 bg-gradient-to-b from-gray-50 to-white p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="text-xs text-gray-600">You Supply</div>
+                <div className="text-sm font-mono text-gray-900">
+                  {formatNumber(parseFloat(userSupply), 4)} {token.symbol}
+                </div>
+              </div>
+              <div className="space-y-1 text-right">
+                <div className="text-xs text-gray-600">Pool Liquidity</div>
+                <div className="text-sm font-mono text-gray-900">
+                  {formatNumber(parseFloat(poolLiquidity), 0)} {token.symbol}
+                </div>
+              </div>
+              <div className="col-span-2 border-t border-dashed border-gray-200 pt-3 mt-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-600">Max Withdraw (x_max)</span>
+                <span className={`text-sm font-semibold ${canWithdraw ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {formatNumber(xMax, 4)} {token.symbol}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Health Factor Warning - Only show for collateral assets with debt */}
           {showWarning && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-red-500">⚠️</span>
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 text-red-500">⚠️</span>
                 <div>
-                  <p className="text-sm font-medium text-red-800">Position at Risk</p>
-                  <p className="text-xs text-red-600 mt-1">
-                    Your debt exceeds collateral. Cannot withdraw safely.
+                  <p className="text-sm font-semibold text-red-800">Position at Risk</p>
+                  <p className="text-xs text-red-700 mt-1">
+                    Your debt exceeds collateral. You cannot withdraw safely right now.
                   </p>
                 </div>
               </div>
@@ -351,12 +368,12 @@ export function WithdrawModal({
           
           {/* Info for non-collateral assets */}
           {!isCollateral && xMax > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-blue-500">ℹ️</span>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 text-blue-500">ℹ️</span>
                 <div>
-                  <p className="text-sm font-medium text-blue-800">Safe to Withdraw</p>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-sm font-semibold text-blue-800">Safe to Withdraw</p>
+                  <p className="text-xs text-blue-700 mt-1">
                     This asset is not used as collateral. You can withdraw your full supply.
                   </p>
                 </div>
@@ -365,7 +382,7 @@ export function WithdrawModal({
           )}
 
           {/* Amount Input */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="amount" className="text-sm font-medium text-gray-700">
               Amount to Withdraw
             </Label>
@@ -376,19 +393,40 @@ export function WithdrawModal({
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 placeholder="0.00"
-                className="pr-20 text-lg"
+                className="h-12 pr-24 text-lg rounded-xl"
                 disabled={isLoading || !canWithdraw}
               />
+              <span className="pointer-events-none absolute right-16 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                {token.symbol}
+              </span>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 px-3"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 px-3 rounded-md"
                 onClick={handleMaxClick}
                 disabled={isLoading || !canWithdraw}
               >
                 MAX
               </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {[0.25, 0.5, 0.75, 1].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    if (!canWithdraw) return;
+                    const epsilon = 1 / Math.pow(10, token.decimals || 18);
+                    const value = Math.max(0, xMax * p - epsilon);
+                    setAmount(value > 0 ? value.toFixed(Math.min(6, token.decimals || 6)) : '');
+                  }}
+                  className="inline-flex h-8 items-center rounded-md border border-gray-200 px-2.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading || !canWithdraw}
+                >
+                  {(p * 100).toFixed(0)}%
+                </button>
+              ))}
             </div>
             <div className="text-right">
               <span className="text-sm text-gray-500">
@@ -399,27 +437,27 @@ export function WithdrawModal({
 
           {/* Calculation Details */}
           {canWithdraw && (
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-800 mb-2">Withdraw Calculation</h4>
-              <div className="space-y-1 text-xs text-blue-700">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <h4 className="text-sm font-semibold text-blue-900 mb-2">Withdraw Calculation</h4>
+              <div className="space-y-1 text-xs text-blue-800">
                 <div className="flex justify-between">
-                  <span>Collateral USD:</span>
+                  <span>Collateral USD</span>
                   <span>{formatCurrency(actualCollateralUSD)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Debt USD:</span>
+                  <span>Debt USD</span>
                   <span>{formatCurrency(actualDebtUSD)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Net Collateral:</span>
+                  <span>Net Collateral</span>
                   <span>{formatCurrency(actualCollateralUSD - actualDebtUSD)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Liquidation Threshold:</span>
+                  <span>Liquidation Threshold</span>
                   <span>{(liquidationThreshold / 100).toFixed(1)}%</span>
                 </div>
                 <div className="flex justify-between font-medium">
-                  <span>Max Withdraw:</span>
+                  <span>Max Withdraw</span>
                   <span>{formatNumber(xMax, 4)} {token.symbol}</span>
                 </div>
               </div>
@@ -427,7 +465,7 @@ export function WithdrawModal({
           )}
 
           {/* Action Buttons */}
-          <div className="flex space-x-3">
+          <div className="flex gap-3 pt-2 border-t border-gray-100">
             <Button
               variant="outline"
               onClick={onClose}
@@ -439,7 +477,7 @@ export function WithdrawModal({
             <Button
               onClick={handleWithdraw}
               disabled={isDisabled}
-              className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >
               {isLoading ? (
                 <div className="flex items-center space-x-2">

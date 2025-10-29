@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "tourist monitor stool soap arrow athlete agree weather volume original impact science",
+        mnemonic: "toward slim treat invest high vague remove diesel give shock duty glide",
         count: 10, // Generate 10 accounts
       },
     },

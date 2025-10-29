@@ -22,7 +22,9 @@ const timers: Map<APRKey, any> = new Map();
 const blockThrottleTimers: Map<APRKey, any> = new Map();
 
 function getKey(poolAddress: string, assetAddress: string): APRKey {
-  return `${poolAddress.toLowerCase()}-${assetAddress.toLowerCase()}`;
+  const pool = poolAddress?.toLowerCase() || '';
+  const asset = assetAddress?.toLowerCase() || '';
+  return `${pool}-${asset}`;
 }
 
 async function fetchAPR(

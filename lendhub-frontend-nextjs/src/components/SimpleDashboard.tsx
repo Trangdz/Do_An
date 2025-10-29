@@ -8,6 +8,7 @@ import { RepayModal } from './RepayModal';
 import { CONFIG } from '../config/contracts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
+import { ThemeToggle } from './ui/ThemeToggle';
 import { useToast } from './ui/Toast';
 import { 
   formatCurrency, 
@@ -437,61 +438,62 @@ export function SimpleDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-card/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-lg">L</span>
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg">
+                <span className="text-primary-foreground font-bold text-lg">L</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold text-foreground">
                   LendHub v2
                 </h1>
-                <p className="text-sm text-gray-600">Decentralized Lending Protocol</p>
+                <p className="text-sm text-muted-foreground">Decentralized Lending Protocol</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               {/* Navigation Links */}
               <div className="flex items-center space-x-2">
                 <a
                   href="/overview"
-                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
                 >
                   🏠 Overview
                 </a>
                 <a
                   href="/history"
-                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:text-primary hover:bg-accent rounded-lg transition-colors"
                 >
                   📜 History
                 </a>
                 <a
                   href="/analytics"
-                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:text-primary hover:bg-accent rounded-lg transition-colors"
                 >
                   📈 Analytics
                 </a>
                 <a
                   href="/transaction-test"
-                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:text-primary hover:bg-accent rounded-lg transition-colors"
                 >
                   🔍 Test
                 </a>
                 <a
                   href="/test-history"
-                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:text-primary hover:bg-accent rounded-lg transition-colors"
                 >
                   🧪 Test History
                 </a>
               </div>
               
               <div className="hidden sm:block text-right">
-                <div className="text-sm text-gray-600">Connected to</div>
+                <div className="text-sm text-muted-foreground">Connected to</div>
                 <div className="font-medium text-green-600">Ganache Network</div>
               </div>
+              <ThemeToggle />
               <Button onClick={connectWallet}>
                 {metamaskDetails.currentAccount ? 
                   `${metamaskDetails.currentAccount.slice(0, 6)}...${metamaskDetails.currentAccount.slice(-4)}` : 
@@ -508,10 +510,10 @@ export function SimpleDashboard() {
         <div className="space-y-8">
           {/* Hero Section */}
           <div className="text-center py-8">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-foreground mb-4">
               Your DeFi Dashboard
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Manage your lending positions, monitor health factors, and explore market opportunities
             </p>
           </div>
@@ -615,27 +617,27 @@ export function SimpleDashboard() {
           </div>
 
           {/* Pool Overview */}
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0 bg-card/80 backdrop-blur-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900">Pool Overview</CardTitle>
-                  <CardDescription className="text-gray-600 mt-1">
+                    <CardTitle className="text-2xl font-bold text-foreground">Pool Overview</CardTitle>
+                    <CardDescription className="text-muted-foreground mt-1">
                     Total liquidity and borrowing across all assets
                   </CardDescription>
                 </div>
                 <div className="flex space-x-4 text-sm">
                   <div className="text-center">
-                    <div className="font-bold text-purple-600">{ethBalance.toFixed(4)} ETH</div>
-                    <div className="text-gray-500">Your ETH Balance</div>
+                      <div className="font-bold text-primary">{ethBalance.toFixed(4)} ETH</div>
+                      <div className="text-muted-foreground">Your ETH Balance</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-bold text-green-600">{formatCurrency(totalSupply)}</div>
-                    <div className="text-gray-500">Total Supply</div>
+                      <div className="font-bold text-green-600">{formatCurrency(totalSupply)}</div>
+                      <div className="text-muted-foreground">Total Supply</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-bold text-blue-600">{formatCurrency(totalBorrow)}</div>
-                    <div className="text-gray-500">Total Borrow</div>
+                      <div className="font-bold text-blue-600">{formatCurrency(totalBorrow)}</div>
+                      <div className="text-muted-foreground">Total Borrow</div>
                   </div>
                 </div>
               </div>
@@ -651,12 +653,12 @@ export function SimpleDashboard() {
           /> */}
 
           {/* Live Interest Rate Chart */}
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0 bg-card/80 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-2xl font-bold text-gray-900">
                 📈 Live Interest Rates
               </CardTitle>
-              <CardDescription className="text-gray-600">
+                <CardDescription className="text-muted-foreground">
                 Real-time supply and borrow APR across all assets (updates every 5 seconds)
               </CardDescription>
             </CardHeader>
@@ -671,10 +673,10 @@ export function SimpleDashboard() {
           </Card>
 
           {/* Market Assets */}
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0 bg-card/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-2xl font-bold text-gray-900">Market Assets</CardTitle>
-              <CardDescription className="text-gray-600">
+                <CardTitle className="text-2xl font-bold text-foreground">Market Assets</CardTitle>
+                <CardDescription className="text-muted-foreground">
                 Available assets for lending and borrowing with real-time rates
               </CardDescription>
             </CardHeader>
@@ -682,8 +684,8 @@ export function SimpleDashboard() {
               {userAssets.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-gray-600">Loading market data...</p>
+                      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-muted-foreground">Loading market data...</p>
                   </div>
                 </div>
               ) : (
@@ -709,7 +711,7 @@ export function SimpleDashboard() {
           </Card>
 
           {/* Footer */}
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-muted-foreground">
             <p className="text-sm">
               Built with ❤️ using React, TypeScript, and Tailwind CSS
             </p>
