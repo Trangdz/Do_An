@@ -64,17 +64,18 @@ export default function DepositDetailPage() {
   const userAddress = metamaskDetails.currentAccount;
   const storageKey = `deposit_realtime_${userAddress}_${asset?.symbol}_${asset?.address}`;
   const RAY = BigInt('1000000000000000000000000000'); // 1e27 as BigInt
+  const WAD = BigInt('1000000000000000000'); // 1e18 as BigInt
   
   // State for realtime calculation
   const [displayBalance, setDisplayBalance] = useState<number>(0);
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState<boolean>(true);
   
-  // Refs for Aave formula calculation
-  const scaledBalanceRef = useRef<number>(0); // scaledBalance from chain (principal)
-  const snapshotIndexRef = useRef<number>(1); // snapshotIndex from userReserve.supply.index (index when user deposited)
-  const oldIndexRef = useRef<number>(1); // liquidityIndex from chain at last update (for calculating new index)
-  const rateRef = useRef<bigint>(BigInt(0)); // liquidityRateRayPerSec
-  const lastUpdateTimestampRef = useRef<number>(Math.floor(Date.now() / 1000)); // seconds
+  // Refs for Aave formula calculation (BigInt precision)
+  const principalWadRef = useRef<bigint>(BigInt(0)); // principal in WAD (1e18)
+  const snapshotIndexRayRef = useRef<bigint>(RAY); // index when user deposited (RAY)
+  const oldIndexRayRef = useRef<bigint>(RAY); // liquidityIndex (RAY) at last update
+  const rateRayPerSecRef = useRef<bigint>(BigInt(0)); // per-second rate in RAY
+  const lastUpdateMsRef = useRef<number>(Date.now()); // milliseconds
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Load snapshot from localStorage
@@ -94,15 +95,16 @@ export default function DepositDetailPage() {
   }, [storageKey, userAddress, asset?.symbol]);
   
   // Save snapshot to localStorage
-  const saveSnapshot = useCallback((scaledBalance: number, snapshotIndex: number, oldIndex: number, rate: bigint, lastUpdateTimestamp: number) => {
+  const saveSnapshot = useCallback((principalWad: bigint, snapshotIndexRay: bigint, oldIndexRay: bigint, rateRayPerSec: bigint, lastUpdateMs: number) => {
     if (typeof window === 'undefined') return;
     try {
       const data = {
-        scaledBalance,
-        snapshotIndex, // Save snapshotIndex for calculation
-        oldIndex,
-        rate: rate.toString(),
-        lastUpdateTimestamp,
+        principalWad: principalWad.toString(),
+        snapshotIndexRay: snapshotIndexRay.toString(),
+        oldIndexRay: oldIndexRay.toString(),
+        rateRayPerSec: rateRayPerSec.toString(),
+        lastUpdateMs,
+        fetchedAt: Math.floor(Date.now() / 1000),
         timestamp: Date.now()
       };
       localStorage.setItem(storageKey, JSON.stringify(data));
@@ -132,50 +134,50 @@ export default function DepositDetailPage() {
         pool.reserves(assetAddress)
       ]);
       
-      const principal = userReserve.supply.principal;
-      if (principal === BigInt(0)) {
+      const principalWad = userReserve.supply.principal as bigint;
+      if (principalWad === BigInt(0)) {
         setIsLoadingSnapshot(false);
         return null;
       }
       
-      // Get data from chain
-      const scaledBalance = Number(ethers.formatUnits(principal, 18)); // principal in 1e18
-      const snapshotIndex = Number(userReserve.supply.index); // snapshot index (when user deposited)
-      const liquidityIndex = Number(reserve.liquidityIndex); // current liquidity index
-      const liquidityRateRayPerSec = BigInt(reserve.liquidityRateRayPerSec);
-      const lastUpdate = Number(reserve.lastUpdate); // block timestamp
+      // Get data from chain (raw BigInt for precision)
+      const snapshotIndexRay = userReserve.supply.index as bigint; // snapshot index (RAY)
+      const liquidityIndexRay = reserve.liquidityIndex as bigint; // current liquidity index (RAY)
+      const liquidityRateRayPerSec = reserve.liquidityRateRayPerSec as bigint; // RAY per second
+      const lastUpdate = Number(reserve.lastUpdate); // seconds
       
       console.log('📊 Fetched chain snapshot:', {
-        scaledBalance,
-        snapshotIndex,
-        liquidityIndex,
+        principalWad: principalWad.toString(),
+        snapshotIndexRay: snapshotIndexRay.toString(),
+        liquidityIndexRay: liquidityIndexRay.toString(),
         liquidityRateRayPerSec: liquidityRateRayPerSec.toString(),
         lastUpdate: new Date(lastUpdate * 1000).toLocaleString()
       });
       
       // Save to localStorage
-      saveSnapshot(scaledBalance, snapshotIndex, liquidityIndex, liquidityRateRayPerSec, lastUpdate);
+      saveSnapshot(principalWad, snapshotIndexRay, liquidityIndexRay, liquidityRateRayPerSec, lastUpdate * 1000);
       
       // Update refs
-      scaledBalanceRef.current = scaledBalance;
-      snapshotIndexRef.current = snapshotIndex; // Save snapshot index for calculation
-      oldIndexRef.current = liquidityIndex; // Use current index as starting point for newIndex calculation
-      rateRef.current = liquidityRateRayPerSec;
-      lastUpdateTimestampRef.current = lastUpdate;
+      principalWadRef.current = principalWad;
+      snapshotIndexRayRef.current = snapshotIndexRay;
+      oldIndexRayRef.current = liquidityIndexRay;
+      rateRayPerSecRef.current = liquidityRateRayPerSec;
+      lastUpdateMsRef.current = lastUpdate * 1000;
       
       // Calculate current balance using Aave formula: actualBalance = scaledBalance * (currentIndex / snapshotIndex)
-      const actualBalance = scaledBalance * (liquidityIndex / snapshotIndex);
+      const actualWad = (principalWad * liquidityIndexRay) / snapshotIndexRay;
+      const actualBalance = Number(ethers.formatUnits(actualWad, 18));
       console.log('✅ Calculated balance from chain:', {
-        scaledBalance,
-        snapshotIndex,
-        liquidityIndex,
+        principal: Number(ethers.formatUnits(principalWad, 18)),
+        snapshotIndexRay: snapshotIndexRay.toString(),
+        liquidityIndexRay: liquidityIndexRay.toString(),
         actualBalance,
-        interestEarned: actualBalance - scaledBalance
+        interestEarned: actualBalance - Number(ethers.formatUnits(principalWad, 18))
       });
       setDisplayBalance(actualBalance);
       setIsLoadingSnapshot(false);
       
-      return { scaledBalance, liquidityIndex, liquidityRateRayPerSec, lastUpdate, actualBalance };
+      return { actualBalance };
     } catch (error) {
       console.error('❌ Failed to fetch chain snapshot:', error);
       setIsLoadingSnapshot(false);
@@ -189,49 +191,52 @@ export default function DepositDetailPage() {
     
     const storedSnapshot = loadStoredSnapshot();
     
-    if (storedSnapshot && storedSnapshot.scaledBalance > 0) {
+    if (storedSnapshot && (storedSnapshot.principalWad || storedSnapshot.scaledBalance)) {
       // Restore from localStorage
-      scaledBalanceRef.current = storedSnapshot.scaledBalance;
-      snapshotIndexRef.current = storedSnapshot.snapshotIndex || storedSnapshot.oldIndex || 1; // Use snapshotIndex or fallback to oldIndex
-      oldIndexRef.current = storedSnapshot.oldIndex || 1; // Current index at last update
-      rateRef.current = BigInt(storedSnapshot.rate || 0);
-      lastUpdateTimestampRef.current = storedSnapshot.lastUpdateTimestamp || Math.floor(Date.now() / 1000);
+      principalWadRef.current = storedSnapshot.principalWad ? BigInt(storedSnapshot.principalWad) : BigInt(0);
+      snapshotIndexRayRef.current = storedSnapshot.snapshotIndexRay ? BigInt(storedSnapshot.snapshotIndexRay) : RAY;
+      oldIndexRayRef.current = storedSnapshot.oldIndexRay ? BigInt(storedSnapshot.oldIndexRay) : RAY;
+      rateRayPerSecRef.current = storedSnapshot.rateRayPerSec ? BigInt(storedSnapshot.rateRayPerSec) : BigInt(0);
+      lastUpdateMsRef.current = storedSnapshot.lastUpdateMs || Date.now();
       
       console.log('📦 Restored snapshot from localStorage:', {
-        scaledBalance: scaledBalanceRef.current,
-        snapshotIndex: snapshotIndexRef.current,
-        oldIndex: oldIndexRef.current,
-        rate: rateRef.current.toString(),
-        lastUpdate: new Date(lastUpdateTimestampRef.current * 1000).toLocaleString()
+        principalWad: principalWadRef.current.toString(),
+        snapshotIndexRay: snapshotIndexRayRef.current.toString(),
+        oldIndexRay: oldIndexRayRef.current.toString(),
+        rateRayPerSec: rateRayPerSecRef.current.toString(),
+        lastUpdateMs: new Date(lastUpdateMsRef.current).toLocaleString()
       });
       
       // Calculate current balance using Aave formula
-      const currentTimestamp = Math.floor(Date.now() / 1000);
-      const deltaTime = currentTimestamp - lastUpdateTimestampRef.current;
+      const nowMs = Date.now();
+      const deltaTimeMs = nowMs - lastUpdateMsRef.current;
+      const deltaSec = Math.max(0, Math.floor(deltaTimeMs / 1000));
       
-      if (deltaTime > 0 && rateRef.current > BigInt(0)) {
+      if (deltaSec > 0 && rateRayPerSecRef.current > BigInt(0)) {
         // newIndex = oldIndex * (1 + rate * deltaTime / SECONDS_PER_YEAR)
-        const rateDecimal = Number(rateRef.current) / Number(RAY);
-        const newIndex = oldIndexRef.current * (1 + rateDecimal * deltaTime / SECONDS_PER_YEAR);
+        const increment = (oldIndexRayRef.current * rateRayPerSecRef.current * BigInt(deltaSec)) / RAY;
+        const newIndex = oldIndexRayRef.current + increment;
         
         // actualBalance = scaledBalance * (newIndex / snapshotIndex)
-        const actualBalance = scaledBalanceRef.current * (newIndex / snapshotIndexRef.current);
+        const actualWad = (principalWadRef.current * newIndex) / snapshotIndexRayRef.current;
+        const actualBalance = Number(ethers.formatUnits(actualWad, 18));
         
-        const interestEarned = actualBalance - scaledBalanceRef.current;
+        const interestEarned = actualBalance - Number(ethers.formatUnits(principalWadRef.current, 18));
         console.log('📦 Calculated from restored snapshot:', {
-          deltaTime: deltaTime + 's',
-          oldIndex: oldIndexRef.current.toFixed(10),
-          newIndex: newIndex.toFixed(10),
+          deltaTime: deltaSec + 's',
+          oldIndex: oldIndexRayRef.current.toString(),
+          newIndex: newIndex.toString(),
           actualBalance: actualBalance.toFixed(6),
           interestEarned: interestEarned.toFixed(6),
-          rateDecimal: rateDecimal.toFixed(10)
+          rateRayPerSec: rateRayPerSecRef.current.toString()
         });
         
         setDisplayBalance(actualBalance);
         setIsLoadingSnapshot(false);
       } else {
         // No time elapsed or no rate, use current balance
-        const actualBalance = scaledBalanceRef.current * (oldIndexRef.current / snapshotIndexRef.current);
+        const actualWad = (principalWadRef.current * oldIndexRayRef.current) / snapshotIndexRayRef.current;
+        const actualBalance = Number(ethers.formatUnits(actualWad, 18));
         setDisplayBalance(actualBalance);
         setIsLoadingSnapshot(false);
       }
@@ -243,18 +248,18 @@ export default function DepositDetailPage() {
   
   // Calculate real-time balance using Aave formula (updates every 1 second)
   useEffect(() => {
-    if (isLoadingSnapshot || scaledBalanceRef.current <= 0 || snapshotIndexRef.current <= 0 || asset?.symbol === 'ETH') {
+    if (isLoadingSnapshot || principalWadRef.current === BigInt(0) || snapshotIndexRayRef.current === BigInt(0) || asset?.symbol === 'ETH') {
       console.log('⏸️ Skipping realtime update:', {
         isLoadingSnapshot,
-        scaledBalance: scaledBalanceRef.current,
-        snapshotIndex: snapshotIndexRef.current,
-        rate: rateRef.current.toString(),
+        principalWad: principalWadRef.current.toString(),
+        snapshotIndexRay: snapshotIndexRayRef.current.toString(),
+        rateRayPerSec: rateRayPerSecRef.current.toString(),
         symbol: asset?.symbol
       });
       // Still set displayBalance if available
-      if (scaledBalanceRef.current > 0 && snapshotIndexRef.current > 0) {
-        const actualBalance = scaledBalanceRef.current * (oldIndexRef.current / snapshotIndexRef.current);
-        setDisplayBalance(actualBalance);
+      if (principalWadRef.current > BigInt(0) && snapshotIndexRayRef.current > BigInt(0)) {
+        const actualWad = (principalWadRef.current * oldIndexRayRef.current) / snapshotIndexRayRef.current;
+        setDisplayBalance(Number(ethers.formatUnits(actualWad, 18)));
       }
       return;
     }
@@ -265,71 +270,51 @@ export default function DepositDetailPage() {
     }
     
     // Use rate from chain, fallback to APR if rate is 0
-    const rateDecimal = (rateRef.current > BigInt(0))
-      ? (Number(rateRef.current) / Number(RAY))
-      : ((supplyAPR / 100) / SECONDS_PER_YEAR);
+    const rateRayPerSec = rateRayPerSecRef.current > BigInt(0)
+      ? rateRayPerSecRef.current
+      : BigInt(Math.floor(((supplyAPR / 100) / SECONDS_PER_YEAR) * 1e27));
     
-    if (rateDecimal <= 0) {
+    if (rateRayPerSec === BigInt(0)) {
       console.log('⏸️ No rate available, skipping realtime update');
-      const actualBalance = scaledBalanceRef.current * (oldIndexRef.current / snapshotIndexRef.current);
-      setDisplayBalance(actualBalance);
+      const actualWad = (principalWadRef.current * oldIndexRayRef.current) / snapshotIndexRayRef.current;
+      setDisplayBalance(Number(ethers.formatUnits(actualWad, 18)));
       return;
     }
     
-    console.log('💰 Starting realtime updates:', {
-      scaledBalance: scaledBalanceRef.current,
-      snapshotIndex: snapshotIndexRef.current,
-      oldIndex: oldIndexRef.current,
-      rate: rateRef.current.toString(),
-      rateDecimal: rateDecimal.toFixed(10),
-      lastUpdate: new Date(lastUpdateTimestampRef.current * 1000).toLocaleString()
+    console.log('💰 Starting realtime updates (BigInt):', {
+      principal: Number(ethers.formatUnits(principalWadRef.current, 18)),
+      snapshotIndexRay: snapshotIndexRayRef.current.toString(),
+      oldIndexRay: oldIndexRayRef.current.toString(),
+      rateRayPerSec: rateRayPerSec.toString(),
+      lastUpdateMs: new Date(lastUpdateMsRef.current).toLocaleString()
     });
     
     const updateBalance = () => {
-      const currentTimestamp = Math.floor(Date.now() / 1000);
-      const deltaTime = currentTimestamp - lastUpdateTimestampRef.current;
-      
-      if (deltaTime <= 0) return;
-      
-      // Formula: newIndex = oldIndex * (1 + rate * deltaTime / SECONDS_PER_YEAR)
-      const newIndex = oldIndexRef.current * (1 + rateDecimal * deltaTime / SECONDS_PER_YEAR);
-      
-      // Formula: actualBalance = scaledBalance * (newIndex / snapshotIndex)
-      const actualBalance = scaledBalanceRef.current * (newIndex / snapshotIndexRef.current);
-      
-      const interestEarned = actualBalance - scaledBalanceRef.current;
-      
-      // Log every 10 seconds to avoid spam
-      if (deltaTime % 10 === 0 || deltaTime === 1) {
-        console.log('💰 Realtime update:', {
-          deltaTime: deltaTime + 's',
-          snapshotIndex: snapshotIndexRef.current.toFixed(10),
-          oldIndex: oldIndexRef.current.toFixed(10),
-          newIndex: newIndex.toFixed(10),
-          actualBalance: actualBalance.toFixed(6),
-          interestEarned: interestEarned.toFixed(6),
-          scaledBalance: scaledBalanceRef.current.toFixed(6),
-          rateDecimal: rateDecimal.toFixed(10)
-        });
-      }
-      
-      setDisplayBalance(actualBalance);
+      const nowMs = Date.now();
+      const deltaSec = Math.floor((nowMs - lastUpdateMsRef.current) / 1000);
+      if (deltaSec <= 0) return;
+      // newIndexRay = oldIndexRay + oldIndexRay * rateRayPerSec * deltaSec / RAY
+      const incr = (oldIndexRayRef.current * rateRayPerSec * BigInt(deltaSec)) / RAY;
+      const newIndexRay = oldIndexRayRef.current + incr;
+      const actualWad = (principalWadRef.current * newIndexRay) / snapshotIndexRayRef.current;
+      setDisplayBalance(Number(ethers.formatUnits(actualWad, 18)));
     };
     
     // Initial update
     updateBalance();
     
-    // Update every 1 second
+    // Update every 1 second as requested
     intervalRef.current = setInterval(updateBalance, 1000);
     
     // Save on unmount/reload
     const handleBeforeUnload = () => {
-      const currentTimestamp = Math.floor(Date.now() / 1000);
-      const deltaTime = currentTimestamp - lastUpdateTimestampRef.current;
+      const nowMs = Date.now();
+      const deltaMs = nowMs - lastUpdateMsRef.current;
       
-      if (deltaTime > 0) {
-        const newIndex = oldIndexRef.current * (1 + rateDecimal * deltaTime / SECONDS_PER_YEAR);
-        saveSnapshot(scaledBalanceRef.current, snapshotIndexRef.current, newIndex, rateRef.current, currentTimestamp);
+      if (deltaMs > 0) {
+        const incr = (oldIndexRayRef.current * rateRayPerSec * BigInt(deltaMs)) / (RAY * BigInt(1000));
+        const newIndexRay = oldIndexRayRef.current + incr;
+        saveSnapshot(principalWadRef.current, snapshotIndexRayRef.current, newIndexRay, rateRayPerSec, nowMs);
       }
     };
     
@@ -337,15 +322,14 @@ export default function DepositDetailPage() {
     
     // Save periodically (every 30 seconds)
     const saveInterval = setInterval(() => {
-      const currentTimestamp = Math.floor(Date.now() / 1000);
-      const deltaTime = currentTimestamp - lastUpdateTimestampRef.current;
-      
-      if (deltaTime > 0) {
-        const newIndex = oldIndexRef.current * (1 + rateDecimal * deltaTime / SECONDS_PER_YEAR);
-        saveSnapshot(scaledBalanceRef.current, snapshotIndexRef.current, newIndex, rateRef.current, currentTimestamp);
-        // Update oldIndexRef after saving to continue from this point
-        oldIndexRef.current = newIndex;
-        lastUpdateTimestampRef.current = currentTimestamp;
+      const nowMs = Date.now();
+      const deltaMs = nowMs - lastUpdateMsRef.current;
+      if (deltaMs > 0) {
+        const incr = (oldIndexRayRef.current * rateRayPerSec * BigInt(deltaMs)) / (RAY * BigInt(1000));
+        const newIndexRay = oldIndexRayRef.current + incr;
+        saveSnapshot(principalWadRef.current, snapshotIndexRayRef.current, newIndexRay, rateRayPerSec, nowMs);
+        oldIndexRayRef.current = newIndexRay;
+        lastUpdateMsRef.current = nowMs;
       }
     }, 30000);
     
@@ -367,10 +351,11 @@ export default function DepositDetailPage() {
     const currentChainBalance = parseFloat(supplyAsset.supplyBalance || supplyAsset.supplyPrincipal || '0');
     
     // If principal changed significantly, fetch new snapshot from chain
-    const diff = Math.abs(currentPrincipal - scaledBalanceRef.current);
+    const principalDisplay = Number(ethers.formatUnits(principalWadRef.current, 18));
+    const diff = Math.abs(currentPrincipal - principalDisplay);
     if (diff > Math.max(currentPrincipal * 0.02, 0.01)) {
       console.log('🔄 New transaction detected, fetching chain snapshot:', {
-        old: scaledBalanceRef.current,
+        old: principalDisplay,
         new: currentPrincipal,
         diff
       });
@@ -512,7 +497,9 @@ export default function DepositDetailPage() {
   const walletBalanceUSD = typeof asset.balanceUSD === 'number' ? asset.balanceUSD : parseFloat(String(asset.balanceUSD || 0));
   
   // Get principal from supply asset (scaledBalance = principal)
-  const suppliedPrincipal = scaledBalanceRef.current > 0 ? scaledBalanceRef.current : (supplyAsset ? parseFloat(supplyAsset.supplyPrincipal || '0') : 0);
+  const suppliedPrincipal = principalWadRef.current > BigInt(0)
+    ? Number(ethers.formatUnits(principalWadRef.current, 18))
+    : (supplyAsset ? parseFloat(supplyAsset.supplyPrincipal || '0') : 0);
   
   // Use displayBalance from realtime calculation
   const suppliedBalance = displayBalance || suppliedPrincipal || 0;
@@ -567,16 +554,19 @@ export default function DepositDetailPage() {
               <CardContent className="space-y-4">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Your balance in pool:</span>
-                  <span className="font-medium">
-                    {isNaN(suppliedBalance) ? '0.000000000000' : suppliedBalance.toFixed(12)} {asset.symbol}
+                  <span className="font-medium font-mono text-sm">
+                   {isNaN(suppliedBalance) ? '0.000000000000000000' : suppliedBalance.toFixed(18)} {asset.symbol}
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({isNaN(suppliedBalanceUSD) ? '$0.00' : `$${suppliedBalanceUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`})
+                  </span>
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Interest earned:</span>
-                  <span className="font-medium">
-                    {isNaN(interestEarned) ? '0.000000000000' : interestEarned.toFixed(12)} {asset.symbol}
+                  <span className="font-medium font-mono text-sm">
+                    {isNaN(interestEarned) ? '0.000000000000000000' : interestEarned.toFixed(18)} {asset.symbol}
                     <span className="text-xs text-muted-foreground ml-2">
-                      ({isNaN(interestEarnedUSD) ? '$0.000000000000' : `$${interestEarnedUSD.toFixed(12)}`})
+                      ({isNaN(interestEarnedUSD) ? '0.000000000000000000' : interestEarnedUSD.toFixed(18)} {asset.symbol}
                     </span>
                   </span>
                 </div>
