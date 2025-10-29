@@ -52,7 +52,17 @@ export async function sendWithToast(
   } catch (error: any) {
     console.error('❌', config.error);
     console.error('Error details:', error);
-    throw error;
+    // Unwrap common nested provider error shapes to surface a clear message
+    const rawMsg =
+      error?.reason ||
+      error?.shortMessage ||
+      error?.info?.error?.message ||
+      error?.error?.message ||
+      error?.data?.message ||
+      error?.message ||
+      'Transaction failed';
+    const clean = String(rawMsg).replace(/\n.*/, '');
+    throw new Error(clean);
   }
 }
 
@@ -122,6 +132,14 @@ export async function lend(
   // Approve if needed
   await approveIfNeeded(signer, tokenAddress, CONFIG.LENDING_POOL, amount);
   
+  // Pre-flight simulate to get explicit revert reason instead of -32603
+  try {
+    await poolContract.getFunction("lend").staticCall(tokenAddress, amount);
+  } catch (err: any) {
+    const msg = String(err?.reason || err?.shortMessage || err?.message || 'Supply failed');
+    throw new Error(msg);
+  }
+
   // Send lend transaction
   const txPromise = poolContract.lend(tokenAddress, amount);
   
@@ -141,14 +159,105 @@ export async function withdraw(
   amount: bigint
 ): Promise<TxResult> {
   const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, signer);
-  
+  // Pre-flight static call to surface revert reasons (instead of generic -32603)
+  try {
+    // ethers v6: use getFunction(...).staticCall to simulate
+    await poolContract.getFunction("withdraw").staticCall(tokenAddress, amount);
+  } catch (err: any) {
+    // Map common revert reasons to user-friendly messages
+    const msg = String(err?.reason || err?.shortMessage || err?.message || "Withdraw failed");
+    let friendly = msg;
+    if (msg.includes("Health factor too low")) friendly = "Health Factor sẽ giảm dưới ngưỡng an toàn. Giảm số lượng rút hoặc trả bớt nợ.";
+    else if (msg.includes("Insufficient liquidity")) friendly = "Thanh khoản pool không đủ để rút số lượng này.";
+    else if (msg.includes("No collateral enabled")) friendly = "Bạn chưa bật tài sản làm tài sản thế chấp (collateral).";
+    else if (msg.match(/insufficient funds|balance/gi)) friendly = "Số dư không đủ hoặc vượt quá số đã supply.";
+    else if (amount === BigInt(0)) friendly = "Số lượng rút phải lớn hơn 0.";
+    throw new Error(friendly);
+  }
+
   const txPromise = poolContract.withdraw(tokenAddress, amount);
-  
-  return await sendWithToast(txPromise, {
+
+  const result = await sendWithToast(txPromise, {
     pending: 'Withdrawing tokens...',
     success: 'Tokens withdrawn successfully!',
     error: 'Withdraw failed'
   });
+
+  // After successful withdraw, refresh APR/Available snapshot immediately
+  try {
+    const provider = signer.provider as ethers.Provider;
+    const { triggerAPRRefresh } = await import('../hooks/useSharedAPR');
+    await triggerAPRRefresh(provider, CONFIG.LENDING_POOL, tokenAddress);
+  } catch (e) {
+    console.warn('[withdraw] post-refresh failed:', (e as any)?.message || e);
+  }
+
+  return result;
+}
+
+/**
+ * Compute maximum withdrawable amount for a user and asset, respecting:
+ *  - User current aToken balance (principal × currentIndex / snapshotIndex)
+ *  - Pool available liquidity (reserveCash)
+ *  - Collateral constraint from LTV (ltvBps)
+ * Returns bigint amount in token units (decimals from reserve.decimals)
+ */
+export async function computeMaxWithdraw(
+  provider: ethers.Provider,
+  userAddress: string,
+  assetAddress: string,
+  priceUSD: number // current token price in USD
+): Promise<{ amount: bigint; decimals: number }> {
+  const pool = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, provider);
+
+  const [reserve, userRes, account] = await Promise.all([
+    pool.reserves(assetAddress),
+    pool.userReserves(userAddress, assetAddress),
+    pool.getAccountData(userAddress)
+  ]);
+
+  const decimals: number = Number(reserve.decimals ?? 18);
+
+  // User supply position
+  const principal = Number(userRes.supply?.principal ?? BigInt(0)) / 1e18;
+  const snapshotIndex = Number(userRes.supply?.index ?? BigInt(0)) || 1;
+  const currentIndex = Number(reserve.liquidityIndex ?? BigInt(0)) || snapshotIndex;
+  const balance = principal * (currentIndex / snapshotIndex);
+
+  // Liquidity available
+  const availableLiquidity = Number(formatUnits(reserve.reserveCash, decimals));
+
+  // Collateral limit based on LTV
+  const collateralUSD = parseFloat(formatUnits(account.collateralValue1e18, 18));
+  const debtUSD = parseFloat(formatUnits(account.debtValue1e18, 18));
+  const ltvBps = Number(account.ltvBps ?? 0);
+  const ltv = ltvBps / 10000;
+  const withdrawableUSD = Math.max(0, collateralUSD * ltv - debtUSD);
+  const maxByCollateral = priceUSD > 0 ? withdrawableUSD / priceUSD : balance;
+
+  let max = Math.min(availableLiquidity, balance, maxByCollateral);
+  if (!isFinite(max) || max < 0) max = 0;
+
+  // Return as bigint with decimals, minus 1 wei to avoid dust rounding
+  const scale = 10 ** decimals;
+  const safeScaled = BigInt(Math.max(0, Math.floor(max * scale - 1)));
+  return { amount: safeScaled, decimals };
+}
+
+/**
+ * Withdraw maximum safe amount. Caller can pass priceUSD from pricing oracle/UI.
+ */
+export async function withdrawMax(
+  signer: ethers.Signer,
+  tokenAddress: string,
+  priceUSD: number
+): Promise<TxResult> {
+  const provider = signer.provider as ethers.Provider;
+  const user = await signer.getAddress();
+  const { amount } = await computeMaxWithdraw(provider, user, tokenAddress, priceUSD);
+  if (amount <= BigInt(0)) throw new Error('Nothing to withdraw');
+  const res = await withdraw(signer, tokenAddress, amount);
+  return res;
 }
 
 /**
@@ -185,6 +294,15 @@ export async function borrow(
 
   const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, signer);
   
+  // Pre-flight simulate to reveal revert reason (prevents generic -32603 in send)
+  try {
+    await poolContract.getFunction("borrow").staticCall(tokenAddress, amount);
+  } catch (err: any) {
+    // Map and surface the reason clearly
+    const msg = String(err?.reason || err?.shortMessage || err?.message || 'Borrow failed');
+    throw new Error(msg);
+  }
+
   // Enhanced validation before borrowing
   try {
     const reserve = await poolContract.reserves(tokenAddress);
@@ -371,6 +489,27 @@ export function parseTokenAmount(amount: string, decimals: number): bigint {
  */
 export function formatTokenAmount(amount: bigint, decimals: number): string {
   return formatUnits(amount, decimals);
+}
+
+/**
+ * High-level helper for Withdraw modal.
+ * - If isMax = true: uses withdrawMax() to avoid dust/rounding and LTV/liquidity issues
+ * - Else: parses amount string and calls withdraw()
+ * - Always refreshes APR/Available after success (handled inside withdraw())
+ */
+export async function withdrawFromUi(
+  signer: ethers.Signer,
+  tokenAddress: string,
+  tokenDecimals: number,
+  opts: { amountInput?: string; isMax?: boolean; priceUSD: number }
+): Promise<TxResult> {
+  const { isMax, amountInput, priceUSD } = opts;
+  if (isMax) {
+    return await withdrawMax(signer, tokenAddress, priceUSD);
+  }
+  if (!amountInput || Number(amountInput) <= 0) throw new Error('Amount must be greater than 0');
+  const parsed = parseUnits(amountInput, tokenDecimals);
+  return await withdraw(signer, tokenAddress, parsed);
 }
 
 /**

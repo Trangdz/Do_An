@@ -1,5 +1,5 @@
 import React from 'react';
-import { useReserveAPR } from '../hooks/useReserveAPR';
+import { useSharedAPR } from '../hooks/useSharedAPR';
 import { useRealtimeInterest } from '../hooks/useRealtimeInterest';
 import { RealtimeBalanceCompact } from './RealtimeInterestBalance';
 import { OnChainRealtimeBalance } from './OnChainRealtimeBalance';
@@ -85,11 +85,11 @@ export function TokenCard({
   // Real-time APR data (fetch every 30 seconds)
   const shouldFetchAPR = token.symbol !== 'ETH' && provider !== null && poolAddress && poolAddress !== '0x0000000000000000000000000000000000000000';
   
-  const aprData = useReserveAPR(
+  const aprData = useSharedAPR(
     shouldFetchAPR ? provider : null,
     poolAddress,
     token.address,
-    30000 // Refresh every 30 seconds (reduced to avoid circuit breaker)
+    30000
   );
 
   // Use APR data from hook
@@ -400,6 +400,8 @@ export function TokenCard({
                     tokenSymbol={token.symbol}
                     priceUSD={token.price}
                     isSupply={true}
+                    displayAPY={supplyAPR * 100}
+                    decimals={typeof token.decimals === 'number' ? token.decimals : 18}
                   />
                 ) : token.userSupply > 0 ? (
                   `${formatBalance(token.userSupply, 4)} ${token.symbol}`
@@ -422,6 +424,8 @@ export function TokenCard({
                     tokenSymbol={token.symbol}
                     priceUSD={token.price}
                     isSupply={false}
+                    displayAPY={borrowAPR * 100}
+                    decimals={typeof token.decimals === 'number' ? token.decimals : 18}
                   />
                 ) : token.userBorrow > 0 ? (
                   `${formatBalance(token.userBorrow, 4)} ${token.symbol}`
@@ -462,7 +466,7 @@ export function TokenCard({
             )}
           </div>
           <div className="text-xs text-blue-600/70 flex items-center justify-center space-x-1">
-            <span>Supply APR</span>
+            <span>Supply APY</span>
             {aprData?.isLoading && <div className="w-2 h-2 border border-blue-500 border-t-transparent rounded-full animate-spin" />}
             {!aprData?.isLoading && aprChanged && <span className="animate-pulse">●</span>}
           </div>

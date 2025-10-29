@@ -17,6 +17,9 @@ interface OnChainRealtimeBalanceProps {
   priceUSD: number;
   isSupply?: boolean;
   onTransactionSuccess?: () => void;
+  // Optional: platform-computed APY to display (preferred over deriving from liquidityRate)
+  displayAPY?: number; // decimal, e.g. 0.005 = 0.5%
+  decimals?: number; // token decimals for dust clamp
 }
 
 export function OnChainRealtimeBalance({
@@ -27,7 +30,9 @@ export function OnChainRealtimeBalance({
   tokenSymbol,
   priceUSD,
   isSupply = true,
-  onTransactionSuccess
+  onTransactionSuccess,
+  displayAPY,
+  decimals
 }: OnChainRealtimeBalanceProps) {
   
   // Fetch và cache on-chain data
@@ -115,7 +120,12 @@ export function OnChainRealtimeBalance({
       const divisor = (savedSnapshot as any).snapshotIndex && (savedSnapshot as any).snapshotIndex > 0
         ? (savedSnapshot as any).snapshotIndex as number
         : RAY;
-      const currentBalance = (savedSnapshot.scaledBalance * newLiquidityIndex) / divisor;
+      let currentBalance = (savedSnapshot.scaledBalance * newLiquidityIndex) / divisor;
+      // Clamp dust to zero if below 1 wei
+      if (typeof decimals === 'number' && decimals > 0) {
+        const dust = 1 / Math.pow(10, decimals);
+        if (currentBalance < dust) currentBalance = 0;
+      }
       
       // Log every 2 seconds để debug
       const logInterval = 2;
@@ -217,7 +227,13 @@ export function OnChainRealtimeBalance({
       {snapshot && (
         <div className="text-xs mt-1 text-gray-500">
           Last sync: {snapshot.blockNumber ? `Block #${snapshot.blockNumber}` : 'Pending'}
-          {` | Rate: ${(snapshot.liquidityRate / 1e27 * SECONDS_PER_YEAR * 100).toFixed(4)}% APY`}
+          {(() => {
+            if (typeof displayAPY === 'number' && !Number.isNaN(displayAPY as number)) {
+              return ` | Rate: ${(displayAPY as number).toFixed(4)}% ${isSupply ? 'APY' : 'APR'}`;
+            }
+            const percent = (snapshot.liquidityRate / 1e27) * SECONDS_PER_YEAR * 100;
+            return ` | Rate: ${percent.toFixed(4)}% ${isSupply ? 'APY' : 'APR'}`;
+          })()}
         </div>
       )}
     </div>
