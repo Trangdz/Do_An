@@ -2,9 +2,8 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/dashboard": "pages/dashboard.js",
-  "/history": "pages/history.js",
+  "/borrow/[symbol]": "pages/borrow/[symbol].js",
   "/deposit": "pages/deposit.js",
-  "/deposit/[symbol]": "pages/deposit/[symbol].js",
-  "/markets": "pages/markets.js"
+  "/history": "pages/history.js",
+  "/liquidations": "pages/liquidations.js"
 }

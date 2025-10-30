@@ -26,6 +26,18 @@ export default function HistoryPage() {
     60000  // Refresh every 60 seconds
   );
 
+  // Normalize/standardize transaction types coming from DB/indexer
+  const normalizeType = (rawType: any): 'Lend' | 'Withdraw' | 'Borrow' | 'Repay' | 'Liquidate' | 'Other' => {
+    if (typeof rawType !== 'string') return 'Other';
+    const t = rawType.trim().toLowerCase();
+    if (t === 'lend' || t === 'supply' || t === 'supplied' || t === 'deposit' || t === 'deposited') return 'Lend';
+    if (t === 'withdraw' || t === 'withdrawn' || t === 'redeem' || t === 'redeemed') return 'Withdraw';
+    if (t === 'borrow' || t === 'borrowed') return 'Borrow';
+    if (t === 'repay' || t === 'repaid' || t === 'repayment') return 'Repay';
+    if (t === 'liquidate' || t === 'liquidated' || t === 'liquidation') return 'Liquidate';
+    return 'Other';
+  };
+
   // Helper function to safely format addresses
   const formatAddress = (addr: any) => {
     if (typeof addr === 'string' && addr.length > 10) {
@@ -44,7 +56,7 @@ export default function HistoryPage() {
 
   // Get transaction type emoji
   const getTransactionTypeEmoji = (type: string) => {
-    switch (type) {
+    switch (normalizeType(type)) {
       case 'Lend': return '💰';
       case 'Withdraw': return '⬅️';
       case 'Borrow': return '📤';
@@ -56,7 +68,7 @@ export default function HistoryPage() {
 
   // Get transaction type color
   const getTransactionTypeColor = (type: string) => {
-    switch (type) {
+    switch (normalizeType(type)) {
       case 'Lend': return 'bg-green-500/20 text-green-300 border-green-500/30';
       case 'Withdraw': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
       case 'Borrow': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
@@ -188,7 +200,7 @@ export default function HistoryPage() {
                           {getTransactionTypeEmoji(tx.type)}
                         </div>
                         <div>
-                          <div className="font-bold text-foreground text-lg">{tx.type}</div>
+                          <div className="font-bold text-foreground text-lg">{normalizeType(tx.type) === 'Other' ? 'Other' : normalizeType(tx.type)}</div>
                           <div className="text-sm text-muted-foreground">
                             {tx.asset?.symbol || 'Unknown'} Transaction
                           </div>

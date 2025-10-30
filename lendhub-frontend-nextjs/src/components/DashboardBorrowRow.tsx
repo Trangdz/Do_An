@@ -3,6 +3,8 @@ import { Button } from './ui/Button';
 import { useSharedAPR } from '@/hooks/useSharedAPR';
 import { CONFIG } from '@/config/contracts';
 import { ethers } from 'ethers';
+import { useRouter } from 'next/router';
+import Image from 'next/image';
 
 interface DashboardBorrowRowProps {
   borrow: {
@@ -18,6 +20,21 @@ interface DashboardBorrowRowProps {
 }
 
 export function DashboardBorrowRow({ borrow, onRepayClick, provider, isConnected }: DashboardBorrowRowProps) {
+  const router = useRouter();
+  
+  // Get icon path
+  const getIconPath = (symbol: string): string => {
+    const symbolLower = symbol.toLowerCase();
+    const iconMap: { [key: string]: string } = {
+      'eth': '/image/eth.svg',
+      'weth': '/image/weeth.svg',
+      'dai': '/image/dai.svg',
+      'usdc': '/image/usdc.svg',
+      'link': '/image/link.svg',
+    };
+    return iconMap[symbolLower] || '/image/eth.svg';
+  };
+  
   // Use same logic as TokenCard - useSharedAPR instead of useReserveAPR
   const shouldFetchAPR = borrow.symbol !== 'ETH' && isConnected && provider !== null;
   
@@ -36,14 +53,35 @@ export function DashboardBorrowRow({ borrow, onRepayClick, provider, isConnected
   const displayAmountUSD = isMarketMode ? 0 : (borrow.borrowBalanceUSD || 0);
   const hasBalance = isMarketMode ? displayAmount > 0 : (displayAmount > 0 || displayAmountUSD > 0);
 
+  const handleRowClick = () => {
+    if (!isMarketMode && hasBalance) {
+      // Navigate to detail page for borrowed assets
+      router.push(`/borrow/${borrow.symbol}`);
+    }
+  };
+
   return (
-    <tr className="border-b border-border/60 hover:bg-accent/50">
-      <td className="py-3 px-2 font-medium">{borrow.symbol}</td>
+    <tr 
+      className={`border-b border-border/60 hover:bg-accent/50 ${!isMarketMode && hasBalance ? 'cursor-pointer' : ''}`}
+      onClick={handleRowClick}
+    >
+      <td className="py-3 px-2">
+        <div className="flex items-center gap-2">
+          <Image 
+            src={getIconPath(borrow.symbol)} 
+            alt={borrow.symbol} 
+            width={32} 
+            height={32}
+            className="rounded-full"
+          />
+          <span className="font-medium">{borrow.symbol}</span>
+        </div>
+      </td>
       <td className="py-3 px-2">
         <div className={hasBalance ? '' : 'text-muted-foreground'}>
           {formatNumber(displayAmount, 4)} {borrow.symbol}
         </div>
-        {!isMarketMode && (
+        {displayAmountUSD > 0 && (
           <div className="text-xs text-muted-foreground">
             {formatCurrency(displayAmountUSD)}
           </div>
@@ -59,14 +97,21 @@ export function DashboardBorrowRow({ borrow, onRepayClick, provider, isConnected
         )}
       </td>
       <td className="py-3 px-2">
-        <Button 
-          size="sm" 
-          variant="outline" 
-          onClick={onRepayClick}
-          disabled={!hasBalance}
-        >
-          {isMarketMode ? 'Borrow' : 'Repay'}
-        </Button>
+        {isMarketMode ? (
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={(e) => {
+              e.stopPropagation();
+              onRepayClick();
+            }}
+            disabled={!hasBalance}
+          >
+            Borrow
+          </Button>
+        ) : (
+          <div className="text-xs text-muted-foreground">Click to view details</div>
+        )}
       </td>
     </tr>
   );

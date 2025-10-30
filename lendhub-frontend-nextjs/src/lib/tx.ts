@@ -52,7 +52,7 @@ export async function sendWithToast(
   } catch (error: any) {
     console.error('❌', config.error);
     console.error('Error details:', error);
-    // Unwrap common nested provider error shapes to surface a clear message
+    // Detect user rejection consistently across providers
     const rawMsg =
       error?.reason ||
       error?.shortMessage ||
@@ -60,8 +60,14 @@ export async function sendWithToast(
       error?.error?.message ||
       error?.data?.message ||
       error?.message ||
-      'Transaction failed';
-    const clean = String(rawMsg).replace(/\n.*/, '');
+      '';
+    const code = error?.code ?? error?.info?.error?.code;
+    const isUserRejected = /denied|user denied|ACTION_REJECTED|rejected/i.test(String(rawMsg)) || code === 4001;
+    if (isUserRejected) {
+      // Normalize to a stable, catchable message
+      throw new Error('USER_CANCELLED');
+    }
+    const clean = String(rawMsg || 'Transaction failed').replace(/\n.*/, '');
     throw new Error(clean);
   }
 }
@@ -472,14 +478,15 @@ export async function repay(
  */
 export async function liquidate(
   signer: ethers.Signer,
-  collateralAsset: string,
   debtAsset: string,
+  collateralAsset: string,
   debtAmount: bigint,
   userAddress: string
 ): Promise<TxResult> {
   const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, signer);
   
-  const txPromise = poolContract.liquidationCall(collateralAsset, debtAsset, debtAmount, userAddress);
+  // Contract signature: liquidationCall(debtAsset, collateralAsset, user, repayRequested)
+  const txPromise = poolContract.liquidationCall(debtAsset, collateralAsset, userAddress, debtAmount);
   
   return await sendWithToast(txPromise, {
     pending: 'Liquidating position...',

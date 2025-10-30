@@ -14,6 +14,8 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Initialize theme on the client */}
         <ThemeInitializer />
+        {/* Silence MetaMask user-cancel overlays in dev */}
+        <GlobalUserCancelSilencer />
         <Component {...pageProps} />
         <ToastContainer
           position="top-right"
@@ -46,6 +48,38 @@ function ThemeInitializer() {
         root.classList.remove('dark');
       }
     } catch {}
+  }, []);
+  return null;
+}
+
+function GlobalUserCancelSilencer() {
+  useEffect(() => {
+    const isUserCancelled = (msg: any): boolean => {
+      try {
+        const str = typeof msg === 'string' ? msg : JSON.stringify(msg || {});
+        return /ACTION_REJECTED|code[^\d]?4001|user denied|denied transaction signature/i.test(str);
+      } catch {
+        return false;
+      }
+    };
+
+    const onUnhandled = (e: PromiseRejectionEvent) => {
+      if (isUserCancelled(e?.reason)) {
+        // Prevent Next.js dev overlay for MetaMask cancel
+        e.preventDefault();
+      }
+    };
+    const onError = (e: ErrorEvent) => {
+      if (isUserCancelled(e?.message)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('unhandledrejection', onUnhandled);
+    window.addEventListener('error', onError);
+    return () => {
+      window.removeEventListener('unhandledrejection', onUnhandled);
+      window.removeEventListener('error', onError);
+    };
   }, []);
   return null;
 }
