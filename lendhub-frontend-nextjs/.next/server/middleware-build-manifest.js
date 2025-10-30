@@ -28,11 +28,6 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/borrow/[symbol].js"
     ],
-    "/history": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/history.js"
-    ],
     "/liquidations": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",

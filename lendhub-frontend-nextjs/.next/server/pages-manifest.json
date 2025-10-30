@@ -3,7 +3,6 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/borrow/[symbol]": "pages/borrow/[symbol].js",
-  "/deposit": "pages/deposit.js",
   "/history": "pages/history.js",
   "/liquidations": "pages/liquidations.js"
 }
