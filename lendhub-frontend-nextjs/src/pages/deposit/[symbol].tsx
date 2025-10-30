@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { LendModal } from '@/components/LendModal';
 import { WrapEthModal } from '@/components/WrapEthModal';
+import { withdraw, parseTokenAmount, dryRunWithdrawAmount } from '@/lib/tx';
 import { CONFIG } from '@/config/contracts';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, formatPercentage, formatNumber } from '@/lib/math';
@@ -18,10 +18,9 @@ import Image from 'next/image';
 export default function DepositDetailPage() {
   const router = useRouter();
   const { symbol } = router.query;
-  const { userAssets, supplyAssets, metamaskDetails, refresh } = useLendContext();
-  const [selectedToken, setSelectedToken] = useState<any>(null);
-  const [lendModalOpen, setLendModalOpen] = useState(false);
+  const { userAssets, supplyAssets, metamaskDetails, accountData, refresh } = useLendContext();
   const [wrapEthModalOpen, setWrapEthModalOpen] = useState(false);
+  // No popup: withdraw inline
   const [depositAmount, setDepositAmount] = useState('');
   const { showToast } = useToast();
 
@@ -136,7 +135,19 @@ export default function DepositDetailPage() {
       
       const principalWad = userReserve.supply.principal as bigint;
       if (principalWad === BigInt(0)) {
+        // Balance is 0, reset all refs and display
+        console.log('📊 Balance is 0, resetting display');
+        principalWadRef.current = BigInt(0);
+        snapshotIndexRayRef.current = RAY;
+        oldIndexRayRef.current = RAY;
+        rateRayPerSecRef.current = BigInt(0);
+        lastUpdateMsRef.current = Date.now();
+        setDisplayBalance(0);
         setIsLoadingSnapshot(false);
+        // Clear localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(storageKey);
+        }
         return null;
       }
       
@@ -206,6 +217,14 @@ export default function DepositDetailPage() {
         rateRayPerSec: rateRayPerSecRef.current.toString(),
         lastUpdateMs: new Date(lastUpdateMsRef.current).toLocaleString()
       });
+      
+      // If principal is 0, reset display to 0
+      if (principalWadRef.current === BigInt(0)) {
+        console.log('📦 Principal is 0, setting display to 0');
+        setDisplayBalance(0);
+        setIsLoadingSnapshot(false);
+        return;
+      }
       
       // Calculate current balance using Aave formula
       const nowMs = Date.now();
@@ -349,9 +368,29 @@ export default function DepositDetailPage() {
     
     const currentPrincipal = parseFloat(supplyAsset.supplyPrincipal || '0');
     const currentChainBalance = parseFloat(supplyAsset.supplyBalance || supplyAsset.supplyPrincipal || '0');
+    const principalDisplay = Number(ethers.formatUnits(principalWadRef.current, 18));
+    
+    // If principal is 0 or very close to 0, reset display immediately
+    if (currentPrincipal < 0.001 && displayBalance > 0.001) {
+      console.log('🔄 Principal is near 0, resetting display:', {
+        currentPrincipal,
+        displayBalance,
+        principalDisplay
+      });
+      principalWadRef.current = BigInt(0);
+      snapshotIndexRayRef.current = RAY;
+      oldIndexRayRef.current = RAY;
+      rateRayPerSecRef.current = BigInt(0);
+      lastUpdateMsRef.current = Date.now();
+      setDisplayBalance(0);
+      // Clear localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(storageKey);
+      }
+      return;
+    }
     
     // If principal changed significantly, fetch new snapshot from chain
-    const principalDisplay = Number(ethers.formatUnits(principalWadRef.current, 18));
     const diff = Math.abs(currentPrincipal - principalDisplay);
     if (diff > Math.max(currentPrincipal * 0.02, 0.01)) {
       console.log('🔄 New transaction detected, fetching chain snapshot:', {
@@ -361,7 +400,7 @@ export default function DepositDetailPage() {
       });
       fetchChainSnapshot();
     }
-  }, [supplyAsset?.supplyPrincipal, supplyAsset?.supplyBalance, isLoadingSnapshot, fetchChainSnapshot]);
+  }, [supplyAsset?.supplyPrincipal, supplyAsset?.supplyBalance, isLoadingSnapshot, fetchChainSnapshot, displayBalance, storageKey]);
   
   // Auto-refresh from chain every 30 seconds
   useEffect(() => {
@@ -440,23 +479,44 @@ export default function DepositDetailPage() {
     return () => clearInterval(interval);
   }, [isConnected, provider, refresh]);
 
-  const handleDeposit = () => {
-    if (!asset || !depositAmount || parseFloat(depositAmount) <= 0) return;
-    
-    if (asset.symbol === 'ETH') {
-      setWrapEthModalOpen(true);
-    } else {
-      setSelectedToken({
-        ...asset,
-        depositAmount: depositAmount // Pass deposit amount to modal
+  const handleWithdrawInline = async () => {
+    if (!signer || !provider || !asset) return;
+    const amountNum = parseFloat(depositAmount || '0');
+    const userSupplyNum = suppliedBalance || 0;
+    const maxCap = Math.max(0, Math.min(userSupplyNum, availableLiquidity || 0));
+    const epsilon = 0.000001; // Allow small floating point difference
+    if (amountNum <= 0 || amountNum > maxCap + epsilon) {
+      showToast({
+        type: 'error',
+        title: 'Invalid amount',
+        message: `Amount must be > 0 and ≤ ${maxCap.toFixed(6)} ${asset.symbol}`
       });
-      setLendModalOpen(true);
+      return;
+    }
+    try {
+      const amountBN = parseTokenAmount(depositAmount, asset.decimals || 18);
+      const userAddr = await signer.getAddress();
+      const refined = await dryRunWithdrawAmount(provider as ethers.Provider, userAddr, asset.address, amountBN);
+      const finalBN = (refined && typeof refined === 'bigint' && refined > BigInt(0)) ? refined : amountBN;
+      const tx = await withdraw(signer, asset.address, finalBN);
+      showToast({ type: 'success', title: 'Withdraw submitted', message: `Tx: ${tx.hash.slice(0, 10)}...` });
+      setDepositAmount('');
+      refresh();
+      // Force fetch chain snapshot to reset display if balance is 0
+      setTimeout(() => {
+        fetchChainSnapshot();
+      }, 1000);
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Withdraw failed', message: e?.message || 'Transaction failed' });
     }
   };
 
   const handleMaxClick = () => {
-    const walletBalance = parseFloat(asset?.balance || '0');
-    setDepositAmount(walletBalance.toFixed(6));
+    const userSupplyNum = suppliedBalance || 0;
+    const maxCap = Math.max(0, Math.min(userSupplyNum, availableLiquidity || 0));
+    // If amount is very small (< 0.01), subtract a tiny bit to avoid rounding issues
+    const finalAmount = maxCap < 0.01 ? Math.max(0, maxCap - 0.0000001) : maxCap;
+    setDepositAmount(finalAmount.toFixed(18));
   };
 
   const handleLendSuccess = () => {
@@ -465,8 +525,6 @@ export default function DepositDetailPage() {
       title: 'Deposit Successful!',
       message: 'Your tokens have been deposited successfully'
     });
-    setLendModalOpen(false);
-    setSelectedToken(null);
     refresh();
   };
 
@@ -635,10 +693,10 @@ export default function DepositDetailPage() {
             </Card>
           </div>
 
-          {/* Right Column: Deposit Form */}
+          {/* Right Column: Withdraw Form */}
           <Card>
             <CardHeader>
-              <CardTitle>Deposit Overview</CardTitle>
+              <CardTitle>Withdraw Overview</CardTitle>
               <CardDescription>
                 These are your transaction details. Make sure to check if this is correct before submitting.
               </CardDescription>
@@ -683,13 +741,13 @@ export default function DepositDetailPage() {
                   <span>{formatNumber(walletBalance, 4)} {asset.symbol}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Amount to deposit:</span>
+                  <span className="text-muted-foreground">Amount to withdraw:</span>
                   <span>{depositAmount || '0'} {asset.symbol}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Balance after deposit:</span>
+                  <span className="text-muted-foreground">Balance after withdraw:</span>
                   <span>
-                    {formatNumber(walletBalance - parseFloat(depositAmount || '0'), 4)} {asset.symbol}
+                    {formatNumber(walletBalance + parseFloat(depositAmount || '0'), 4)} {asset.symbol}
                   </span>
                 </div>
               </div>
@@ -700,7 +758,7 @@ export default function DepositDetailPage() {
                   <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-medium">
                     1
                   </div>
-                  <span className="font-medium">Deposit</span>
+                  <span className="font-medium">Withdraw</span>
                 </div>
                 <div className="flex-1 h-1 bg-muted"></div>
                 <div className="flex items-center gap-2">
@@ -711,47 +769,23 @@ export default function DepositDetailPage() {
                 </div>
               </div>
 
-              {/* Deposit Button */}
+              {/* Withdraw Button */}
               <Button
-                onClick={handleDeposit}
-                disabled={!depositAmount || parseFloat(depositAmount) <= 0 || parseFloat(depositAmount) > walletBalance}
+                onClick={handleWithdrawInline}
+                disabled={!depositAmount || parseFloat(depositAmount) <= 0}
                 className="w-full"
                 size="lg"
               >
-                Deposit
+                Withdraw
               </Button>
               <p className="text-center text-sm text-muted-foreground">
-                Please submit to deposit
+                Please submit to withdraw
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Lend Modal */}
-        {selectedToken && (
-          <LendModal
-            open={lendModalOpen}
-            onClose={() => {
-              setLendModalOpen(false);
-              setSelectedToken(null);
-            }}
-            token={{
-              address: selectedToken.address,
-              symbol: selectedToken.symbol,
-              decimals: selectedToken.decimals,
-              userBalance: parseFloat(selectedToken.balance || '0')
-            }}
-            poolAddress={CONFIG.LENDING_POOL}
-            signer={signer}
-            provider={provider}
-            onSuccess={handleLendSuccess}
-            onWrapEth={() => {
-              setLendModalOpen(false);
-              setWrapEthModalOpen(true);
-            }}
-            simulatedBalance={parseFloat(selectedToken.balance || '0')}
-          />
-        )}
+        {/* No Withdraw Modal - inline flow */}
 
         {/* Wrap ETH Modal */}
         <WrapEthModal

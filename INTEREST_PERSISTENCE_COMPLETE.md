@@ -214,3 +214,4 @@ const UPDATE_INTERVAL = 1000; // 1 second
 - Sync mỗi 60 giây để đảm bảo consistency
 
 
+

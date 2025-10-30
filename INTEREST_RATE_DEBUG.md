@@ -134,3 +134,4 @@ Reserve Cash: 0
 
 The main issue is likely **pool has no liquidity** (reserveCash = 0), making utilization = 100% and supply rate = 0.
 
+

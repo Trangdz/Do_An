@@ -152,3 +152,4 @@ console.log("✅ All Checks:", {
 
 The most common issue is **LTV = 0**, which makes `weightedCollateral = 0`!
 
+

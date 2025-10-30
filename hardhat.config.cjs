@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "toward slim treat invest high vague remove diesel give shock duty glide",
+        mnemonic: "chicken upon protect stock puppy image federal scrap toss neutral process result",
         count: 10, // Generate 10 accounts
       },
     },
