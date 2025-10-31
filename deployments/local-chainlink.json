@@ -1,0 +1,7 @@
+{
+  "network": "1337",
+  "deployer": "0x0B21Dd338B67b0048378d2459BEfd44AE07C76F9",
+  "linkToken": "0xe3991215dB9c50878A03FB677c6c0d9A677B3019",
+  "priceAggregator": "0x2C0025315508a70B77aBeaB59206500b679f0902",
+  "timestamp": "2025-10-31T06:06:52.517Z"
+}

@@ -1,0 +1,13 @@
+type = "cron"
+schemaVersion = 1
+name = "ETH/USD Every 1m"
+schedule = "@every 1m"
+observationSource = """
+fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT" allowUnrestrictedNetworkAccess=true]
+parse    [type="jsonparse" path="price" data="$(fetch)"]
+multiply [type="multiply" input="$(parse)" times=100000000]
+encode   [type="ethabiencode" abi="(int256 answer)" data="<[ $(multiply) ]>"]
+submit   [type="ethtx" to="0x2C0025315508a70B77aBeaB59206500b679f0902" data="$(encode)"]
+fetch -> parse -> multiply -> encode -> submit
+"""
+
