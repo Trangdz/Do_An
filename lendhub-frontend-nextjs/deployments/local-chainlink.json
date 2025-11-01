@@ -1,0 +1,13 @@
+{
+  "network": "1337",
+  "deployer": "0xC42B5Ed782ebE05C3621b601be03b89E86ed5558",
+  "linkToken": "0xA8Bd8Bfe61E60fd63c0a3D3cD99038A35f61Cfa1",
+  "tokens": {
+    "usdt": "0x819b5E3B307DB2c5450CcCAecCBa6f85ed9eaC54",
+    "usdc": "0xedFeD84084A8Dd4080e0e9B4e2D0A1B8C24E5ad4",
+    "dai": "0x50689958275Cb06ca39BeF30E62a03009afE4C81",
+    "wbtc": "0xB520770f95b90786c7E49A376f19f7bB0bf8323c"
+  },
+  "priceAggregator": "0x117e43Cf0db4E6f8e5BFdFb00fD1d1D1C7f65338",
+  "timestamp": "2025-10-31T09:41:56.274Z"
+}

@@ -1,0 +1,55 @@
+{
+  "network": "Ganache Local",
+  "chainId": 1337,
+  "rpcUrl": "http://127.0.0.1:7545",
+  "timestamp": "2025-10-31T10:15:24.480Z",
+  "deployer": "0xC42B5Ed782ebE05C3621b601be03b89E86ed5558",
+  "withChainlink": true,
+  "contracts": {
+    "LendingPool": "0xbE6f4d2266c20e1B1788A3308CD89fC34E0534Ab",
+    "InterestRateModel": "0x62a7541230e7151c84c70a19120AD71aeb180dA8",
+    "PriceOracle": "0x7e12d9abd955B13252Aa858381b44F9C990474f1",
+    "WETH": "0xd2A318568E447003DC49E669664D9dc81Aa3bca8",
+    "DAI": "0x70E1774d2F833Dea7b4FD34E81ED889bCEA904A0",
+    "USDC": "0x5efB5d24d35ac13213BCa73dC0AFbBF4d2931820",
+    "LINK": "0x0a98D33Cde7C6A73e2aDDe19dB9814624Bd0973E"
+  },
+  "chainlinkPriceFeeds": {
+    "ETH/USD": "0x18324435fBb1EcDEb6a8a76351774e40EA420757",
+    "DAI/USD": "0x7030dFF7a74411a911Fa32D601368ef284687DFA",
+    "USDC/USD": "0xdEBBc980D628D8AE7921716d902Ca70A39c5f32E",
+    "LINK/USD": "0xD1816b6E026C9A630a45588dff8c1083EC5FA5B0"
+  },
+  "prices": {
+    "WETH": "1600 USD",
+    "DAI": "1 USD",
+    "USDC": "1 USD",
+    "LINK": "10 USD"
+  },
+  "reserves": {
+    "WETH": {
+      "ltv": "75%",
+      "liquidationThreshold": "80%",
+      "isBorrowable": false,
+      "isCollateral": true
+    },
+    "DAI": {
+      "ltv": "75%",
+      "liquidationThreshold": "80%",
+      "isBorrowable": true,
+      "isCollateral": false
+    },
+    "USDC": {
+      "ltv": "75%",
+      "liquidationThreshold": "80%",
+      "isBorrowable": true,
+      "isCollateral": false
+    },
+    "LINK": {
+      "ltv": "75%",
+      "liquidationThreshold": "80%",
+      "isBorrowable": true,
+      "isCollateral": false
+    }
+  }
+}

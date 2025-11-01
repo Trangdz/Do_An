@@ -1,7 +1,17 @@
 {
   "network": "1337",
-  "deployer": "0x0B21Dd338B67b0048378d2459BEfd44AE07C76F9",
-  "linkToken": "0xe3991215dB9c50878A03FB677c6c0d9A677B3019",
-  "priceAggregator": "0x2C0025315508a70B77aBeaB59206500b679f0902",
-  "timestamp": "2025-10-31T06:06:52.517Z"
+  "deployer": "0x1986Df365D4aE5429CA3a125d37C8148db6970A4",
+  "contracts": {
+    "lendingPool": "0xa20F71a17e6d5eea2AB7627A098b89C42907544a",
+    "interestRateModel": "0xEdef013CfE946ba8b9714A0332f12480414E1dB6",
+    "priceOracle": "0x7D0B04d652FEcb30724F479b7311240D7dcf03cA",
+    "priceAggregator": "0x44A66F37Ca63007050De7465e8aC23562abDE369"
+  },
+  "tokens": {
+    "weth": "0xa160bF17177202EC4b97A9a0D2c5664B622FECE8",
+    "usdc": "0x1c733046e8eF237C1fAb389C841e6EF78a15e242",
+    "dai": "0x80EBA3B70EdBbCA24C13C5837d12f65b39cDAdc6",
+    "link": "0x4bd581a0a2D3291c0792428257140231006f2501"
+  },
+  "timestamp": "2025-11-01T12:20:42.115Z"
 }

@@ -1,119 +1,142 @@
-# LendHub v2 - Ganache Setup Guide
+# 🚀 Hướng dẫn Setup Ganache và Import Account vào MetaMask
 
-## 🎯 Tổng quan
+## 📋 Thông tin Account có Tokens
 
-Project LendHub v2 đã được cấu hình để hoạt động với Ganache local blockchain. Tất cả các dependencies đã được cài đặt và test đã chạy thành công.
+**Account Address:** `0xC42B5Ed782ebE05C3621b601be03b89E86ed5558`
 
-## 🚀 Cài đặt và Chạy
+**Token Balances:**
+- ✅ 99.99 ETH
+- ✅ 1,000,000 WETH
+- ✅ 1,000,000 DAI
+- ✅ 1,000,000 USDC
+- ✅ 1,000,000 LINK
 
-### 1. Cài đặt Dependencies
+## 🔑 Cách lấy Private Key từ Ganache
+
+### Bước 1: Tìm cửa sổ PowerShell đang chạy Ganache
+
+Ganache đang chạy trong một cửa sổ PowerShell riêng. Hãy tìm và mở cửa sổ đó.
+
+### Bước 2: Xem Private Keys
+
+Khi Ganache khởi động, nó sẽ hiển thị output giống như thế này:
+
+```
+ganache v7.9.1 (@ganache/cli: 0.10.1, @ganache/core: 0.10.1)
+Starting RPC server
+
+Available Accounts
+==================
+(0) 0xC42B5Ed782ebE05C3621b601be03b89E86ed5558 (100 ETH)
+(1) 0xabaf3554008411a0b3cceb7453eaac401631c5dc (100 ETH)
+...
+
+Private Keys
+==================
+(0) 0xABCDEF1234567890... <-- Copy cái này!
+(1) 0x...
+```
+
+**Scroll lên phía trên** trong cửa sổ Ganache và tìm section **"Private Keys"**.
+
+### Bước 3: Copy Private Key của Account (0)
+
+Copy private key của Account (0) - đây là account có tất cả tokens.
+
+## 📱 Import vào MetaMask
+
+### 1. Thêm Ganache Network
+
+1. Mở MetaMask
+2. Click vào dropdown network (hiện đang là "Localhost 8545")
+3. Chọn **"Add network"** → **"Add a network manually"**
+4. Điền thông tin:
+   - **Network Name:** `Ganache Local`
+   - **New RPC URL:** `http://127.0.0.1:7545` ⚠️ Port **7545** không phải 8545!
+   - **Chain ID:** `1337`
+   - **Currency Symbol:** `ETH`
+5. Click **"Save"**
+
+### 2. Import Account
+
+1. Click vào icon account ở góc trên bên phải MetaMask
+2. Chọn **"Import Account"**
+3. Chọn **"Private Key"**
+4. Paste private key bạn vừa copy từ Ganache
+5. Click **"Import"**
+
+### 3. Chuyển sang Ganache Network
+
+1. Click vào dropdown network
+2. Chọn **"Ganache Local"**
+
+### 4. Thêm Tokens (Tùy chọn)
+
+Để xem balance của WETH, DAI, USDC, LINK trong MetaMask:
+
+1. Scroll xuống trong MetaMask
+2. Click **"Import tokens"**
+3. Paste địa chỉ token:
+
+| Token | Address |
+|-------|---------|
+| WETH | `0x7C641c35fE63D2feb530Db477262351D752FAd76` |
+| DAI | `0xA08b4084B0dD0F91516637D47951CcE653f2EE5E` |
+| USDC | `0xBbB7f7030F70A69DB872458cFd979f5A919f4de1` |
+| LINK | `0xe640a9d2C4F972FeCd2ECA2a5a5A529778CfdaAB` |
+
+## ✅ Kiểm tra
+
+Sau khi hoàn tất, bạn sẽ thấy:
+- Account address: `0xC42B...558`
+- ETH Balance: ~99.99 ETH
+- WETH, DAI, USDC, LINK tokens (nếu đã import)
+
+## 🌐 Mở Frontend
+
+1. Mở trình duyệt: `http://localhost:3000`
+2. Click **"Connect Wallet"**
+3. Chọn account vừa import
+4. Bạn sẽ thấy đầy đủ tokens trong dashboard!
+
+## ⚠️ Lưu ý quan trọng
+
+- **Port 7545, không phải 8545!** Đây là sự khác biệt giữa Ganache và Hardhat node.
+- **Chain ID phải là 1337** để match với Ganache.
+- **Private key chỉ dùng cho development!** Không bao giờ sử dụng private key này trên mainnet hoặc testnet thật.
+
+## 🔄 Nếu Ganache bị restart
+
+Khi Ganache restart, tất cả contracts và balances sẽ mất. Hãy chạy lại:
+
 ```bash
-npm install --legacy-peer-deps
+# Deploy lại contracts
+npx hardhat run scripts/deploy_to_ganache.cjs --network ganache
 ```
 
-### 2. Khởi động Ganache
-- Mở Ganache GUI
-- Tạo workspace mới với cấu hình:
-  - Hostname: 127.0.0.1
-  - Port: 7545
-  - Chain ID: 1337
-  - Mnemonic: `say post later service honey shiver cave title actual blue mention scan`
+Frontend sẽ tự động cập nhật addresses mới.
 
-### 3. Chạy Tests
-```bash
-# Test cơ bản
-npx hardhat test test/SimpleTest.cjs --network ganache
+## 🆘 Troubleshooting
 
-# Test toàn diện
-npx hardhat test test/FullTest.cjs --network ganache
-```
+### "Cannot find Ganache window"
 
-### 4. Deploy Contracts
-```bash
-# Deploy mock tokens và oracles
-npx hardhat run scripts/deploy_mocks.cjs --network ganache
+Nếu không tìm thấy cửa sổ Ganache, có thể nó bị minimize. Hãy:
+1. Nhấn `Alt + Tab` để xem tất cả windows
+2. Tìm window có title chứa "powershell" hoặc "ganache"
 
-# Test Counter contract
-npx hardhat run scripts/test_counter.cjs --network ganache
+### "Private key không work"
 
-# Test LendHub contracts
-npx hardhat run scripts/test_lendhub.cjs --network ganache
-```
+Đảm bảo bạn:
+1. Copy ĐÚNG private key của Account (0)
+2. Private key phải bắt đầu bằng `0x`
+3. Không có khoảng trắng hoặc ký tự thừa
 
-### 5. Kiểm tra kết nối
-```bash
-npx hardhat run scripts/check_ganache.cjs --network ganache
-```
+### "Frontend vẫn hiển thị 0 tokens"
 
-## 📁 Cấu trúc Project
+1. Đảm bảo đã chuyển sang network "Ganache Local" (port 7545)
+2. Refresh trang web
+3. Kiểm tra account address có đúng là `0xC42B...558` không
 
-```
-lendhub_v2/
-├── contracts/
-│   ├── core/                    # Smart contracts chính (chưa có)
-│   ├── interfaces/              # Interface definitions
-│   ├── libraries/               # Thư viện toán học
-│   ├── models/                  # Data structures
-│   └── mocks/                   # Mock contracts
-├── test/
-│   ├── SimpleTest.cjs          # Test cơ bản
-│   └── FullTest.cjs            # Test toàn diện
-├── scripts/
-│   ├── deploy_mocks.cjs        # Deploy mock contracts
-│   ├── test_counter.cjs        # Test Counter contract
-│   ├── test_lendhub.cjs        # Test LendHub contracts
-│   └── check_ganache.cjs       # Kiểm tra kết nối
-└── hardhat.config.cjs          # Cấu hình Hardhat
-```
+---
 
-## 🔧 Cấu hình
-
-### Hardhat Config
-- Network: `ganache`
-- RPC URL: `http://127.0.0.1:7545`
-- Chain ID: `1337`
-- Solidity: `^0.8.20`
-
-### Dependencies
-- Hardhat: `^2.26.0`
-- Ethers.js: `^6.15.0`
-- OpenZeppelin: `^5.0.0`
-- Chai: `^4.5.0`
-
-## 🧪 Test Results
-
-✅ **Counter Contract**: Deploy và test thành công
-✅ **Mock Tokens**: DAI, USDC deploy và hoạt động
-✅ **Price Oracles**: ETH/USD, DAI/USD, USDC/USD
-✅ **Token Transfers**: Chuyển token giữa accounts
-✅ **Price Updates**: Cập nhật giá từ oracles
-✅ **Ganache Connection**: Kết nối ổn định
-
-## 🚨 Lưu ý
-
-1. **ESM/CJS**: Project sử dụng CommonJS (.cjs) để tương thích với Hardhat
-2. **Dependencies**: Sử dụng `--legacy-peer-deps` để tránh conflict
-3. **Ganache**: Phải chạy trước khi test/deploy
-4. **Network**: Luôn chỉ định `--network ganache`
-
-## 🎉 Kết luận
-
-Project LendHub v2 đã sẵn sàng để phát triển trên Ganache local blockchain. Tất cả các thành phần cơ bản đã được test và hoạt động tốt.
-
-### ✅ **Core Contracts đã hoàn thành:**
-- **InterestRateModel**: Mô hình lãi suất 2-slope
-- **PriceOracle**: Oracle giá đơn giản
-- **LendingPool**: Pool chính (cơ bản)
-
-### ✅ **Test Results:**
-- **Compilation**: ✅ Thành công với viaIR
-- **Deployment**: ✅ Tất cả contracts deploy thành công
-- **Functionality**: ✅ Tất cả functions hoạt động đúng
-- **Integration**: ✅ Các contracts tích hợp tốt
-
-### 🚀 **Demo Script:**
-```bash
-npx hardhat run scripts/demo_lendhub.cjs --network ganache
-```
-
-**Bước tiếp theo**: Phát triển các functions chính như supply, borrow, liquidation trong LendingPool contract.
+Made with ❤️ by LendHub Team
