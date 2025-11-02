@@ -525,13 +525,13 @@ export async function getTokenBalance(
       return "0";
     }
     
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
     
     // Retry logic for circuit breaker errors
     let lastError;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const balance = await tokenContract.balanceOf(userAddress);
+  const balance = await tokenContract.balanceOf(userAddress);
         const formatted = formatUnits(balance, decimals);
         if (attempt > 0) {
           console.log(`✅ Balance fetched on attempt ${attempt + 1}: ${formatted}`);

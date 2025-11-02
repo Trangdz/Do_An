@@ -9,9 +9,9 @@ import {
 
 // Contract configuration from environment variables
 export const CONFIG = {
-  RPC_URL: process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:7545',
-  CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '1337', 10), // 1337
-  CHAIN_ID_HEX: process.env.NEXT_PUBLIC_CHAIN_ID_HEX || '0x539',
+  RPC_URL: process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545',
+  CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '5777', 10), // 5777
+  CHAIN_ID_HEX: process.env.NEXT_PUBLIC_CHAIN_ID_HEX || '0x1691', // 5777 in hex
   
   // Contract addresses (auto-imported from addresses.js)
   LENDING_POOL: LendingPoolAddress,
@@ -28,7 +28,7 @@ export const CONFIG = {
       isBorrowable: false,
       isCollateral: false,
       isNative: true,
-      aggregatorAddress: '0xAD523115cd35a8d4E60B3C0953E0E0ac10418309',
+      aggregatorAddress: '0x196D00ed91AD5bB7D04A5D5d9D08B9Af409DC5B9', // ETH aggregator
     },
     {
       address: WETHAddress, // Auto-imported from addresses.js
@@ -37,7 +37,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: false,
       isCollateral: true,
-      aggregatorAddress: '0x045857BDEAE7C1c7252d611eB24eB55564198b4C',
+      aggregatorAddress: '0xb7Aa0Fbb942f417dF91AfFF017d18ACB46ca3EDe', // WETH aggregator
     },
     {
       address: DAIAddress, // Auto-imported from addresses.js
@@ -46,7 +46,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: true,
       isCollateral: false,
-      aggregatorAddress: '0x413b1AfCa96a3df5A686d8BFBF93d30688a7f7D9',
+      aggregatorAddress: '0x2eE3279658A6cdB5bEbb2C8c61984B28bD4AdD5D', // DAI aggregator
     },
     {
       address: USDCAddress, // Auto-imported from addresses.js
@@ -55,7 +55,7 @@ export const CONFIG = {
       decimals: 6,
       isBorrowable: true,
       isCollateral: false,
-      aggregatorAddress: '0x2b5A4e5493d4a54E717057B127cf0C000C876f9B',
+      aggregatorAddress: '0x6E9274953B75209F31d7153bb1cb991De497a9c7', // USDC aggregator
     },
     {
       address: LINKAddress, // Auto-imported from addresses.js
@@ -64,7 +64,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: true,
       isCollateral: false,
-      aggregatorAddress: '0x02df3a3F960393F5B349E40A599FEda91a7cc1A7',
+      aggregatorAddress: '0xfd33359850924Aa50B1eDd38F6A9a085c32c3219', // LINK aggregator
     },
   ],
 } as const;

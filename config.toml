@@ -10,9 +10,6 @@ TLS.HTTPSPort = 0
 Authenticated = 1000
 Unauthenticated = 100
 
-[Database]
-MaxIdleConns = 10
-MaxOpenConns = 20
 
 [[EVM]]
 ChainID = '1337'
@@ -41,6 +38,9 @@ ResendAfterThreshold = '1m'
 
 [Feature]
 LogPoller = true
+
+# Secrets file location
+# Chainlink 2.2.0 will look for secrets.toml in the data directory (/chainlink/secrets.toml)
 
 
 

@@ -5,6 +5,7 @@ import { CONFIG } from '@/config/contracts';
 import { PriceOracleAddress, LendingPoolAddress } from '@/addresses';
 import { useRealtimePrices } from '@/hooks/useRealtimePrices';
 import { useReserveAPR } from '@/hooks/useReserveAPR';
+import { useChainlinkPrice } from '@/hooks/useChainlinkPrice';
 import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
 
 // Token icon component
@@ -25,7 +26,7 @@ function TokenIcon({ symbol }: { symbol: string }) {
 }
 
 // Market row component with APY/APR
-function MarketRow({ token, price, poolAddress }: any) {
+function MarketRow({ token, poolAddress }: any) {
   // Get APR data for this token (hooks now use direct RPC to avoid circuit breaker)
   const { supplyAPR, borrowAPR, utilization, totalSupplied, totalBorrowed, isLoading } = useReserveAPR(
     null, // Provider no longer needed - hook uses direct RPC
@@ -33,6 +34,15 @@ function MarketRow({ token, price, poolAddress }: any) {
     token.address,
     30000 // Refresh every 30s
   );
+  
+  // Get price from Chainlink PriceAggregator if available, fallback to 0
+  const { price: chainlinkPrice, isLoading: priceLoading } = useChainlinkPrice(
+    token.aggregatorAddress || '',
+    10000 // Update every 10s
+  );
+  
+  // Use Chainlink price if available, otherwise fallback to 0
+  const price = chainlinkPrice || 0;
   
   const formatPercentage = (value: number) => {
     if (!value || value === 0) return '0.00%';
@@ -168,15 +178,6 @@ export default function MarketsPage() {
   
   // Get token addresses (excluding ETH native token)
   const tokens = CONFIG.TOKENS.filter(t => !t.isNative);
-  const tokenAddresses = tokens.map(t => t.address);
-  
-  // Fetch real-time prices from Chainlink Oracle (hook now uses direct RPC to avoid circuit breaker)
-  const { prices } = useRealtimePrices(
-    null, // Provider no longer needed - hook uses direct RPC
-    PriceOracleAddress,
-    tokenAddresses,
-    10000 // Update every 10s
-  );
 
   return (
     <AppLayout>
@@ -205,13 +206,13 @@ export default function MarketsPage() {
 
         {/* Markets Table */}
         <Card className="bg-card/80 backdrop-blur">
-          <CardHeader>
+        <CardHeader>
             <CardTitle className="text-xl text-foreground">All Markets</CardTitle>
             <CardDescription className="text-muted-foreground">
               Live interest rates and market statistics
             </CardDescription>
-          </CardHeader>
-          <CardContent>
+        </CardHeader>
+        <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -226,19 +227,13 @@ export default function MarketsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tokens.map((token) => {
-                    const priceData = prices[token.address];
-                    const price = priceData?.price || 0;
-                    
-                    return (
-                      <MarketRow
-                        key={token.address}
-                        token={token}
-                        price={price}
-                        poolAddress={LendingPoolAddress}
-                      />
-                    );
-                  })}
+                  {tokens.map((token) => (
+                    <MarketRow
+                      key={token.address}
+                      token={token}
+                      poolAddress={LendingPoolAddress}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -268,9 +263,9 @@ export default function MarketsPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
         {/* Info Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

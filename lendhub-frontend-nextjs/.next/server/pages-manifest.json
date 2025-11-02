@@ -3,6 +3,6 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/dashboard": "pages/dashboard.js",
-  "/deposit": "pages/deposit.js",
-  "/markets": "pages/markets.js"
+  "/markets": "pages/markets.js",
+  "/": "pages/index.js"
 }

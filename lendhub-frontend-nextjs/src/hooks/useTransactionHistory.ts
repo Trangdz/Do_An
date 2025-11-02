@@ -109,47 +109,47 @@ export function useTransactionHistory(
     }
   }, [transactions]);
 
-      // Fetch asset symbol
+  // Fetch asset symbol
       const getAssetSymbol = useCallback(async (assetAddress: string): Promise<string> => {
-        try {
+    try {
           const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
           const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, rpcProvider);
-          return await tokenContract.symbol();
-        } catch (err) {
-          console.warn('Failed to get asset symbol for:', assetAddress);
-          return 'UNKNOWN';
-        }
-      }, []);
+      return await tokenContract.symbol();
+    } catch (err) {
+      console.warn('Failed to get asset symbol for:', assetAddress);
+      return 'UNKNOWN';
+    }
+  }, []);
 
       const getAssetDecimals = useCallback(async (assetAddress: string): Promise<number> => {
-        try {
+    try {
           const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
           const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, rpcProvider);
-          const d: number = await tokenContract.decimals();
-          return Number(d);
-        } catch (err) {
-          // Default to 18 if not an ERC20 or call fails
-          return 18;
-        }
-      }, []);
+      const d: number = await tokenContract.decimals();
+      return Number(d);
+    } catch (err) {
+      // Default to 18 if not an ERC20 or call fails
+      return 18;
+    }
+  }, []);
 
-      // Fetch asset price
+  // Fetch asset price
       const getAssetPrice = useCallback(async (oracleAddress: string, assetAddress: string): Promise<number> => {
-        try {
+    try {
           const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
-          const oracleABI = ['function getAssetPrice1e18(address) view returns (uint256)'];
+      const oracleABI = ['function getAssetPrice1e18(address) view returns (uint256)'];
           const oracle = new ethers.Contract(oracleAddress, oracleABI, rpcProvider);
-          const price1e18 = await oracle.getAssetPrice1e18(assetAddress);
-          return parseFloat(ethers.formatUnits(price1e18, 18));
-        } catch (err) {
-          console.warn('Failed to get asset price for:', assetAddress);
-          return 0;
-        }
-      }, []);
+      const price1e18 = await oracle.getAssetPrice1e18(assetAddress);
+      return parseFloat(ethers.formatUnits(price1e18, 18));
+    } catch (err) {
+      console.warn('Failed to get asset price for:', assetAddress);
+      return 0;
+    }
+  }, []);
 
-      // Fetch transaction details including gas info
+  // Fetch transaction details including gas info
       const getTransactionDetails = useCallback(async (txHash: string): Promise<{gasUsed: string, gasPrice: string, txFee: string, txFeeUSD: string}> => {
-        try {
+    try {
           const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
           const tx = await rpcProvider.getTransaction(txHash);
           const receipt = await rpcProvider.getTransactionReceipt(txHash);

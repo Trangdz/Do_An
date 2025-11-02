@@ -11,7 +11,9 @@ interface ChainlinkPriceData {
 
 const AGGREGATOR_ABI = [
   "function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
-  "function decimals() external view returns (uint8)"
+  "function latestAnswer() external view returns (int256)",
+  "function decimals() external view returns (uint8)",
+  "function description() external view returns (string)"
 ];
 
 /**
@@ -46,13 +48,29 @@ export function useChainlinkPrice(
         const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
         const aggregator = new ethers.Contract(aggregatorAddress, AGGREGATOR_ABI, provider);
 
-        // Lấy decimals và giá
-        const [decimalsValue, roundDataResult] = await Promise.all([
-          aggregator.decimals(),
-          aggregator.latestRoundData()
-        ]);
-
-        const [roundId, answer, , updatedAt, ] = roundDataResult;
+        // Lấy decimals và giá - thử latestRoundData trước, fallback to latestAnswer
+        let decimalsValue, answer, roundId, updatedAt;
+        
+        try {
+          const [decimalsVal, roundDataResult] = await Promise.all([
+            aggregator.decimals(),
+            aggregator.latestRoundData()
+          ]);
+          
+          decimalsValue = decimalsVal;
+          [roundId, answer, , updatedAt, ] = roundDataResult;
+        } catch (error) {
+          // Fallback to latestAnswer if latestRoundData fails
+          console.warn(`latestRoundData failed, trying latestAnswer:`, error);
+          const [decimalsVal, answerVal] = await Promise.all([
+            aggregator.decimals(),
+            aggregator.latestAnswer()
+          ]);
+          decimalsValue = decimalsVal;
+          answer = answerVal;
+          roundId = 0n;
+          updatedAt = BigInt(Math.floor(Date.now() / 1000));
+        }
 
         // Chuyển đổi giá từ int256 với decimals về số thập phân
         const priceUSD = parseFloat(ethers.formatUnits(answer, decimalsValue));

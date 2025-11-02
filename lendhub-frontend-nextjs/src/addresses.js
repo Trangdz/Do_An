@@ -1,25 +1,25 @@
-// Auto-generated for GANACHE
-// Network: http://127.0.0.1:7545 | Chain ID: 1337
-// Mnemonic: test test test test test test test test test test test junk
+// Auto-generated for GANACHE CLI
+// Network: http://127.0.0.1:8545 | Chain ID: 5777
+// Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
-export const LendingPoolAddress = "0x0145436b7f0546697f5A4139403DB7534d6fE33c";
-export const InterestRateModelAddress = "0xada420c49b9Ba84469871aB26939e844A3F21E4B";
-export const PriceOracleAddress = "0x51D2d75e59DBD8432703bAf2aB819618d584C9D4";
+export const LendingPoolAddress = "0xEE26F1f7f7431ED80f9e731CA07415a5848D395c";
+export const InterestRateModelAddress = "0x32Aaf566b4756eAb21706C568140191fBdf1678C";
+export const PriceOracleAddress = "0x9d6Bc1a85fEF649fFC7aB9C9603C1Bb57A1519D8";
 export const LendingHelperAddress = "0x0000000000000000000000000000000000000000";
-export const WETHAddress = "0xc83d43081faFFAbB3E21c407c829890642314157";
-export const DAIAddress = "0x880bdE92b16d8c5b84D25FDabd1eEF6B2f7234E2";
-export const USDCAddress = "0x6D63A236e4Ae8c6d5121009F1917aC180042ab03";
-export const LINKAddress = "0xA474BB6f461c5AE968f840cA2364819E7a0CB3D0";
+export const WETHAddress = "0xA4ae5E8Ce65f1e24Ad2F5dEd2cA6d84Ab8f97374";
+export const DAIAddress = "0x024Ca46887a0D6F41116894029496819d981c247";
+export const USDCAddress = "0x7fA49048659E2Ae10560AF085A5763d522B4D4fF";
+export const LINKAddress = "0x876f85cd64c0d300131aC63eEb93B037b7197aAF";
 
 // 10 Demo Users (each has 10K WETH, 1M DAI, 1M USDC, 100K LINK)
-export const User0Address = "0x1D512a1401D3D2B537617D68CcA26b312a7820DD";
-export const User1Address = "0x99C470E519b8210FBcC58Ba69E4218263776160e";
-export const User2Address = "0x9D829E8cf960801977Ad54E3b68e71f02fFe4a3E";
-export const User3Address = "0xFAb72d268df8EFDf9c85A48Dc828677D62a23E62";
-export const User4Address = "0xdfED587ee8152902BB1C728c677C48700fA02f8D";
-export const User5Address = "0xbb92552776331DE21c230351497ff29cfecCF2e2";
-export const User6Address = "0xD3376acF31DfeE62Cdee46eD02A7FB75acaC742A";
-export const User7Address = "0xB16004f8DCeD816eDE847777c2971cd7Db28B63f";
-export const User8Address = "0xf98dbBCCc3B139995f50D668Bb68Ea3f4C2f863f";
-export const User9Address = "0x6206e56B3A268a3e34CA2073Be820aD28256EC95";
+export const User0Address = "0x38ceaD2cB294F3D881C122e16578BBBc781ECa06";
+export const User1Address = "0xB3Cf4f1665aD8cCeD0750C5181047736F5d93747";
+export const User2Address = "0x879d4BacB3E7D708624b22851feE0D7e736f6801";
+export const User3Address = "0x2a7a5853f3CDf02046428f873903b8a9D1D006f7";
+export const User4Address = "0xaC8B03cd02bae94D019A6e6063c4e44413e12a16";
+export const User5Address = "0x63571D449d2F74c1eC37b55f55aaBD7997a76ab3";
+export const User6Address = "0xf7D995514771F6AE735F84d285d5C8507DE68E08";
+export const User7Address = "0xdC7CB8c2EB1ECC58261cC265368576C14aBF388C";
+export const User8Address = "0xb454A7e90bA5d9a6F5e5641d3A9c45C3588a4f32";
+export const User9Address = "0xc98267f0760735953A189eDBAf9521f2Ba770734";

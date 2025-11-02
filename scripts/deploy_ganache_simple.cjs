@@ -10,6 +10,17 @@
   
   Usage:
     npx hardhat run scripts/deploy_ganache_simple.cjs --network ganache
+  
+  Requirements:
+    - Ganache CLI running on port 8545
+    - Chain ID: 5777
+    - Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
+  
+  Start Ganache CLI:
+    npx ganache --server.host 0.0.0.0 --server.port 8545 --chain.chainId 5777 --chain.networkId 5777 --wallet.totalAccounts 10 --wallet.defaultBalance 1000 --wallet.mnemonic "uniform message payment medal rural toward reject resist test immune smile ridge"
+  
+  Or use script:
+    .\START_GANACHE_SIMPLE.bat
 */
 
 const fs = require("fs");
@@ -18,12 +29,55 @@ const { ethers } = require("hardhat");
 
 async function main() {
   console.log("\n╔════════════════════════════════════════════════════════════════════╗");
-  console.log("║          🚀 LENDHUB COMPLETE DEPLOYMENT TO GANACHE                 ║");
+  console.log("║          🚀 LENDHUB COMPLETE DEPLOYMENT TO GANACHE CLI             ║");
   console.log("╚════════════════════════════════════════════════════════════════════╝\n");
+
+  // Validate network connection
+  console.log("🔍 Validating Ganache CLI connection...");
+  console.log("─".repeat(70));
+  
+  try {
+    const network = await ethers.provider.getNetwork();
+    const chainId = Number(network.chainId);
+    
+    console.log("  Network Chain ID:", chainId);
+    console.log("  Expected Chain ID: 5777");
+    
+    if (chainId !== 5777) {
+      console.error("\n❌ ERROR: Chain ID mismatch!");
+      console.error("   Expected: 5777");
+      console.error("   Got:", chainId.toString());
+      console.error("\n💡 Make sure Ganache CLI is running with:");
+      console.error("   --chain.chainId 5777 --chain.networkId 5777");
+      console.error("\n   Or use: .\\START_GANACHE_SIMPLE.bat\n");
+      process.exit(1);
+    }
+    
+    console.log("  ✅ Chain ID correct!");
+    
+    const blockNumber = await ethers.provider.getBlockNumber();
+    console.log("  Current Block:", blockNumber);
+    console.log("  ✅ Network connection OK!\n");
+  } catch (error) {
+    console.error("\n❌ ERROR: Cannot connect to Ganache!");
+    console.error("   Make sure Ganache CLI is running on port 8545");
+    console.error("\n   Start with: .\\START_GANACHE_SIMPLE.bat\n");
+    process.exit(1);
+  }
 
   const [deployer] = await ethers.getSigners();
   console.log("📦 Deployer:", deployer.address);
-  console.log("💰 Balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)), "ETH\n");
+  
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log("💰 Balance:", ethers.formatEther(balance), "ETH");
+  
+  if (balance === 0n) {
+    console.warn("\n⚠️  WARNING: Deployer has 0 ETH!");
+    console.warn("   Make sure Ganache CLI is using the correct mnemonic:");
+    console.warn("   uniform message payment medal rural toward reject resist test immune smile ridge\n");
+  } else {
+    console.log("  ✅ Deployer has funds\n");
+  }
 
   // ========================================
   // 1️⃣ DEPLOY TOKENS
@@ -229,7 +283,7 @@ async function main() {
   };
   fs.writeFileSync(outPath, JSON.stringify(data, null, 2));
   console.log("✅ Saved to:", outPath);
-
+  
   // Auto-update frontend addresses.js
   // Detect correct path: if running from frontend dir, go up one level
   let frontendAddressesPath;
@@ -251,9 +305,9 @@ async function main() {
   
   const userAddresses = signers.slice(0, 10).map(s => s.address);
   
-  const addressesContent = `// Auto-generated for GANACHE
-// Network: http://127.0.0.1:7545 | Chain ID: 1337
-// Mnemonic: test test test test test test test test test test test junk
+  const addressesContent = `// Auto-generated for GANACHE CLI
+// Network: http://127.0.0.1:8545 | Chain ID: 5777
+// Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
 export const LendingPoolAddress = "${poolAddress}";
@@ -381,7 +435,7 @@ ${userAddresses.map((addr, i) => `export const User${i}Address = "${addr}";`).jo
   }
   fs.copyFileSync(aggOutPath, frontendAggPath);
   console.log("📝 Copied to frontend");
-
+  
   console.log("\n╔════════════════════════════════════════════════════════════════════╗");
   console.log("║              ✅ DEPLOYMENT COMPLETE!                                ║");
   console.log("╚════════════════════════════════════════════════════════════════════╝\n");

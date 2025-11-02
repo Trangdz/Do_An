@@ -17,11 +17,18 @@ const config = {
       chainId: 31337,
     },
     ganache: {
-      url: "http://127.0.0.1:7545",
-      chainId: 1337,
+      url: "http://127.0.0.1:8545", // Ganache CLI default port
+      chainId: 5777,
       accounts: {
-        mnemonic: "choice obscure eagle another violin various tube spot error neutral salt pulp",
+        mnemonic: "dwarf virtual cotton sudden uncover initial true apple call prepare inquiry west",
         count: 10, // Generate 10 accounts
+      },
+    },
+    hardhat: {
+      chainId: 5777,
+      accounts: {
+        mnemonic: "dwarf virtual cotton sudden uncover initial true apple call prepare inquiry west",
+        count: 10,
       },
     },
   },

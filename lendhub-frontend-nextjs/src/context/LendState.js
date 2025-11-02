@@ -236,7 +236,7 @@ const LendState = (props) => {
               // ETH native balance - try MetaMask first, fallback to RPC
               try {
                 const bal = await useProvider.getBalance(metamaskDetails.currentAccount);
-                balance = ethers.formatEther(bal);
+              balance = ethers.formatEther(bal);
                 console.log(`  ✅ ${token.symbol} (native): ${balance} ${token.symbol}`);
               } catch (error) {
                 // Try fallback RPC provider if MetaMask fails
@@ -253,7 +253,7 @@ const LendState = (props) => {
                 } else if (error?.message?.includes('header not found')) {
                   console.warn(`⚠️ Ganache state issue for ${token.symbol}`);
                   balance = "0";
-                } else {
+            } else {
                   throw error;
                 }
               }
@@ -261,12 +261,12 @@ const LendState = (props) => {
               // ERC20 token balance - try MetaMask first, fallback to RPC
               console.log(`  🔍 Checking ${token.symbol} at ${token.address}...`);
               try {
-                balance = await getTokenBalance(
+              balance = await getTokenBalance(
                   useProvider,
-                  token.address,
-                  metamaskDetails.currentAccount,
-                  token.decimals
-                );
+                token.address,
+                metamaskDetails.currentAccount,
+                token.decimals
+              );
                 console.log(`  ✅ ${token.symbol}: ${balance} ${token.symbol}`);
               } catch (error) {
                 // Try fallback RPC provider if MetaMask fails
@@ -327,7 +327,7 @@ const LendState = (props) => {
         balance: a.balance,
         balanceUSD: a.balanceUSD
       })));
-      
+
       setUserAssets(assets);
       return assets;
     } catch (error) {
