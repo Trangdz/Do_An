@@ -1,16 +1,18 @@
-version: '3.8'
+version: '3.7'
 
 services:
   postgres:
     image: postgres:15
     container_name: chainlink_postgres
+    restart: always
     environment:
-      - POSTGRES_PASSWORD=mysecretpassword
-      - POSTGRES_DB=postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: postgres
+      POSTGRES_DB: chainlink
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -20,33 +22,31 @@ services:
   chainlink:
     image: smartcontract/chainlink:1.13.0
     container_name: chainlink_node
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/postgres?sslmode=disable
-      - ETH_URL=ws://192.168.34.106:8545
-      - ETH_HTTP_URL=http://192.168.34.106:8545
-      - ETH_WS_URL=ws://192.168.34.106:8545
-      - ETH_CHAIN_ID=5777
+      - ROOT=/chainlink
       - LOG_LEVEL=debug
+      - ETH_CHAIN_ID=5777
+      - MIN_OUTGOING_CONFIRMATIONS=1
       - LINK_CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
       - CHAINLINK_TLS_PORT=0
       - SECURE_COOKIES=false
+      - ALLOW_ORIGINS=*
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/chainlink?sslmode=disable
+      - ETH_URL=http://host.docker.internal:8545
+    ports:
+      - "6688:6688"
     volumes:
       - ./chainlink-data:/chainlink
       - ./chainlink-password.txt:/chainlink/.password:ro
       - ./chainlink-api.txt:/chainlink/.api:ro
-    ports:
-      - "6688:6688"
-    command: ["local", "n", "-p", "/chainlink/.password", "-a", "/chainlink/.api"]
+    command: node start --password /chainlink/.password --api /chainlink/.api
     user: root
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-networks:
-  chainlink-local:
-    driver: bridge
-
 volumes:
-  pgdata:
+  postgres_data:

@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:8545", // Ganache CLI default port
       chainId: 5777,
       accounts: {
-        mnemonic: "dwarf virtual cotton sudden uncover initial true apple call prepare inquiry west",
+        mnemonic: "give indoor cry say grunt kite smoke system boost saddle lens jeans",
         count: 10, // Generate 10 accounts
       },
     },

@@ -48,18 +48,18 @@ contract PriceAggregator is AggregatorV3Interface, Ownable {
     }
 
     // ---- Writer function ----
-    function updateAnswer(int256 answer) external returns (uint80 roundId) {
+    function updateAnswer(int256 answer_) external returns (uint80 roundId) {
         if (!isWriter[msg.sender] && msg.sender != owner()) revert("Not authorized");
         roundId = latestRoundId + 1;
         latestRoundId = roundId;
         rounds[roundId] = Round({
-            answer: answer,
+            answer: answer_,
             startedAt: block.timestamp,
             updatedAt: block.timestamp,
             answeredInRound: roundId,
             exists: true
         });
-        emit AnswerUpdated(answer, roundId, block.timestamp);
+        emit AnswerUpdated(answer_, roundId, block.timestamp);
     }
 
     // ---- AggregatorV3Interface ----

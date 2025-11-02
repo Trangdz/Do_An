@@ -79,3 +79,5 @@ node scripts/check_token_balances.cjs
 - Hoặc **re-deploy** với mnemonic mới nếu muốn đổi
 - **MetaMask** phải import đúng account từ addresses.js
 
+
+

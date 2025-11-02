@@ -11,9 +11,9 @@ interface ChainlinkPriceData {
 
 const AGGREGATOR_ABI = [
   "function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
-  "function latestAnswer() external view returns (int256)",
   "function decimals() external view returns (uint8)",
-  "function description() external view returns (string)"
+  "function description() external view returns (string)",
+  "function latestRoundId() external view returns (uint80)" // Optional: some aggregators have this
 ];
 
 /**
@@ -59,17 +59,41 @@ export function useChainlinkPrice(
           
           decimalsValue = decimalsVal;
           [roundId, answer, , updatedAt, ] = roundDataResult;
-        } catch (error) {
-          // Fallback to latestAnswer if latestRoundData fails
-          console.warn(`latestRoundData failed, trying latestAnswer:`, error);
-          const [decimalsVal, answerVal] = await Promise.all([
-            aggregator.decimals(),
-            aggregator.latestAnswer()
-          ]);
-          decimalsValue = decimalsVal;
-          answer = answerVal;
-          roundId = 0n;
-          updatedAt = BigInt(Math.floor(Date.now() / 1000));
+        } catch (error: any) {
+          // Check if error is "NoData" - aggregator exists but hasn't been updated yet
+          // PriceAggregator reverts with NoData(uint80 roundId) when latestRoundId = 0
+          // Error format: "execution reverted (no data present; ... likely require(false) occurred"
+          const errorMessage = error?.message || '';
+          const errorCode = error?.code || '';
+          const errorData = error?.data || error?.transaction?.data || '';
+          
+          const isNoDataError = 
+            errorCode === 'CALL_EXCEPTION' && (
+              errorMessage.includes('NoData') ||
+              errorMessage.includes('execution reverted') ||
+              errorMessage.includes('no data present') ||
+              errorMessage.includes('require(false)') ||
+              errorData === '0x' ||
+              (!errorData || errorData === '0x' || errorData === '')
+            );
+          
+          if (isNoDataError) {
+            // Aggregator exists but no price data yet - return 0 without error
+            // Silent log - don't spam console
+            if (isMounted) {
+              setData({
+                price: 0,
+                roundId: 0,
+                updatedAt: new Date(),
+                isLoading: false,
+                error: null // Don't show error, just show price as 0
+              });
+            }
+            return; // Exit early
+          }
+          
+          // Other errors - rethrow to be caught by outer catch
+          throw error;
         }
 
         // Chuyển đổi giá từ int256 với decimals về số thập phân

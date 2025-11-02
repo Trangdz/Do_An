@@ -36,13 +36,14 @@ function MarketRow({ token, poolAddress }: any) {
   );
   
   // Get price from Chainlink PriceAggregator if available, fallback to 0
-  const { price: chainlinkPrice, isLoading: priceLoading } = useChainlinkPrice(
+  const { price: chainlinkPrice, isLoading: priceLoading, error: priceError } = useChainlinkPrice(
     token.aggregatorAddress || '',
     10000 // Update every 10s
   );
   
   // Use Chainlink price if available, otherwise fallback to 0
-  const price = chainlinkPrice || 0;
+  // If there's an error but it's a NoData error, still show 0 (not an error)
+  const price = (priceError && !priceError.includes('NoData')) ? 0 : (chainlinkPrice || 0);
   
   const formatPercentage = (value: number) => {
     if (!value || value === 0) return '0.00%';

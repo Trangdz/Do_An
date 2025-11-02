@@ -28,7 +28,7 @@ export const CONFIG = {
       isBorrowable: false,
       isCollateral: false,
       isNative: true,
-      aggregatorAddress: '0x196D00ed91AD5bB7D04A5D5d9D08B9Af409DC5B9', // ETH aggregator
+      aggregatorAddress: '0xCb215B63885E7fbE526c3eb60E0DBf346B95eb25', // ETH aggregator
     },
     {
       address: WETHAddress, // Auto-imported from addresses.js
@@ -37,7 +37,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: false,
       isCollateral: true,
-      aggregatorAddress: '0xb7Aa0Fbb942f417dF91AfFF017d18ACB46ca3EDe', // WETH aggregator
+      aggregatorAddress: '0x2B8e8EFd011c9B43765D9f7b32D54eFe3fbc5eCd', // WETH aggregator
     },
     {
       address: DAIAddress, // Auto-imported from addresses.js
@@ -46,7 +46,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: true,
       isCollateral: false,
-      aggregatorAddress: '0x2eE3279658A6cdB5bEbb2C8c61984B28bD4AdD5D', // DAI aggregator
+      aggregatorAddress: '0x3F584c47bB8Eb94E004A8f412c778681E3DBe4B7', // DAI aggregator
     },
     {
       address: USDCAddress, // Auto-imported from addresses.js
@@ -55,7 +55,7 @@ export const CONFIG = {
       decimals: 6,
       isBorrowable: true,
       isCollateral: false,
-      aggregatorAddress: '0x6E9274953B75209F31d7153bb1cb991De497a9c7', // USDC aggregator
+      aggregatorAddress: '0xE61cD632ef12182Cfce5B5A086f6f5e7bDf322C9', // USDC aggregator
     },
     {
       address: LINKAddress, // Auto-imported from addresses.js
@@ -64,7 +64,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: true,
       isCollateral: false,
-      aggregatorAddress: '0xfd33359850924Aa50B1eDd38F6A9a085c32c3219', // LINK aggregator
+      aggregatorAddress: '0x5b69cB58C4A20797C6F5C1a9e1b7BE2E0d9b801D', // LINK aggregator
     },
   ],
 } as const;

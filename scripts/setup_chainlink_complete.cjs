@@ -72,12 +72,41 @@ async function authorizeNode(nodeAddress) {
   }
 }
 
-async function fundNode(nodeAddress, amountEth = "10.0") {
+async function fundNode(nodeAddress, amountEth = "5.0") {
   console.log(`\n💰 Funding node with ${amountEth} ETH...`);
   const [sender] = await ethers.getSigners();
+  
+  // Check sender balance first
+  const balance = await ethers.provider.getBalance(sender.address);
+  const balanceEth = ethers.formatEther(balance);
+  console.log(`  Sender balance: ${balanceEth} ETH`);
+  
+  const amount = ethers.parseEther(amountEth);
+  const estimatedGas = 21000n; // Simple transfer
+  const gasPrice = await ethers.provider.getFeeData();
+  const gasCost = estimatedGas * (gasPrice.gasPrice || 0n);
+  const totalNeeded = amount + gasCost;
+  
+  if (balance < totalNeeded) {
+    const available = balance - gasCost - 1000000000000000n; // Reserve some for gas
+    if (available > 0n) {
+      console.log(`  ⚠️  Not enough ETH, funding with available balance: ${ethers.formatEther(available)} ETH`);
+      const tx = await sender.sendTransaction({
+        to: nodeAddress,
+        value: available
+      });
+      await tx.wait();
+      console.log(`✅ Funded. Tx: ${tx.hash}`);
+      return;
+    } else {
+      console.log(`  ❌ Not enough ETH to fund node (need ${ethers.formatEther(totalNeeded)}, have ${balanceEth})`);
+      return;
+    }
+  }
+  
   const tx = await sender.sendTransaction({
     to: nodeAddress,
-    value: ethers.parseEther(amountEth)
+    value: amount
   });
   await tx.wait();
   console.log(`✅ Funded. Tx: ${tx.hash}`);
@@ -94,6 +123,7 @@ async function createJobs() {
   const aggregators = JSON.parse(fs.readFileSync("deployments/aggregators.json", "utf8")).aggregators;
   
   const JOBS = [
+    { symbol: "ETH", url: "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT", path: "price" },
     { symbol: "WETH", url: "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT", path: "price" },
     { symbol: "USDC", url: "https://api.binance.com/api/v3/ticker/price?symbol=USDCUSDT", path: "price" },
     { symbol: "DAI", url: "https://api.binance.com/api/v3/ticker/price?symbol=DAIUSDT", path: "price" },
@@ -108,6 +138,8 @@ async function createJobs() {
     }
 
     console.log(`  Creating job for ${job.symbol}...`);
+    // Chainlink 1.13.0: Thử dùng array format [$(multiply)] với ABI không named parameter
+    // Nếu không work, sẽ phải modify contract để remove named parameter
     const toml = `type = "cron"
 schemaVersion = 1
 name = "${job.symbol}/USD Price Feed"
@@ -116,8 +148,8 @@ observationSource = """
 fetch    [type="http" method="GET" url="${job.url}" allowUnrestrictedNetworkAccess=true]
 parse    [type="jsonparse" path="${job.path}" data="$(fetch)"]
 multiply [type="multiply" input="$(parse)" times=100000000]
-encode   [type="ethabiencode" abi="(int256 answer)" data="<[ $(multiply) ]>"]
-submit   [type="ethtx" to="${aggregatorAddr}" data="$(encode)"]
+encode   [type="ethabiencode" abi="(int256)" data="[$(multiply)]"]
+submit   [type="ethtx" to="${aggregatorAddr}" functionSignature="updateAnswer(int256)" data="$(encode)"]
 fetch -> parse -> multiply -> encode -> submit
 """`;
 
@@ -129,7 +161,8 @@ fetch -> parse -> multiply -> encode -> submit
       );
       console.log(`    ✅ Job created: ID ${createRes.data.data.id}`);
     } catch (error) {
-      if (error.response?.data?.errors?.[0]?.detail?.includes("already exists")) {
+      const errorDetail = error.response?.data?.errors?.[0]?.detail || '';
+      if (errorDetail.includes("already exists") || errorDetail.includes("duplicate key") || errorDetail.includes("idx_jobs_name")) {
         console.log(`    ⚠️  Job already exists, skipping`);
       } else {
         console.error(`    ❌ Error:`, error.response?.data || error.message);

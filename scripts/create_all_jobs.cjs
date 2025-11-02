@@ -9,6 +9,12 @@ const JOBS = [
     path: "price"
   },
   {
+    symbol: "WETH",
+    name: "WETH/USD Aggregator",
+    url: "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT",
+    path: "price"
+  },
+  {
     symbol: "USDC",
     name: "USDC/USD Aggregator", 
     url: "https://api.binance.com/api/v3/ticker/price?symbol=USDCUSDT",
@@ -24,12 +30,6 @@ const JOBS = [
     symbol: "LINK",
     name: "LINK/USD Aggregator",
     url: "https://api.binance.com/api/v3/ticker/price?symbol=LINKUSDT",
-    path: "price"
-  },
-  {
-    symbol: "WBTC",
-    name: "BTC/USD Aggregator",
-    url: "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
     path: "price"
   }
 ];
@@ -65,7 +65,7 @@ observationSource = """
 fetch    [type="http" method="GET" url="${job.url}" allowUnrestrictedNetworkAccess=true]
 parse    [type="jsonparse" path="${job.path}" data="$(fetch)"]
 multiply [type="multiply" input="$(parse)" times=100000000]
-encode   [type="ethabiencode" abi="(int256 answer)" data="<[ $(multiply) ]>"]
+encode   [type="ethabiencode" abi="(int256)" data="[ $(multiply) ]"]
 submit   [type="ethtx" to="${aggregatorAddr}" data="$(encode)"]
 fetch -> parse -> multiply -> encode -> submit
 """`;
@@ -78,8 +78,13 @@ fetch -> parse -> multiply -> encode -> submit
       );
       console.log(`  ✅ Job created: ID ${createRes.data.data.id}\n`);
     } catch (error) {
-      console.error(`  ❌ Error:`, error.response?.data || error.message);
-      console.log();
+      const errorDetail = error.response?.data?.errors?.[0]?.detail || '';
+      if (errorDetail.includes("already exists") || errorDetail.includes("duplicate key") || errorDetail.includes("idx_jobs_name")) {
+        console.log(`  ⚠️  Job already exists, skipping\n`);
+      } else {
+        console.error(`  ❌ Error:`, error.response?.data || error.message);
+        console.log();
+      }
     }
   }
 

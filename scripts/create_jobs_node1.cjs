@@ -31,7 +31,7 @@ observationSource = """
 fetch    [type="http" method="GET" url="${job.url}" allowUnrestrictedNetworkAccess=true]
 parse    [type="jsonparse" path="${job.path}" data="$(fetch)"]
 multiply [type="multiply" input="$(parse)" times=100000000]
-encode   [type="ethabiencode" abi="(int256 answer)" data="<[ $(multiply) ]>"]
+encode   [type="ethabiencode" abi="(int256 answer)" data="{\\"answer\\": $(multiply)}"]
 submit   [type="ethtx" to="${aggregatorAddr}" data="$(encode)"]
 fetch -> parse -> multiply -> encode -> submit
 """`;
