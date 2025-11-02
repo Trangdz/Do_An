@@ -1,7 +1,7 @@
 {
   "network": "1337",
-  "deployer": "0x0B21Dd338B67b0048378d2459BEfd44AE07C76F9",
-  "linkToken": "0xe3991215dB9c50878A03FB677c6c0d9A677B3019",
-  "priceAggregator": "0x2C0025315508a70B77aBeaB59206500b679f0902",
-  "timestamp": "2025-10-31T06:06:52.517Z"
+  "deployer": "0x895E61d0ed7Bfa7a4b1D646C5e961D629F1FD28f",
+  "linkToken": "0x8c89279aF0ce1353b7aD1bc1aE2f5Aef0452Fc04",
+  "priceAggregator": "0x3dDeA88184A00B6B5073b033De7957a0887B1a3e",
+  "timestamp": "2025-11-02T16:40:36.398Z"
 }

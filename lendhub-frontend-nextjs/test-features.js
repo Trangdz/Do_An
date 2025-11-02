@@ -2,7 +2,7 @@
 const { ethers } = require('ethers');
 
 // Test configuration
-const RPC_URL = 'http://localhost:8545';
+const RPC_URL = 'http://localhost:7545';
 const CHAIN_ID = 1337;
 
 // Contract addresses

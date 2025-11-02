@@ -6,7 +6,7 @@ async function main() {
     
     try {
         // Connect to Ganache
-        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
         
         // Get network info
         const network = await provider.getNetwork();
@@ -49,7 +49,7 @@ async function main() {
         
     } catch (error) {
         console.log("❌ Error connecting to Ganache:", error.message);
-        console.log("💡 Make sure Ganache is running: npx hardhat node --hostname 127.0.0.1 --port 8545");
+        console.log("💡 Make sure Ganache is running: npx hardhat node --hostname 127.0.0.1 --port 7545");
     }
 }
 

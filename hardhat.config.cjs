@@ -13,14 +13,14 @@ const config = {
   },
   networks: {
     localhost: {
-      url: "http://127.0.0.1:8545",
+      url: "http://127.0.0.1:7545",
       chainId: 31337,
     },
     ganache: {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "high project east dream doctor glad picnic fiscal assault asthma vendor amateur",
+        mnemonic: "ridge valve piece snap lava hollow belt fancy vapor reunion foil spin",
         count: 10, // Generate 10 accounts
       },
     },

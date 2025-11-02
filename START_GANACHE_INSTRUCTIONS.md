@@ -32,7 +32,7 @@ Get-Process Ganache
 2. Click "New Workspace" hoặc "Load Workspace"
 3. Settings:
    - **Hostname:** 127.0.0.1
-   - **Port:** 7545 (hoặc 8545)
+   - **Port:** 7545 (hoặc 7545)
    - **Network ID:** 1337
    - **Block Time:** 0
    - **Gas Limit:** 6721975

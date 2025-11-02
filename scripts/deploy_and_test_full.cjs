@@ -330,7 +330,7 @@ NEXT_PUBLIC_WETH_ADDRESS=${config.WETHAddress}
   console.log("\n🎉 DEPLOYMENT COMPLETE!");
   console.log("\n📋 Next steps:");
   console.log("1. Restart frontend: cd lendhub-frontend-nextjs && npm run dev");
-  console.log("2. Connect MetaMask to localhost:8545");
+  console.log("2. Connect MetaMask to localhost:7545");
   console.log("3. Import private key:", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
   console.log("4. Test all features!");
   

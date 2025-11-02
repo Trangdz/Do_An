@@ -32,7 +32,7 @@ async function debugTransaction() {
   console.log('🔍 === TRANSACTION DEBUG ANALYSIS ===\n');
   
   // 1. Setup provider (Ganache)
-  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
   
   try {
     // 2. Check if 'to' is a contract

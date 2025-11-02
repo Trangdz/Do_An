@@ -17,7 +17,7 @@
 
 ## ✅ ĐÃ FIX:
 
-1. ✅ **Port Config:** Frontend đã chuyển từ port 8545 → 7545
+1. ✅ **Port Config:** Frontend đã chuyển từ port 7545 → 7545
 2. ✅ **Contract Deploy:** Deploy thành công với mnemonic mới
 3. ✅ **Addresses Updated:** addresses.js và .env.local đã được update
 

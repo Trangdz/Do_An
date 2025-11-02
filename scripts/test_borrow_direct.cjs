@@ -24,7 +24,7 @@ const ERC20_ABI = [
 async function testBorrowDirect() {
   console.log('🧪 === DIRECT BORROW TEST ===\n');
   
-  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
   const [deployer, user1, user2] = await provider.listAccounts();
   const signer1 = await provider.getSigner(user1);
   const signer2 = await provider.getSigner(user2);

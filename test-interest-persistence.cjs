@@ -12,7 +12,7 @@ const { ethers } = require('ethers');
 const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const RPC_URL = process.env.RPC_URL || 'http://localhost:8545';
+const RPC_URL = process.env.RPC_URL || 'http://localhost:7545';
 const LENDING_POOL_ADDRESS = process.env.LENDING_POOL_ADDRESS;
 
 async function testInterestPersistence() {

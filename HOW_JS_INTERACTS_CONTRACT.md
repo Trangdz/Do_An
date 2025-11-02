@@ -28,7 +28,7 @@ const { ethers } = require('ethers');
 
 async function readData() {
     // 1. Kết nối blockchain
-    const provider = new ethers.JsonRpcProvider('http://localhost:8545');
+    const provider = new ethers.JsonRpcProvider('http://localhost:7545');
     
     // 2. Load contract
     const contractAddress = '0x...';
