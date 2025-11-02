@@ -38,7 +38,7 @@ export function useReserveAPR(
   });
 
   useEffect(() => {
-    if (!provider || !poolAddress || !assetAddress) {
+    if (!poolAddress || !assetAddress) {
       setData(prev => ({ ...prev, isLoading: false, error: 'Missing required parameters' }));
       return;
     }
@@ -50,7 +50,9 @@ export function useReserveAPR(
       try {
         setData(prev => ({ ...prev, isLoading: true, error: null }));
         
-        const aprData = await getReserveAPRData(provider, poolAddress, assetAddress);
+        // Use RPC provider directly to avoid MetaMask circuit breaker
+        const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+        const aprData = await getReserveAPRData(rpcProvider, poolAddress, assetAddress);
         
         if (isMounted) {
           setData({
@@ -117,7 +119,7 @@ export function useReserveAPR(
         clearInterval(intervalId);
       }
     };
-  }, [provider, poolAddress, assetAddress, refreshInterval]);
+  }, [poolAddress, assetAddress, refreshInterval]);
 
   return data;
 }

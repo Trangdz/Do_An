@@ -28,10 +28,11 @@ function calculateAPR(rateRayPerSec: bigint): number {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { asset: string } }
+  { params }: { params: Promise<{ asset: string }> }
 ) {
   try {
-    const assetAddress = params.asset;
+    const resolvedParams = await params;
+    const assetAddress = resolvedParams.asset;
     
     if (!assetAddress || assetAddress === '0x0000000000000000000000000000000000000000') {
       return NextResponse.json(
@@ -91,7 +92,7 @@ export async function GET(
       {
         error: 'Failed to fetch reserve data',
         message: error.message,
-        asset: params.asset
+        asset: (await params).asset
       },
       { status: 500 }
     );

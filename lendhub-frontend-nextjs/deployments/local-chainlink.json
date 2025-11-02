@@ -1,13 +1,17 @@
 {
   "network": "1337",
-  "deployer": "0xC42B5Ed782ebE05C3621b601be03b89E86ed5558",
-  "linkToken": "0xA8Bd8Bfe61E60fd63c0a3D3cD99038A35f61Cfa1",
-  "tokens": {
-    "usdt": "0x819b5E3B307DB2c5450CcCAecCBa6f85ed9eaC54",
-    "usdc": "0xedFeD84084A8Dd4080e0e9B4e2D0A1B8C24E5ad4",
-    "dai": "0x50689958275Cb06ca39BeF30E62a03009afE4C81",
-    "wbtc": "0xB520770f95b90786c7E49A376f19f7bB0bf8323c"
+  "deployer": "0x1D512a1401D3D2B537617D68CcA26b312a7820DD",
+  "contracts": {
+    "lendingPool": "0x2aC9546283420bf1d98C7Bb09D1031668Dfc1a92",
+    "interestRateModel": "0x0C6F69A1e0480fC03B93d2cF5a45A2a1DF0c88b8",
+    "priceOracle": "0xA82390cb1e66aFe84FAf96D1Bd959D56B094FE90",
+    "priceAggregator": "0x14e3c8866b7264Ae7E25EeABEc299aDc409F186F"
   },
-  "priceAggregator": "0x117e43Cf0db4E6f8e5BFdFb00fD1d1D1C7f65338",
-  "timestamp": "2025-10-31T09:41:56.274Z"
+  "tokens": {
+    "weth": "0xF2Bf3916484d15a628c0eec7015354b34Ba78EA2",
+    "usdc": "0x8122703E344CCE8E4859E9E84De704d77cFaea0f",
+    "dai": "0xAc1ac16a210834DBa36f25C181C36D354FF693F0",
+    "link": "0x44A24Ab8cBcf4639D61F8ed4f548245fD046FFD0"
+  },
+  "timestamp": "2025-11-02T02:36:33.725Z"
 }

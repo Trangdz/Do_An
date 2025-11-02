@@ -11,7 +11,7 @@ import { WrapEthModal } from '@/components/WrapEthModal';
 import { BorrowModal } from '@/components/BorrowModal';
 import { DashboardDepositRow } from '@/components/DashboardDepositRow';
 import { DashboardBorrowRow } from '@/components/DashboardBorrowRow';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/components/ui/Toast';
 
 export default function DashboardPage() {
@@ -42,13 +42,43 @@ export default function DashboardPage() {
   const healthFactor = parseFloat(accountData.healthFactor || '0');
   const isHealthy = healthFactor >= 1;
 
+  // Debounce refresh to avoid circuit breaker
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const lastRefreshRef = useRef(0);
+  
+  const safeRefresh = useCallback(async () => {
+    const now = Date.now();
+    // Prevent refresh if called within last 5 seconds
+    if (now - lastRefreshRef.current < 5000) {
+      console.log('⏸️ Refresh skipped - too soon after last refresh');
+      return;
+    }
+    
+    if (isRefreshing) {
+      console.log('⏸️ Refresh already in progress');
+      return;
+    }
+    
+    setIsRefreshing(true);
+    lastRefreshRef.current = now;
+    
+    try {
+      await refresh();
+    } catch (error) {
+      // Circuit breaker errors are handled in refresh()
+      console.warn('Refresh error:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refresh]);
+
   // Load data when connected (like SimpleDashboard)
   useEffect(() => {
     if (isConnected && provider) {
       console.log('🔄 Dashboard: Auto-loading data...');
-      refresh();
+      safeRefresh();
     }
-  }, [isConnected, provider, refresh]);
+  }, [isConnected, provider, safeRefresh]);
 
   // Auto-refresh balance with interest every 30 seconds
   useEffect(() => {
@@ -56,11 +86,11 @@ export default function DashboardPage() {
     
     const interval = setInterval(() => {
       console.log('🔄 Dashboard: Auto-refreshing balance...');
-      refresh();
+      safeRefresh();
     }, 30000); // Every 30 seconds
     
     return () => clearInterval(interval);
-  }, [isConnected, provider, refresh]);
+  }, [isConnected, provider, safeRefresh]);
 
   // Debug: Log data to console
   useEffect(() => {

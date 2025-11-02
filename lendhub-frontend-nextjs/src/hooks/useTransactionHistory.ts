@@ -109,46 +109,50 @@ export function useTransactionHistory(
     }
   }, [transactions]);
 
-  // Fetch asset symbol
-  const getAssetSymbol = useCallback(async (provider: ethers.Provider, assetAddress: string): Promise<string> => {
-    try {
-      const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, provider);
-      return await tokenContract.symbol();
-    } catch (err) {
-      console.warn('Failed to get asset symbol for:', assetAddress);
-      return 'UNKNOWN';
-    }
-  }, []);
+      // Fetch asset symbol
+      const getAssetSymbol = useCallback(async (assetAddress: string): Promise<string> => {
+        try {
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, rpcProvider);
+          return await tokenContract.symbol();
+        } catch (err) {
+          console.warn('Failed to get asset symbol for:', assetAddress);
+          return 'UNKNOWN';
+        }
+      }, []);
 
-  const getAssetDecimals = useCallback(async (provider: ethers.Provider, assetAddress: string): Promise<number> => {
-    try {
-      const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, provider);
-      const d: number = await tokenContract.decimals();
-      return Number(d);
-    } catch (err) {
-      // Default to 18 if not an ERC20 or call fails
-      return 18;
-    }
-  }, []);
+      const getAssetDecimals = useCallback(async (assetAddress: string): Promise<number> => {
+        try {
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, rpcProvider);
+          const d: number = await tokenContract.decimals();
+          return Number(d);
+        } catch (err) {
+          // Default to 18 if not an ERC20 or call fails
+          return 18;
+        }
+      }, []);
 
-  // Fetch asset price
-  const getAssetPrice = useCallback(async (provider: ethers.Provider, oracleAddress: string, assetAddress: string): Promise<number> => {
-    try {
-      const oracleABI = ['function getAssetPrice1e18(address) view returns (uint256)'];
-      const oracle = new ethers.Contract(oracleAddress, oracleABI, provider);
-      const price1e18 = await oracle.getAssetPrice1e18(assetAddress);
-      return parseFloat(ethers.formatUnits(price1e18, 18));
-    } catch (err) {
-      console.warn('Failed to get asset price for:', assetAddress);
-      return 0;
-    }
-  }, []);
+      // Fetch asset price
+      const getAssetPrice = useCallback(async (oracleAddress: string, assetAddress: string): Promise<number> => {
+        try {
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const oracleABI = ['function getAssetPrice1e18(address) view returns (uint256)'];
+          const oracle = new ethers.Contract(oracleAddress, oracleABI, rpcProvider);
+          const price1e18 = await oracle.getAssetPrice1e18(assetAddress);
+          return parseFloat(ethers.formatUnits(price1e18, 18));
+        } catch (err) {
+          console.warn('Failed to get asset price for:', assetAddress);
+          return 0;
+        }
+      }, []);
 
-  // Fetch transaction details including gas info
-  const getTransactionDetails = useCallback(async (provider: ethers.Provider, txHash: string): Promise<{gasUsed: string, gasPrice: string, txFee: string, txFeeUSD: string}> => {
-    try {
-      const tx = await provider.getTransaction(txHash);
-      const receipt = await provider.getTransactionReceipt(txHash);
+      // Fetch transaction details including gas info
+      const getTransactionDetails = useCallback(async (txHash: string): Promise<{gasUsed: string, gasPrice: string, txFee: string, txFeeUSD: string}> => {
+        try {
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const tx = await rpcProvider.getTransaction(txHash);
+          const receipt = await rpcProvider.getTransactionReceipt(txHash);
       
       if (!tx || !receipt) {
         return { gasUsed: '0', gasPrice: '0', txFee: '0', txFeeUSD: '0' };
@@ -158,7 +162,7 @@ export function useTransactionHistory(
       const gasPrice = tx.gasPrice?.toString() || '0';
       const txFee = (BigInt(gasUsed) * BigInt(gasPrice)).toString();
       const txFeeETH = parseFloat(ethers.formatEther(txFee));
-      const ethPrice = await getAssetPrice(provider, oracleAddress, '0x0000000000000000000000000000000000000000'); // ETH price
+      const ethPrice = await getAssetPrice(oracleAddress, '0x0000000000000000000000000000000000000000'); // ETH price
       const txFeeUSD = (txFeeETH * ethPrice).toFixed(2);
 
       return {
@@ -175,7 +179,7 @@ export function useTransactionHistory(
 
   // Fetch transaction history
   const fetchTransactionHistory = useCallback(async () => {
-    if (!provider || !poolAddress || poolAddress === '0x0000000000000000000000000000000000000000') {
+    if (!poolAddress || poolAddress === '0x0000000000000000000000000000000000000000') {
       setIsLoading(false);
       return;
     }
@@ -184,8 +188,10 @@ export function useTransactionHistory(
     setError(null);
 
     try {
-      const pool = new ethers.Contract(poolAddress, LENDING_POOL_ABI, provider);
-      const currentBlock = await provider.getBlockNumber();
+      // Use RPC provider directly to avoid MetaMask circuit breaker
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const pool = new ethers.Contract(poolAddress, LENDING_POOL_ABI, rpcProvider);
+      const currentBlock = await rpcProvider.getBlockNumber();
       // Use last scanned block from localStorage to avoid duplicates and speed up
       const lastScannedStr = localStorage.getItem(STORAGE_KEY + '_lastBlock');
       const lastScanned = lastScannedStr ? parseInt(lastScannedStr, 10) : Math.max(0, currentBlock - 2000);
@@ -227,17 +233,17 @@ export function useTransactionHistory(
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
         const assetAddr = event.args!.asset;
-        const symbol = await getAssetSymbol(provider, assetAddr);
-        const decimals = await getAssetDecimals(provider, assetAddr);
-        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const symbol = await getAssetSymbol(assetAddr);
+        const decimals = await getAssetDecimals(assetAddr);
+        const price = await getAssetPrice(oracleAddress, assetAddr);
         const amount = ethers.formatUnits(event.args!.amount, decimals);
         // USD = amountRaw * price / 1e18 using BigInt for precision
         const priceWei = BigInt(Math.trunc(price * 1e18).toString());
         const amountRaw = BigInt(event.args!.amount.toString());
         const usdWei = (amountRaw * priceWei) / BigInt(1e18);
         const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
-        const txDetails = await getTransactionDetails(provider, event.transactionHash);
-        const blk = await provider.getBlock(event.blockHash);
+        const txDetails = await getTransactionDetails(event.transactionHash);
+        const blk = await rpcProvider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -263,16 +269,16 @@ export function useTransactionHistory(
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
         const assetAddr = event.args!.asset;
-        const symbol = await getAssetSymbol(provider, assetAddr);
-        const decimals = await getAssetDecimals(provider, assetAddr);
-        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const symbol = await getAssetSymbol(assetAddr);
+        const decimals = await getAssetDecimals(assetAddr);
+        const price = await getAssetPrice(oracleAddress, assetAddr);
         const amount = ethers.formatUnits(event.args!.amount, decimals);
         const priceWei = BigInt(Math.trunc(price * 1e18).toString());
         const amountRaw = BigInt(event.args!.amount.toString());
         const usdWei = (amountRaw * priceWei) / BigInt(1e18);
         const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
-        const txDetails = await getTransactionDetails(provider, event.transactionHash);
-        const blk = await provider.getBlock(event.blockHash);
+        const txDetails = await getTransactionDetails(event.transactionHash);
+        const blk = await rpcProvider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -298,16 +304,16 @@ export function useTransactionHistory(
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
         const assetAddr = event.args!.asset;
-        const symbol = await getAssetSymbol(provider, assetAddr);
-        const decimals = await getAssetDecimals(provider, assetAddr);
-        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const symbol = await getAssetSymbol(assetAddr);
+        const decimals = await getAssetDecimals(assetAddr);
+        const price = await getAssetPrice(oracleAddress, assetAddr);
         const amount = ethers.formatUnits(event.args!.amount, decimals);
         const priceWei = BigInt(Math.trunc(price * 1e18).toString());
         const amountRaw = BigInt(event.args!.amount.toString());
         const usdWei = (amountRaw * priceWei) / BigInt(1e18);
         const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
-        const txDetails = await getTransactionDetails(provider, event.transactionHash);
-        const blk = await provider.getBlock(event.blockHash);
+        const txDetails = await getTransactionDetails(event.transactionHash);
+        const blk = await rpcProvider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -333,16 +339,16 @@ export function useTransactionHistory(
         if (userAddress && event.args?.user.toLowerCase() !== userAddress.toLowerCase()) continue;
         
         const assetAddr = event.args!.asset;
-        const symbol = await getAssetSymbol(provider, assetAddr);
-        const decimals = await getAssetDecimals(provider, assetAddr);
-        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const symbol = await getAssetSymbol(assetAddr);
+        const decimals = await getAssetDecimals(assetAddr);
+        const price = await getAssetPrice(oracleAddress, assetAddr);
         const amount = ethers.formatUnits(event.args!.amount, decimals);
         const priceWei = BigInt(Math.trunc(price * 1e18).toString());
         const amountRaw = BigInt(event.args!.amount.toString());
         const usdWei = (amountRaw * priceWei) / BigInt(1e18);
         const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
-        const txDetails = await getTransactionDetails(provider, event.transactionHash);
-        const blk = await provider.getBlock(event.blockHash);
+        const txDetails = await getTransactionDetails(event.transactionHash);
+        const blk = await rpcProvider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -370,16 +376,16 @@ export function useTransactionHistory(
             event.args?.borrower.toLowerCase() !== userAddress.toLowerCase()) continue;
         
         const assetAddr = event.args!.collateralAsset;
-        const symbol = await getAssetSymbol(provider, assetAddr);
-        const decimals = await getAssetDecimals(provider, assetAddr);
-        const price = await getAssetPrice(provider, oracleAddress, assetAddr);
+        const symbol = await getAssetSymbol(assetAddr);
+        const decimals = await getAssetDecimals(assetAddr);
+        const price = await getAssetPrice(oracleAddress, assetAddr);
         const amount = ethers.formatUnits(event.args!.collateralSeized, decimals);
         const priceWei = BigInt(Math.trunc(price * 1e18).toString());
         const amountRaw = BigInt(event.args!.collateralSeized.toString());
         const usdWei = (amountRaw * priceWei) / BigInt(1e18);
         const amountUSD = parseFloat(ethers.formatUnits(usdWei, 18)).toFixed(2);
-        const txDetails = await getTransactionDetails(provider, event.transactionHash);
-        const blk = await provider.getBlock(event.blockHash);
+        const txDetails = await getTransactionDetails(event.transactionHash);
+        const blk = await rpcProvider.getBlock(event.blockHash);
 
         allTransactions.push({
           id: `${event.transactionHash}-${event.index}`,
@@ -427,7 +433,7 @@ export function useTransactionHistory(
     } finally {
       setIsLoading(false);
     }
-  }, [provider, poolAddress, oracleAddress, userAddress, getAssetSymbol, getAssetPrice, getAssetDecimals]);
+  }, [poolAddress, oracleAddress, userAddress, getAssetSymbol, getAssetPrice, getAssetDecimals]);
 
   // Initial fetch
   useEffect(() => {

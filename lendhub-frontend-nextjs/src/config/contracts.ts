@@ -5,7 +5,7 @@ import {
   DAIAddress, 
   USDCAddress, 
   LINKAddress 
-} from '../addresses';
+} from '../addresses.js';
 
 // Contract configuration from environment variables
 export const CONFIG = {
@@ -28,6 +28,7 @@ export const CONFIG = {
       isBorrowable: false,
       isCollateral: false,
       isNative: true,
+      aggregatorAddress: '0xAD523115cd35a8d4E60B3C0953E0E0ac10418309',
     },
     {
       address: WETHAddress, // Auto-imported from addresses.js
@@ -36,6 +37,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: false,
       isCollateral: true,
+      aggregatorAddress: '0x045857BDEAE7C1c7252d611eB24eB55564198b4C',
     },
     {
       address: DAIAddress, // Auto-imported from addresses.js
@@ -44,6 +46,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: true,
       isCollateral: false,
+      aggregatorAddress: '0x413b1AfCa96a3df5A686d8BFBF93d30688a7f7D9',
     },
     {
       address: USDCAddress, // Auto-imported from addresses.js
@@ -52,6 +55,7 @@ export const CONFIG = {
       decimals: 6,
       isBorrowable: true,
       isCollateral: false,
+      aggregatorAddress: '0x2b5A4e5493d4a54E717057B127cf0C000C876f9B',
     },
     {
       address: LINKAddress, // Auto-imported from addresses.js
@@ -60,6 +64,7 @@ export const CONFIG = {
       decimals: 18,
       isBorrowable: true,
       isCollateral: false,
+      aggregatorAddress: '0x02df3a3F960393F5B349E40A599FEda91a7cc1A7',
     },
   ],
 } as const;

@@ -519,9 +519,66 @@ export async function getTokenBalance(
   userAddress: string,
   decimals: number = 18
 ): Promise<string> {
-  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-  const balance = await tokenContract.balanceOf(userAddress);
-  return formatUnits(balance, decimals);
+  try {
+    if (!provider || !tokenAddress || !userAddress) {
+      console.warn('getTokenBalance: Missing parameters', { provider: !!provider, tokenAddress, userAddress });
+      return "0";
+    }
+    
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    
+    // Retry logic for circuit breaker errors
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const balance = await tokenContract.balanceOf(userAddress);
+        const formatted = formatUnits(balance, decimals);
+        if (attempt > 0) {
+          console.log(`✅ Balance fetched on attempt ${attempt + 1}: ${formatted}`);
+        }
+        return formatted;
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if it's a circuit breaker error
+        const isCircuitBreaker = 
+          error?.code === -32603 ||
+          error?.cause?.isBrokenCircuitError ||
+          error?.message?.includes('circuit breaker');
+        
+        if (isCircuitBreaker && attempt < 2) {
+          // Wait before retry (exponential backoff)
+          const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          console.warn(`⚠️ Circuit breaker open, retrying in ${waitTime}ms... (attempt ${attempt + 1}/3)`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+        
+        // If not circuit breaker or max attempts reached, throw
+        throw error;
+      }
+    }
+    
+    // If we get here, all retries failed
+    throw lastError;
+    
+  } catch (error: any) {
+    // Only log non-circuit-breaker errors (circuit breaker is temporary)
+    const isCircuitBreaker = 
+      error?.code === -32603 ||
+      error?.cause?.isBrokenCircuitError ||
+      error?.message?.includes('circuit breaker');
+    
+    if (!isCircuitBreaker) {
+      console.error('getTokenBalance error:', {
+        tokenAddress,
+        userAddress,
+        error: error.message,
+        code: error.code
+      });
+    }
+    return "0";
+  }
 }
 
 /**

@@ -41,7 +41,7 @@ export function WrapEthModal({ open, onClose, signer, onSuccess, onBalanceUpdate
           const price = parseFloat(formatEther(priceWei));
           setEthPrice(price);
         } catch (oracleError) {
-          console.log('Oracle price failed, using fallback:', oracleError.message);
+          console.log('Oracle price failed, using fallback:', oracleError instanceof Error ? oracleError.message : String(oracleError));
           setEthPrice(1600); // Fallback price
         }
 

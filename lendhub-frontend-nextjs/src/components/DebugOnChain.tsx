@@ -52,7 +52,7 @@ export function DebugOnChain({
       hasUserAddress: !!userAddress,
       hasAssetAddress: !!assetAddress,
       isLoading,
-      error: error?.message,
+      error: error || null,
       hasSnapshot: !!snapshot,
       snapshotData: snapshot ? {
         scaledBalance: snapshot.scaledBalance,
@@ -80,7 +80,7 @@ export function DebugOnChain({
   if (error) {
     return (
       <div className="text-center border-2 border-red-300 p-2 rounded bg-red-50">
-        <div className="text-xs text-red-600">🔍 Error {tokenSymbol}: {error.message}</div>
+        <div className="text-xs text-red-600">🔍 Error {tokenSymbol}: {error}</div>
       </div>
     );
   }

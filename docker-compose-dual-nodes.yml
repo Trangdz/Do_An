@@ -1,0 +1,72 @@
+services:
+  # ========================================
+  # PostgreSQL cho Node 1
+  # ========================================
+  postgres1:
+    image: postgres:15-alpine
+    platform: linux/amd64
+    container_name: chainlink_postgres1
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword1
+      POSTGRES_DB: chainlink_db1
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata1:/var/lib/postgresql/data
+
+  # ========================================
+  # PostgreSQL cho Node 2
+  # ========================================
+  postgres2:
+    image: postgres:15-alpine
+    platform: linux/amd64
+    container_name: chainlink_postgres2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword2
+      POSTGRES_DB: chainlink_db2
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata2:/var/lib/postgresql/data
+
+  # ========================================
+  # Chainlink Node 1
+  # ========================================
+  chainlink-node1:
+    image: smartcontract/chainlink:2.2.0
+    platform: linux/amd64
+    container_name: chainlink_node1
+    depends_on:
+      - postgres1
+    volumes:
+      - ./node1:/chainlink
+    ports:
+      - "6688:6688"
+    command: ["node", "-config", "/chainlink/config.toml", "-secrets", "/chainlink/secrets.toml", "start", "-p", "/chainlink/.password", "-a", "/chainlink/.api"]
+
+  # ========================================
+  # Chainlink Node 2
+  # ========================================
+  chainlink-node2:
+    image: smartcontract/chainlink:2.2.0
+    platform: linux/amd64
+    container_name: chainlink_node2
+    depends_on:
+      - postgres2
+    volumes:
+      - ./node2:/chainlink
+    ports:
+      - "6689:6688"
+    command: ["node", "-config", "/chainlink/config.toml", "-secrets", "/chainlink/secrets.toml", "start", "-p", "/chainlink/.password", "-a", "/chainlink/.api"]
+
+volumes:
+  pgdata1:
+  pgdata2:
+
+
+
+
+
+

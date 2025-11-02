@@ -20,7 +20,7 @@ export default function AnalyticsPage() {
     provider,
     LendingPoolAddress,
     PriceOracleAddress,
-    address,
+    address || undefined,
     true,
     15000
   );

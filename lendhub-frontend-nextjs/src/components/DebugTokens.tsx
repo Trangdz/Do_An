@@ -60,7 +60,7 @@ export function DebugTokens({ provider, poolAddress, userAddress, tokens }: Debu
         newResults.push({
           symbol: token.symbol,
           address: token.address,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }

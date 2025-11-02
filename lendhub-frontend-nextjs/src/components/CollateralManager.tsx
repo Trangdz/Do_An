@@ -63,9 +63,9 @@ export function CollateralManager({ poolAddress, provider, signer, onRefresh }: 
       if (error.message?.includes('no data present') || error.message?.includes('function')) {
         console.warn('⚠️ Collateral functions not available. Contract may need to be redeployed.');
         
-        // Show toast warning
+        // Show toast info
         showToast({
-          type: 'warning',
+          type: 'info',
           title: 'Contract Update Required',
           message: 'Please redeploy the LendingPool contract with new functions'
         });

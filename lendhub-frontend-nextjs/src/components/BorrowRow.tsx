@@ -31,7 +31,7 @@ export function BorrowRow({ asset, onClick, provider, isConnected }: BorrowRowPr
   };
   
   // Use same logic as TokenCard - useSharedAPR with same conditions
-  const shouldFetchAPR = asset.symbol !== 'ETH' && isConnected && provider !== null && CONFIG.LENDING_POOL && CONFIG.LENDING_POOL !== '0x0000000000000000000000000000000000000000';
+  const shouldFetchAPR = asset.symbol !== 'ETH' && isConnected && provider !== null && !!CONFIG.LENDING_POOL;
   
   const aprData = useSharedAPR(
     shouldFetchAPR ? provider : null,

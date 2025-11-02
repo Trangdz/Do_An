@@ -231,7 +231,24 @@ async function main() {
   console.log("✅ Saved to:", outPath);
 
   // Auto-update frontend addresses.js
-  const frontendAddressesPath = path.join(process.cwd(), "lendhub-frontend-nextjs", "src", "addresses.js");
+  // Detect correct path: if running from frontend dir, go up one level
+  let frontendAddressesPath;
+  const currentDir = process.cwd();
+  const possiblePath1 = path.join(currentDir, "lendhub-frontend-nextjs", "src", "addresses.js");
+  const possiblePath2 = path.join(currentDir, "src", "addresses.js");
+  const possiblePath3 = path.join(__dirname, "..", "lendhub-frontend-nextjs", "src", "addresses.js");
+  
+  if (fs.existsSync(possiblePath2)) {
+    // We're already in lendhub-frontend-nextjs
+    frontendAddressesPath = possiblePath2;
+  } else if (fs.existsSync(possiblePath1)) {
+    // We're in root, frontend is subdirectory
+    frontendAddressesPath = possiblePath1;
+  } else {
+    // Try relative to script directory
+    frontendAddressesPath = possiblePath3;
+  }
+  
   const userAddresses = signers.slice(0, 10).map(s => s.address);
   
   const addressesContent = `// Auto-generated for GANACHE
@@ -313,6 +330,96 @@ ${userAddresses.map((addr, i) => `export const User${i}Address = "${addr}";`).jo
   console.log("  • Frontend addresses have been auto-updated!");
   console.log("  • No need to manually configure anything!");
   
+  // ========================================
+  // 🔗 DEPLOY CHAINLINK PRICE AGGREGATORS
+  // ========================================
+  console.log("\n🔗 Deploying Chainlink Price Aggregators...");
+  console.log("─".repeat(70));
+
+  const AGGREGATOR_TOKENS = [
+    { symbol: "ETH", description: "ETH / USD", decimals: 8 },
+    { symbol: "WETH", description: "ETH / USD", decimals: 8 },
+    { symbol: "USDC", description: "USDC / USD", decimals: 8 },
+    { symbol: "DAI", description: "DAI / USD", decimals: 8 },
+    { symbol: "LINK", description: "LINK / USD", decimals: 8 },
+  ];
+
+  const PriceAggregatorFactory = await ethers.getContractFactory("PriceAggregator");
+  const aggregators = {};
+
+  for (const token of AGGREGATOR_TOKENS) {
+    const priceAggregator = await PriceAggregatorFactory.deploy(token.decimals, token.description);
+    await priceAggregator.waitForDeployment();
+    const addr = await priceAggregator.getAddress();
+    aggregators[token.symbol] = addr;
+    console.log(`✅ ${token.symbol.padEnd(6)} Aggregator: ${addr}`);
+  }
+
+  // Save aggregators
+  const aggOutPath = path.join(__dirname, "../deployments/aggregators.json");
+  const network = await ethers.provider.getNetwork();
+  fs.writeFileSync(
+    aggOutPath,
+    JSON.stringify(
+      {
+        network: network.chainId.toString(),
+        deployer: deployer.address,
+        aggregators,
+        timestamp: new Date().toISOString(),
+      },
+      null,
+      2
+    )
+  );
+  console.log("\n📝 Aggregators saved:", aggOutPath);
+
+  // Copy to frontend
+  const frontendAggPath = path.join(__dirname, "../lendhub-frontend-nextjs/deployments/aggregators.json");
+  const frontendAggDir = path.dirname(frontendAggPath);
+  if (!fs.existsSync(frontendAggDir)) {
+    fs.mkdirSync(frontendAggDir, { recursive: true });
+  }
+  fs.copyFileSync(aggOutPath, frontendAggPath);
+  console.log("📝 Copied to frontend");
+
+  console.log("\n╔════════════════════════════════════════════════════════════════════╗");
+  console.log("║              ✅ DEPLOYMENT COMPLETE!                                ║");
+  console.log("╚════════════════════════════════════════════════════════════════════╝\n");
+
+  console.log("🔗 CHAINLINK ORACLE SETUP:");
+  console.log("─".repeat(70));
+  console.log("  1. Get node sending address:");
+  console.log("     docker logs chainlink_node | Select-String \"OUT OF FUNDS\"");
+  console.log("     (Look for address in error message)");
+  console.log("");
+  console.log("  2. Authorize node for all aggregators:");
+  console.log("     $env:NODE_ADDRESS=\"0xYOUR_SENDING_ADDRESS\"");
+  console.log("     npx hardhat run scripts/authorize_all_aggregators.cjs --network ganache");
+  console.log("");
+  console.log("  3. Fund node with ETH:");
+  console.log("     $env:NODE_ADDRESS=\"0xYOUR_SENDING_ADDRESS\"");
+  console.log("     $env:AMOUNT_ETH=\"10.0\"");
+  console.log("     npx hardhat run scripts/fund_node.cjs --network ganache");
+  console.log("");
+  console.log("  4. Create jobs for all tokens:");
+  console.log("     node scripts/create_all_jobs.cjs");
+  console.log("");
+  console.log("  5. Wait 1-2 minutes for jobs to run");
+  console.log("");
+
+  console.log("\n🎯 LENDHUB FRONTEND:");
+  console.log("─".repeat(70));
+  console.log("  1. Start frontend:     cd lendhub-frontend-nextjs && npm run dev");
+  console.log("  2. Open browser:       http://localhost:3000");
+  console.log("  3. Go to Markets page: See real-time Chainlink prices!");
+  console.log("  4. Connect MetaMask:   Import Ganache account");
+  
+  console.log("\n💡 DEPLOYED AGGREGATORS:");
+  console.log("─".repeat(70));
+  Object.entries(aggregators).forEach(([symbol, addr]) => {
+    console.log(`  ${symbol.padEnd(6)}: ${addr}`);
+  });
+
   console.log("\n╔════════════════════════════════════════════════════════════════════╗");
   console.log("║              Ready to test! Happy lending! 🎉                      ║");
   console.log("╚════════════════════════════════════════════════════════════════════╝\n");

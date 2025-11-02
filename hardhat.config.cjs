@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "outer blue want six infant velvet chimney mind bag curtain drip van",
+        mnemonic: "choice obscure eagle another violin various tube spot error neutral salt pulp",
         count: 10, // Generate 10 accounts
       },
     },

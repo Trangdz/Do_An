@@ -65,7 +65,7 @@ async function fetchAPR(
 }
 
 export function useSharedAPR(
-  provider: ethers.Provider | null,
+  provider: ethers.Provider | null, // No longer used, kept for API compatibility
   poolAddress: string,
   assetAddress: string,
   refreshMs: number = 30000,
@@ -84,7 +84,10 @@ export function useSharedAPR(
   });
 
   useEffect(() => {
-    if (!provider || !poolAddress || !assetAddress) return;
+    if (!poolAddress || !assetAddress) return;
+
+    // Use RPC provider directly to avoid MetaMask circuit breaker
+    const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
 
     // Subscribe
     if (!listeners.has(key)) listeners.set(key, new Set());
@@ -96,7 +99,7 @@ export function useSharedAPR(
     const start = async () => {
       const doFetch = async () => {
         try {
-          const next = await fetchAPR(provider, poolAddress, assetAddress);
+          const next = await fetchAPR(rpcProvider, poolAddress, assetAddress);
           store.set(key, next);
           listeners.get(key)?.forEach(fn => fn());
         } catch (e: any) {
@@ -130,6 +133,7 @@ export function useSharedAPR(
       if (store.has(key)) notify();
 
       // Optional: react immediately to new blocks (throttled)
+      // Use polling instead of event listeners to avoid MetaMask circuit breaker
       if (reactToBlocks) {
         const throttleWindowMs = Math.max(2000, Math.floor(refreshMs / 4));
         const trigger = () => {
@@ -139,38 +143,21 @@ export function useSharedAPR(
           blockThrottleTimers.set(key, t);
         };
 
-        let cleanup: (() => void) | undefined;
-        if (typeof (provider as any).on === 'function') {
-          const onBlock = () => trigger();
-          (provider as any).on('block', onBlock);
-          // Also listen to pool contract logs (Supply/Withdraw/Borrow/Repay)
-          const onAnyPoolLog = (log: any) => {
-            if (log.address?.toLowerCase() === poolAddress.toLowerCase()) {
+        // Always use polling instead of event listeners to avoid circuit breaker
+        let lastBlock = -1;
+        const poll = async () => {
+          try {
+            const n = await rpcProvider.getBlockNumber();
+            if (n !== lastBlock) {
+              lastBlock = n;
               trigger();
             }
-          };
-          (provider as any).on({ address: poolAddress }, onAnyPoolLog);
-          cleanup = () => {
-            (provider as any).off?.('block', onBlock);
-            (provider as any).off?.({ address: poolAddress }, onAnyPoolLog);
-          };
-        } else {
-          // Fallback for HTTP providers: poll blockNumber
-          let lastBlock = -1;
-          const poll = async () => {
-            try {
-              const n = await provider.getBlockNumber();
-              if (n !== lastBlock) {
-                lastBlock = n;
-                trigger();
-              }
-            } catch (_) { /* ignore transient errors */ }
-          };
-          const interval = setInterval(poll, throttleWindowMs);
-          // kick once
-          poll();
-          cleanup = () => clearInterval(interval);
-        }
+          } catch (_) { /* ignore transient errors */ }
+        };
+        const interval = setInterval(poll, throttleWindowMs);
+        // kick once
+        poll();
+        const cleanup = () => clearInterval(interval);
         (notify as any).__removeBlockListener = cleanup;
       }
     };
@@ -183,20 +170,22 @@ export function useSharedAPR(
       const remover = (notify as any).__removeBlockListener as undefined | (() => void);
       if (remover) remover();
     };
-  }, [provider, poolAddress, assetAddress, key, refreshMs]);
+  }, [poolAddress, assetAddress, key, refreshMs]);
 
   return data;
 }
 
 // Allow manual refresh right after local tx success
 export async function triggerAPRRefresh(
-  provider: ethers.Provider,
+  provider: ethers.Provider, // No longer used, kept for API compatibility
   poolAddress: string,
   assetAddress: string
 ) {
   const key = `${poolAddress.toLowerCase()}-${assetAddress.toLowerCase()}`;
   try {
-    const next = await fetchAPR(provider, poolAddress, assetAddress);
+    // Use RPC provider directly to avoid MetaMask circuit breaker
+    const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+    const next = await fetchAPR(rpcProvider, poolAddress, assetAddress);
     store.set(key, next);
     listeners.get(key)?.forEach(fn => fn());
   } catch {

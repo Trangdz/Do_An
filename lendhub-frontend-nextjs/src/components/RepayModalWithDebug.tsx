@@ -8,6 +8,7 @@ import { Badge } from './ui/Badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/Tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/Collapsible';
 import { formatCurrency, formatNumber, formatBalance, formatWETHBalance } from '../lib/math';
+import { getTokenBalance } from '../lib/tx';
 import { useToast } from './ui/Toast';
 import { useRepayDebug } from '../hooks/useRepayDebug';
 import { 
@@ -57,7 +58,7 @@ function formatDebtWithDust(debtRaw: bigint, decimals: number, symbol: string): 
   }
   
   return {
-    display: `${formatCurrency(humanAmount, 4)} ${symbol}`,
+    display: `${formatNumber(humanAmount, 4)} ${symbol}`,
     isDust: false
   };
 }
@@ -358,7 +359,7 @@ export default function RepayModalWithDebug({
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                `${formatCurrency(debtNum, 4)} ${token.symbol}`
+                `${formatNumber(debtNum, 4)} ${token.symbol}`
               )}
             </div>
             <div className="text-xs text-red-600/70">
@@ -370,7 +371,7 @@ export default function RepayModalWithDebug({
           <div className="bg-blue-50 p-3 rounded-lg">
             <div className="text-sm text-blue-600 mb-1">Your Balance</div>
             <div className="text-lg font-bold text-blue-600">
-              {formatCurrency(balanceNum, 4)} {token.symbol}
+              {formatNumber(balanceNum, 4)} {token.symbol}
             </div>
             <div className="text-xs text-blue-600/70">
               ${formatCurrency(balanceNum * price)}
@@ -448,14 +449,14 @@ export default function RepayModalWithDebug({
               <div className="flex justify-between text-sm">
                 <span>Repay Amount:</span>
                 <span className="font-medium">
-                  {isRepayAll ? 'All Debt' : `${formatCurrency(amountNum, 4)} ${token.symbol}`}
+                  {isRepayAll ? 'All Debt' : `${formatNumber(amountNum, 4)} ${token.symbol}`}
                 </span>
               </div>
               
               <div className="flex justify-between text-sm">
                 <span>USD Value:</span>
                 <span className="font-medium">
-                  {isRepayAll ? 'All Debt Value' : `$${formatCurrency(amountUSD)}`}
+                  {isRepayAll ? 'All Debt Value' : formatCurrency(amountUSD)}
                 </span>
               </div>
               
@@ -469,14 +470,14 @@ export default function RepayModalWithDebug({
               <div className="flex justify-between text-sm">
                 <span>Remaining Debt:</span>
                 <span className="font-medium">
-                  {isRepayAll ? 'Fully Repaid' : `${formatCurrency(remainingDebt, 4)} ${token.symbol}`}
+                  {isRepayAll ? 'Fully Repaid' : `${formatNumber(remainingDebt, 4)} ${token.symbol}`}
                 </span>
               </div>
               
               <div className="flex justify-between text-sm">
                 <span>Remaining USD:</span>
                 <span className="font-medium">
-                  {isRepayAll ? '$0.00' : `$${formatCurrency(remainingDebtUSD)}`}
+                  {isRepayAll ? '$0.00' : formatCurrency(remainingDebtUSD)}
                 </span>
               </div>
             </div>

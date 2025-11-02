@@ -207,11 +207,24 @@ const LendState = (props) => {
     return contract;
   }, [metamaskDetails.provider]);
 
-  // Get user assets (balances)
+  // Get user assets (balances) with fallback provider
   const getUserAssets = useCallback(async () => {
-    console.log("2. Getting user assets...");
+    console.log("🔄 Getting user assets...");
+    console.log("  Provider:", !!metamaskDetails.provider);
+    console.log("  Account:", metamaskDetails.currentAccount);
+    
     try {
-      if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
+      if (!metamaskDetails.currentAccount) {
+        console.warn("⚠️ No account, returning empty array");
+        return [];
+      }
+
+      // ALWAYS use direct RPC provider for read operations to avoid MetaMask circuit breaker
+      // Only use MetaMask provider for transactions (signing)
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const useProvider = rpcProvider; // Force RPC for reads
+      
+      console.log("  ✅ Using direct RPC provider for balance reads (avoids circuit breaker)");
 
       const assets = await Promise.all(
         CONFIG.TOKENS.map(async (token) => {
@@ -220,18 +233,61 @@ const LendState = (props) => {
 
           try {
             if (token.isNative) {
-              // ETH native balance
-              const bal = await metamaskDetails.provider.getBalance(metamaskDetails.currentAccount);
-              balance = ethers.formatEther(bal);
-              console.log('Native ETH balance:', balance);
+              // ETH native balance - try MetaMask first, fallback to RPC
+              try {
+                const bal = await useProvider.getBalance(metamaskDetails.currentAccount);
+                balance = ethers.formatEther(bal);
+                console.log(`  ✅ ${token.symbol} (native): ${balance} ${token.symbol}`);
+              } catch (error) {
+                // Try fallback RPC provider if MetaMask fails
+                if (error?.code === -32603 || error?.cause?.isBrokenCircuitError) {
+                  console.warn(`⚠️ MetaMask circuit breaker, trying direct RPC for ${token.symbol}...`);
+                  try {
+                    const bal = await rpcProvider.getBalance(metamaskDetails.currentAccount);
+                    balance = ethers.formatEther(bal);
+                    console.log(`  ✅ ${token.symbol} (via RPC): ${balance} ${token.symbol}`);
+                  } catch (rpcError) {
+                    console.warn(`⚠️ RPC also failed for ${token.symbol}:`, rpcError.message);
+                    balance = "0";
+                  }
+                } else if (error?.message?.includes('header not found')) {
+                  console.warn(`⚠️ Ganache state issue for ${token.symbol}`);
+                  balance = "0";
+                } else {
+                  throw error;
+                }
+              }
             } else {
-              // ERC20 token balance
-              balance = await getTokenBalance(
-                metamaskDetails.provider,
-                token.address,
-                metamaskDetails.currentAccount,
-                token.decimals
-              );
+              // ERC20 token balance - try MetaMask first, fallback to RPC
+              console.log(`  🔍 Checking ${token.symbol} at ${token.address}...`);
+              try {
+                balance = await getTokenBalance(
+                  useProvider,
+                  token.address,
+                  metamaskDetails.currentAccount,
+                  token.decimals
+                );
+                console.log(`  ✅ ${token.symbol}: ${balance} ${token.symbol}`);
+              } catch (error) {
+                // Try fallback RPC provider if MetaMask fails
+                if (error?.code === -32603 || error?.cause?.isBrokenCircuitError) {
+                  console.warn(`⚠️ MetaMask circuit breaker, trying direct RPC for ${token.symbol}...`);
+                  try {
+                    balance = await getTokenBalance(
+                      rpcProvider,
+                      token.address,
+                      metamaskDetails.currentAccount,
+                      token.decimals
+                    );
+                    console.log(`  ✅ ${token.symbol} (via RPC): ${balance} ${token.symbol}`);
+                  } catch (rpcError) {
+                    console.warn(`⚠️ RPC also failed for ${token.symbol}:`, rpcError.message);
+                    balance = "0";
+                  }
+                } else {
+                  throw error;
+                }
+              }
             }
 
             // Get USD value
@@ -249,7 +305,9 @@ const LendState = (props) => {
               priceUSD: price,
             };
           } catch (error) {
-            console.warn(`Error getting balance for ${token.symbol}:`, error);
+            console.error(`❌ Error getting balance for ${token.symbol}:`, error);
+            console.error(`  Address: ${token.address}`);
+            console.error(`  User: ${metamaskDetails.currentAccount}`);
             return {
               address: token.address,
               symbol: token.symbol,
@@ -264,10 +322,16 @@ const LendState = (props) => {
         })
       );
 
+      console.log("✅ Got user assets:", assets.map(a => ({
+        symbol: a.symbol,
+        balance: a.balance,
+        balanceUSD: a.balanceUSD
+      })));
+      
       setUserAssets(assets);
-      console.log("Got user assets:", assets);
       return assets;
     } catch (error) {
+      console.error("❌ Critical error in getUserAssets:", error);
       reportError(error);
       return [];
     }
@@ -275,17 +339,18 @@ const LendState = (props) => {
 
   // Get price in USD
   const getPriceUSD = useCallback(async (asset) => {
-    if (!metamaskDetails.provider) return "0";
     try {
+      // Use RPC provider for reads to avoid circuit breaker
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
       const abi = ['function getAssetPrice1e18(address asset) view returns (uint256)'];
-      const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, abi, metamaskDetails.provider);
+      const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, abi, rpcProvider);
       const price = await oracle.getAssetPrice1e18(asset);
       return ethers.formatUnits(price, 18);
     } catch (error) {
       console.warn(`Error getting price for ${asset}:`, error);
       return "0";
     }
-  }, [metamaskDetails.provider]);
+  }, []);
 
   // Get amount in USD
   const getAmountInUSD = useCallback(async (address, amount) => {
@@ -444,9 +509,11 @@ const LendState = (props) => {
   // Get account data (collateral, debt, health factor)
   const getAccountData = useCallback(async (user) => {
     try {
-      if (!metamaskDetails.provider) return null;
+      if (!metamaskDetails.currentAccount) return null;
 
-      const pool = new ethers.Contract(LendingPoolAddress, LendingPoolABI.abi, metamaskDetails.provider);
+      // Use RPC provider for reads to avoid circuit breaker
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const pool = new ethers.Contract(LendingPoolAddress, LendingPoolABI.abi, rpcProvider);
       const wallet = user || metamaskDetails.currentAccount || ethers.ZeroAddress;
       
       console.log('🔍 Getting account data for:', wallet);
@@ -496,14 +563,17 @@ const LendState = (props) => {
   const getYourSupplies = useCallback(async () => {
     console.log("3. Getting your supplies...");
     try {
-      if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
+      if (!metamaskDetails.currentAccount) return [];
+      
+      // Use RPC provider for reads to avoid circuit breaker
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
 
       const abi = [
         'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)',
         'function getCurrentSupplyBalance(address user, address asset) view returns (uint256)',
         'function getCurrentDebtBalance(address user, address asset) view returns (uint256)'
       ];
-      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
+      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, rpcProvider);
 
       const supplies = await Promise.all(
         CONFIG.TOKENS.filter(t => !t.isNative).map(async (token) => {
@@ -589,20 +659,23 @@ const LendState = (props) => {
       reportError(error);
       return [];
     }
-  }, [metamaskDetails.provider, metamaskDetails.currentAccount, getPriceUSD]);
+  }, [metamaskDetails.currentAccount, getPriceUSD]);
 
   // Get your borrows
   const getYourBorrows = useCallback(async () => {
     console.log("4. Getting your borrows...");
     try {
-      if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return [];
+      if (!metamaskDetails.currentAccount) return [];
+
+      // Use RPC provider for reads to avoid circuit breaker
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
 
       const abi = [
         'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)',
         'function getCurrentSupplyBalance(address user, address asset) view returns (uint256)',
         'function getCurrentDebtBalance(address user, address asset) view returns (uint256)'
       ];
-      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
+      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, rpcProvider);
 
       const borrows = await Promise.all(
         CONFIG.TOKENS.filter(t => !t.isNative).map(async (token) => {
@@ -686,18 +759,19 @@ const LendState = (props) => {
       reportError(error);
       return [];
     }
-  }, [metamaskDetails.provider, metamaskDetails.currentAccount, getPriceUSD]);
+  }, [metamaskDetails.currentAccount, getPriceUSD]);
 
   // Get assets to borrow
   const getAssetsToBorrow = useCallback(async () => {
     console.log("5. Getting assets to borrow...");
     try {
-      if (!metamaskDetails.provider) return [];
+      // Use RPC provider for reads to avoid circuit breaker
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
 
       const abi = [
         'function reserves(address) view returns (uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate)'
       ];
-      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
+      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, rpcProvider);
 
       const assets = await Promise.all(
         CONFIG.TOKENS.filter(t => !t.isNative).map(async (token) => {
@@ -737,7 +811,7 @@ const LendState = (props) => {
       reportError(error);
       return [];
     }
-  }, [metamaskDetails.provider, getPriceUSD]);
+  }, [getPriceUSD]);
 
   // Wrap ETH to WETH
   const wrapEth = useCallback(async (amountEth) => {
@@ -782,7 +856,7 @@ const LendState = (props) => {
     }
   }, [metamaskDetails.signer]);
 
-  // Refresh all data
+  // Refresh all data with circuit breaker protection
   const refresh = useCallback(async () => {
     try {
       console.log("🔄 Starting refresh...");
@@ -795,6 +869,18 @@ const LendState = (props) => {
       ]);
       console.log("✅ All data refreshed");
     } catch (error) {
+      // Check if it's a circuit breaker error
+      const isCircuitBreaker = 
+        error?.message?.includes('circuit breaker') ||
+        error?.cause?.isBrokenCircuitError ||
+        error?.code === -32603;
+      
+      if (isCircuitBreaker) {
+        console.warn("⚠️ Circuit breaker is open. Please wait a moment and try again, or reset MetaMask connection.");
+        // Don't report circuit breaker errors as they're temporary
+        return;
+      }
+      
       console.error("❌ Error during refresh:", error);
       reportError(error);
     }
@@ -822,12 +908,15 @@ const LendState = (props) => {
   // Get user total available balance
   const getUserTotalAvailableBalance = useCallback(async () => {
     try {
-      if (!metamaskDetails.provider || !metamaskDetails.currentAccount) return 0;
+      if (!metamaskDetails.currentAccount) return 0;
+
+      // Use RPC provider for reads to avoid circuit breaker
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
 
       const abi = [
         'function getUserTotalAvailableBalanceInUSD(address user, uint256 assetType) view returns (uint256)'
       ];
-      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, metamaskDetails.provider);
+      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, rpcProvider);
       const maxAmount = await pool.getUserTotalAvailableBalanceInUSD(metamaskDetails.currentAccount, 1);
       return Number(ethers.formatUnits(maxAmount, 18));
     } catch (error) {

@@ -21,10 +21,10 @@ import {
   calculateRealtimeBalance, 
   calculateInterestForPeriod,
   formatBalanceWithInterest,
-  formatCurrency,
   rateToAPR,
   type InterestData
 } from '../lib/interestCalculations';
+import { formatCurrency } from '../lib/math';
 
 interface RealtimeInterestBalanceProps {
   principal: bigint;
@@ -74,7 +74,7 @@ export function RealtimeInterestBalance({
       const now = Math.floor(Date.now() / 1000);
       const timeDiff = now - lastUpdateTimestamp;
       
-      if (timeDiff > 0 && ratePerSecond > 0n) {
+      if (timeDiff > 0 && ratePerSecond > BigInt(0)) {
         // Calculate interest accrued during this period
         const interestForPeriod = calculateInterestForPeriod(
           principal,
@@ -197,7 +197,7 @@ export function RealtimeBalanceCompact({
       const now = Math.floor(Date.now() / 1000);
       const timeDiff = now - lastUpdateTimestamp;
       
-      if (timeDiff > 0 && ratePerSecond > 0n) {
+      if (timeDiff > 0 && ratePerSecond > BigInt(0)) {
         // Calculate interest accrued
         const interestForPeriod = calculateInterestForPeriod(
           principal,
