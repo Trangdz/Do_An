@@ -4,7 +4,7 @@ async function demoProductionOracle() {
   console.log('🏭 PRODUCTION ORACLE DEMO');
   console.log('=' .repeat(50));
 
-  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
   const oracleAddress = '0xb8A99b2272541eA6f63f579839AEFA20A8f00937';
 
   // Oracle ABI

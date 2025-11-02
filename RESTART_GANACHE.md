@@ -28,7 +28,7 @@ Start-Process "Ganache.exe"
 ## 🎯 KIỂM TRA:
 
 1. ✅ Mở Ganache App
-2. ✅ Check port 8545 (hoặc 7545)
+2. ✅ Check port 8545 (hoặc 8545)
 3. ✅ Xem có network đang chạy không
 4. ✅ Refresh browser
 5. ✅ Thử toggle collateral lại

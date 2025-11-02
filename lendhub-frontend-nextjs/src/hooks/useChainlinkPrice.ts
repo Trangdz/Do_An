@@ -45,7 +45,7 @@ export function useChainlinkPrice(
     const fetchPrice = async () => {
       try {
         // Kết nối trực tiếp với ganache (không qua MetaMask)
-        const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+        const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
         const aggregator = new ethers.Contract(aggregatorAddress, AGGREGATOR_ABI, provider);
 
         // Lấy decimals và giá - thử latestRoundData trước, fallback to latestAnswer

@@ -27,8 +27,8 @@ async function configureNode(cookie) {
     const updateRes = await axios.patch(
       `${CL_API_URL}/v2/chains/evm/5777/nodes/primary-0-5777`,
       {
-        httpURL: "http://host.docker.internal:7545",
-        wsURL: "ws://host.docker.internal:7545"
+        httpURL: "http://host.docker.internal:8545",
+        wsURL: "ws://host.docker.internal:8545"
       },
       {
         headers: { Cookie: cookie, "Content-Type": "application/json" }

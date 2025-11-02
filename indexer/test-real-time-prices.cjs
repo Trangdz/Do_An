@@ -4,7 +4,7 @@ async function testRealTimePrices() {
   console.log('🌍 Testing Real-Time Price Updates...');
   console.log('=' .repeat(50));
 
-  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
   
   // Get deployed aggregators
   const ETH_USD_AGGREGATOR = '0x8b17C05f7b6ddb62B8eAf245f794a62e450564A7';

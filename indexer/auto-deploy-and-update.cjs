@@ -94,7 +94,7 @@ class AutoDeployAndUpdate {
       const updateData = {
         poolAddress: addresses.poolAddress,
         oracleAddress: addresses.oracleAddress,
-        rpcUrl: 'http://127.0.0.1:7545',
+        rpcUrl: 'http://127.0.0.1:8545',
         mongoUri: 'mongodb://localhost:27017/lendhub_local'
       };
       

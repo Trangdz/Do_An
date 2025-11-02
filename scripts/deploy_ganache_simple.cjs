@@ -11,16 +11,27 @@
   Usage:
     npx hardhat run scripts/deploy_ganache_simple.cjs --network ganache
   
+  What this script does:
+    1. Deploys all ERC20 tokens (WETH, DAI, USDC, LINK)
+    2. Deploys core contracts (LendingPool, InterestRateModel, PriceOracle)
+    3. Initializes reserves with proper parameters
+    4. Mints tokens to all signer accounts (from Ganache)
+    5. Deploys Chainlink Price Aggregators
+    6. Auto-updates frontend addresses.js
+  
   Requirements:
     - Ganache CLI running on port 8545
     - Chain ID: 5777
-    - Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
   
   Start Ganache CLI:
     npx ganache --server.host 0.0.0.0 --server.port 8545 --chain.chainId 5777 --chain.networkId 5777 --wallet.totalAccounts 10 --wallet.defaultBalance 1000 --wallet.mnemonic "uniform message payment medal rural toward reject resist test immune smile ridge"
   
   Or use script:
     .\START_GANACHE_SIMPLE.bat
+  
+  Note: This script automatically mints tokens to all accounts available as signers.
+        If you need tokens for additional accounts, modify the script or use
+        scripts/mint_to_account_hardhat.cjs for specific addresses.
 */
 
 const fs = require("fs");
@@ -241,6 +252,87 @@ async function main() {
   }
 
   // ========================================
+  // 5️⃣-B MINT TOKENS TO ADDITIONAL ACCOUNTS (Optional)
+  // ========================================
+  // You can add specific addresses here to mint tokens for accounts not in signers
+  // Example: Uncomment and modify the addresses array below
+  
+  const additionalAccounts = [
+    // Add addresses here if you need to mint tokens for specific accounts
+    "0x87EA1C24418b717D5e331e07d5246748eF3e96fE", // Current MetaMask account
+    // Add more addresses if needed
+  ];
+
+  if (additionalAccounts.length > 0) {
+    console.log("\n5️⃣-B  Minting Tokens to Additional Accounts...");
+    console.log("─".repeat(70));
+
+    for (let i = 0; i < additionalAccounts.length; i++) {
+      const address = additionalAccounts[i];
+      try {
+        // Check if address already has tokens
+        const wethBal = await weth.balanceOf(address);
+        const daiBal = await dai.balanceOf(address);
+        const usdcBal = await usdc.balanceOf(address);
+        
+        if (wethBal === 0n) {
+          await weth.mint(address, ethers.parseUnits("10000", 18));
+          console.log(`  ✅ Minted 10,000 WETH to ${address}`);
+        }
+        
+        if (daiBal === 0n) {
+          await dai.mint(address, ethers.parseUnits("1000000", 18));
+          console.log(`  ✅ Minted 1,000,000 DAI to ${address}`);
+        }
+        
+        if (usdcBal === 0n) {
+          await usdc.mint(address, ethers.parseUnits("1000000", 6));
+          console.log(`  ✅ Minted 1,000,000 USDC to ${address}`);
+        }
+        
+        // Transfer LINK if needed
+        const linkBal = await linkToken.balanceOf(address);
+        if (linkBal === 0n) {
+          const deployerLinkBal = await linkToken.balanceOf(deployer.address);
+          const linkAmount = ethers.parseUnits("100000", 18);
+          if (deployerLinkBal >= linkAmount) {
+            await linkToken.transfer(address, linkAmount);
+            console.log(`  ✅ Transferred 100,000 LINK to ${address}`);
+          }
+        }
+        
+        // Send ETH if balance is low
+        const ethBal = await ethers.provider.getBalance(address);
+        if (ethBal === 0n || ethBal < ethers.parseEther("100")) {
+          const deployerEthBal = await ethers.provider.getBalance(deployer.address);
+          const ethAmount = ethers.parseEther("999"); // Send 999 ETH
+          // Keep some ETH for gas (at least 0.5 ETH)
+          if (deployerEthBal > ethers.parseEther("1000")) {
+            const tx = await deployer.sendTransaction({
+              to: address,
+              value: ethAmount
+            });
+            await tx.wait();
+            console.log(`  ✅ Sent 999 ETH to ${address}`);
+          } else {
+            const deployerEthBalFormatted = ethers.formatEther(deployerEthBal);
+            console.log(`  ⚠️  Deployer doesn't have enough ETH to send (has ${deployerEthBalFormatted} ETH)`);
+          }
+        }
+      } catch (error) {
+        console.error(`  ❌ Error minting to ${address}:`, error.message);
+      }
+    }
+    console.log("");
+  }
+
+  console.log(`✅ Minted tokens to ${numUsers} signer accounts`);
+  if (additionalAccounts.length > 0) {
+    console.log(`✅ Minted tokens to ${additionalAccounts.length} additional accounts`);
+  }
+  console.log("💡 All accounts now have tokens ready for testing!\n");
+
+  // ========================================
   // 6️⃣ DEPLOY PRICE AGGREGATOR (for Chainlink)
   // ========================================
   console.log("\n6️⃣  Deploying Price Aggregator...");
@@ -380,9 +472,11 @@ ${userAddresses.map((addr, i) => `export const User${i}Address = "${addr}";`).jo
   
   console.log("\n💡 TIPS:");
   console.log("─".repeat(70));
-  console.log("  • All 10 Ganache accounts already have tokens!");
+  console.log("  • All Ganache accounts (signers) have been minted tokens!");
   console.log("  • Frontend addresses have been auto-updated!");
-  console.log("  • No need to manually configure anything!");
+  console.log("  • If you connect MetaMask with any account from Ganache, you'll see tokens!");
+  console.log("  • If you need tokens for additional accounts, run:");
+  console.log("    npx hardhat run scripts/mint_to_account_hardhat.cjs --network ganache");
   
   // ========================================
   // 🔗 DEPLOY CHAINLINK PRICE AGGREGATORS

@@ -221,7 +221,7 @@ const LendState = (props) => {
 
       // ALWAYS use direct RPC provider for read operations to avoid MetaMask circuit breaker
       // Only use MetaMask provider for transactions (signing)
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
       const useProvider = rpcProvider; // Force RPC for reads
       
       console.log("  ✅ Using direct RPC provider for balance reads (avoids circuit breaker)");
@@ -341,7 +341,7 @@ const LendState = (props) => {
   const getPriceUSD = useCallback(async (asset) => {
     try {
       // Use RPC provider for reads to avoid circuit breaker
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
       const abi = ['function getAssetPrice1e18(address asset) view returns (uint256)'];
       const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, abi, rpcProvider);
       const price = await oracle.getAssetPrice1e18(asset);
@@ -512,7 +512,7 @@ const LendState = (props) => {
       if (!metamaskDetails.currentAccount) return null;
 
       // Use RPC provider for reads to avoid circuit breaker
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
       const pool = new ethers.Contract(LendingPoolAddress, LendingPoolABI.abi, rpcProvider);
       const wallet = user || metamaskDetails.currentAccount || ethers.ZeroAddress;
       
@@ -566,7 +566,7 @@ const LendState = (props) => {
       if (!metamaskDetails.currentAccount) return [];
       
       // Use RPC provider for reads to avoid circuit breaker
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 
       const abi = [
         'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)',
@@ -668,7 +668,7 @@ const LendState = (props) => {
       if (!metamaskDetails.currentAccount) return [];
 
       // Use RPC provider for reads to avoid circuit breaker
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 
       const abi = [
         'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)',
@@ -766,7 +766,7 @@ const LendState = (props) => {
     console.log("5. Getting assets to borrow...");
     try {
       // Use RPC provider for reads to avoid circuit breaker
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 
       const abi = [
         'function reserves(address) view returns (uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate)'
@@ -911,7 +911,7 @@ const LendState = (props) => {
       if (!metamaskDetails.currentAccount) return 0;
 
       // Use RPC provider for reads to avoid circuit breaker
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 
       const abi = [
         'function getUserTotalAvailableBalanceInUSD(address user, uint256 assetType) view returns (uint256)'

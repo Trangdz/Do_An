@@ -31,8 +31,8 @@ async function main() {
   } catch (error) {
     console.error("\n❌ Cannot connect to Ganache:");
     console.error("   Error:", error.message);
-    console.error("\n💡 Make sure Ganache is running at http://127.0.0.1:7545");
-    console.error("   You can start it with: ganache-cli -p 7545 -i 1337");
+    console.error("\n💡 Make sure Ganache is running at http://127.0.0.1:8545");
+    console.error("   You can start it with: ganache-cli -p 8545 -i 1337");
     process.exit(1);
   }
 }

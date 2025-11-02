@@ -52,7 +52,7 @@ Copy private key của Account (0) - đây là account có tất cả tokens.
 3. Chọn **"Add network"** → **"Add a network manually"**
 4. Điền thông tin:
    - **Network Name:** `Ganache Local`
-   - **New RPC URL:** `http://127.0.0.1:7545` ⚠️ Port **7545** không phải 8545!
+   - **New RPC URL:** `http://127.0.0.1:8545` ⚠️ Port **8545** không phải 8545!
    - **Chain ID:** `1337`
    - **Currency Symbol:** `ETH`
 5. Click **"Save"**
@@ -101,7 +101,7 @@ Sau khi hoàn tất, bạn sẽ thấy:
 
 ## ⚠️ Lưu ý quan trọng
 
-- **Port 7545, không phải 8545!** Đây là sự khác biệt giữa Ganache và Hardhat node.
+- **Port 8545, không phải 8545!** Đây là sự khác biệt giữa Ganache và Hardhat node.
 - **Chain ID phải là 1337** để match với Ganache.
 - **Private key chỉ dùng cho development!** Không bao giờ sử dụng private key này trên mainnet hoặc testnet thật.
 
@@ -133,7 +133,7 @@ Nếu không tìm thấy cửa sổ Ganache, có thể nó bị minimize. Hãy:
 
 ### "Frontend vẫn hiển thị 0 tokens"
 
-1. Đảm bảo đã chuyển sang network "Ganache Local" (port 7545)
+1. Đảm bảo đã chuyển sang network "Ganache Local" (port 8545)
 2. Refresh trang web
 3. Kiểm tra account address có đúng là `0xC42B...558` không
 

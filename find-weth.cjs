@@ -1,7 +1,7 @@
 // Find existing WETH contract
 const { ethers } = require('ethers');
 
-const RPC_URL = 'http://127.0.0.1:7545';
+const RPC_URL = 'http://127.0.0.1:8545';
 
 async function findWETH() {
   try {

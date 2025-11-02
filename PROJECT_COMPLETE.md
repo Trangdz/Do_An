@@ -162,7 +162,7 @@ USDC: 0x6D314e41131e70EbaaA17B0512569d58b630A10A
 LINK: 0x9e2e2fD666983ca9Dfb562eaC8fba83c6Be4Ac5d
 
 // Network
-Ganache: http://127.0.0.1:7545
+Ganache: http://127.0.0.1:8545
 Chain ID: 1337
 ```
 

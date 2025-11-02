@@ -31,7 +31,7 @@ for (const mnemonic of mnemonics) {
         console.log("\n🎯 Import vào MetaMask:");
         console.log("1. MetaMask → Import Account → Private Key");
         console.log("2. Paste private key:", wallet.privateKey);
-        console.log("3. Chọn network: Ganache Local (port 7545)");
+        console.log("3. Chọn network: Ganache Local (port 8545)");
         process.exit(0);
       }
     } catch (e) {

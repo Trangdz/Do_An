@@ -11,12 +11,12 @@
 ### Option A: Ganache GUI
 1. Mở Ganache GUI
 2. Tạo workspace mới hoặc mở workspace có sẵn
-3. Đảm bảo RPC Server đang chạy ở: `http://127.0.0.1:7545`
+3. Đảm bảo RPC Server đang chạy ở: `http://127.0.0.1:8545`
 4. Chain ID: `1337` (hoặc `5777` tùy phiên bản)
 
 ### Option B: Ganache CLI
 ```bash
-ganache-cli -p 7545 -i 1337
+ganache-cli -p 8545 -i 1337
 ```
 
 ## 🚀 Bước 2: Deploy Contracts
@@ -57,7 +57,7 @@ WETH: 0x...
 
 ### 1. Thêm Ganache Network
 - **Network Name**: Ganache Local
-- **RPC URL**: `http://127.0.0.1:7545`
+- **RPC URL**: `http://127.0.0.1:8545`
 - **Chain ID**: `1337`
 - **Currency Symbol**: ETH
 
@@ -142,7 +142,7 @@ Frontend sẽ chạy ở: `http://localhost:3000`
 ## 🐛 Xử lý lỗi thường gặp
 
 ### ❌ "Cannot connect to Ganache"
-**Giải pháp**: Đảm bảo Ganache đang chạy ở `http://127.0.0.1:7545`
+**Giải pháp**: Đảm bảo Ganache đang chạy ở `http://127.0.0.1:8545`
 
 ### ❌ "Insufficient funds"
 **Giải pháp**: 

@@ -3,7 +3,7 @@ const axios = require('axios');
 async function main() {
   try {
     // Get accounts from Ganache
-    const response = await axios.post('http://127.0.0.1:7545', {
+    const response = await axios.post('http://127.0.0.1:8545', {
       jsonrpc: '2.0',
       method: 'eth_accounts',
       params: [],
@@ -21,7 +21,7 @@ async function main() {
     
     // Method 1: Check if Ganache exposes private keys
     try {
-      const pkResponse = await axios.post('http://127.0.0.1:7545', {
+      const pkResponse = await axios.post('http://127.0.0.1:8545', {
         jsonrpc: '2.0',
         method: 'evm_snapshot',
         params: [],

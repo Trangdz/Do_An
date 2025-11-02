@@ -112,7 +112,7 @@ export function useTransactionHistory(
   // Fetch asset symbol
       const getAssetSymbol = useCallback(async (assetAddress: string): Promise<string> => {
     try {
-          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
           const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, rpcProvider);
       return await tokenContract.symbol();
     } catch (err) {
@@ -123,7 +123,7 @@ export function useTransactionHistory(
 
       const getAssetDecimals = useCallback(async (assetAddress: string): Promise<number> => {
     try {
-          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
           const tokenContract = new ethers.Contract(assetAddress, ERC20_ABI, rpcProvider);
       const d: number = await tokenContract.decimals();
       return Number(d);
@@ -136,7 +136,7 @@ export function useTransactionHistory(
   // Fetch asset price
       const getAssetPrice = useCallback(async (oracleAddress: string, assetAddress: string): Promise<number> => {
     try {
-          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
       const oracleABI = ['function getAssetPrice1e18(address) view returns (uint256)'];
           const oracle = new ethers.Contract(oracleAddress, oracleABI, rpcProvider);
       const price1e18 = await oracle.getAssetPrice1e18(assetAddress);
@@ -150,7 +150,7 @@ export function useTransactionHistory(
   // Fetch transaction details including gas info
       const getTransactionDetails = useCallback(async (txHash: string): Promise<{gasUsed: string, gasPrice: string, txFee: string, txFeeUSD: string}> => {
     try {
-          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+          const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
           const tx = await rpcProvider.getTransaction(txHash);
           const receipt = await rpcProvider.getTransactionReceipt(txHash);
       
@@ -189,7 +189,7 @@ export function useTransactionHistory(
 
     try {
       // Use RPC provider directly to avoid MetaMask circuit breaker
-      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+      const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
       const pool = new ethers.Contract(poolAddress, LENDING_POOL_ABI, rpcProvider);
       const currentBlock = await rpcProvider.getBlockNumber();
       // Use last scanned block from localStorage to avoid duplicates and speed up

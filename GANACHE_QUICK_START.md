@@ -5,14 +5,14 @@
 ### Sử dụng lệnh này:
 
 ```bash
-ganache-cli -p 7545 -i 1337 -m "test test test test test test test test test test test junk"
+ganache-cli -p 8545 -i 1337 -m "test test test test test test test test test test test junk"
 ```
 
 **Hoặc nếu dùng Ganache GUI:**
 1. Mở Ganache
 2. New Workspace
 3. Settings → Server:
-   - PORT: `7545`
+   - PORT: `8545`
    - NETWORK ID: `1337`
 4. Settings → Accounts & Keys:
    - MNEMONIC: `test test test test test test test test test test test junk`
@@ -45,7 +45,7 @@ npx hardhat run scripts/deploy_ganache_simple.cjs --network ganache
 
 ### 1. Add Ganache Network:
 - **Network Name**: Ganache Local
-- **RPC URL**: `http://127.0.0.1:7545`
+- **RPC URL**: `http://127.0.0.1:8545`
 - **Chain ID**: `1337`
 - **Currency Symbol**: ETH
 
@@ -153,7 +153,7 @@ Sẽ hiện:
 
 ```
 MNEMONIC: test test test test test test test test test test test junk
-RPC: http://127.0.0.1:7545
+RPC: http://127.0.0.1:8545
 CHAIN ID: 1337
 USERS: 10 (mỗi user có 100 WETH, 50K DAI, 50K USDC, 10K LINK)
 ```
@@ -168,7 +168,7 @@ USERS: 10 (mỗi user có 100 WETH, 50K DAI, 50K USDC, 10K LINK)
 → Đảm bảo Ganache đang chạy với đúng mnemonic
 
 ### Lỗi "cannot connect"
-→ Check Ganache đang chạy tại `http://127.0.0.1:7545`
+→ Check Ganache đang chạy tại `http://127.0.0.1:8545`
 
 ### Lỗi "wrong chain ID"
 → Đảm bảo Ganache chain ID là `1337`

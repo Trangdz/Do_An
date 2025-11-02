@@ -3,7 +3,7 @@ const { MongoClient } = require('mongodb');
 
 class ProductionOracleIntegration {
   constructor() {
-    this.rpcUrl = 'http://127.0.0.1:7545';
+    this.rpcUrl = 'http://127.0.0.1:8545';
     this.mongoUri = 'mongodb://localhost:27017/lendhub_local';
     this.oracleAddress = '0xb8A99b2272541eA6f63f579839AEFA20A8f00937'; // New ChainlinkPriceOracle address
     this.provider = new ethers.JsonRpcProvider(this.rpcUrl);

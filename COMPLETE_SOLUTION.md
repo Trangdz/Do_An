@@ -15,7 +15,7 @@
 - User-friendly error messages
 
 ### 3. Configuration ✅
-- Port: 7545 (Ganache)
+- Port: 8545 (Ganache)
 - Contract addresses: updated
 - next.config.js: warnings fixed
 - Cache: cleared
@@ -123,7 +123,7 @@ Ctrl + Shift + R
 ### Lỗi: "Network Error"
 **Fix:**
 1. Check Ganache running
-2. Port: 7545
+2. Port: 8545
 3. Chain ID: 1337
 
 ### Lỗi: "Transaction Reverted"
@@ -143,7 +143,7 @@ Ctrl + Shift + R
 ## ✅ CHECKLIST:
 
 - ✅ Frontend running: http://localhost:3000
-- ✅ Ganache running: port 7545
+- ✅ Ganache running: port 8545
 - ✅ Contracts deployed
 - ✅ Addresses updated
 - ✅ Error messages clear

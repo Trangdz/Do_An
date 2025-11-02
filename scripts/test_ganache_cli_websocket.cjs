@@ -5,13 +5,13 @@ async function main() {
   
   try {
     // Test HTTP connection
-    const httpProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+    const httpProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
     const blockNumber = await httpProvider.getBlockNumber();
     console.log(`✅ HTTP connection works: Block ${blockNumber}`);
     
     // Test WebSocket connection (if available)
     try {
-      const wsProvider = new ethers.WebSocketProvider('ws://127.0.0.1:7545');
+      const wsProvider = new ethers.WebSocketProvider('ws://127.0.0.1:8545');
       console.log("✅ WebSocket provider created");
       
       // Try to subscribe to new blocks
@@ -37,7 +37,7 @@ async function main() {
     if (error.code === 'ECONNREFUSED') {
       console.log("\n⚠️  Ganache is not running. Please start it first:");
       console.log("   - Run START_GANACHE_CLI.bat");
-      console.log("   - Or: ganache --host 0.0.0.0 --port 7545 --networkId 5777");
+      console.log("   - Or: ganache --host 0.0.0.0 --port 8545 --networkId 5777");
     }
   }
 }

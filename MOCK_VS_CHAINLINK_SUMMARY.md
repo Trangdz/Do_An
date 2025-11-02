@@ -258,7 +258,7 @@ const realPrices = {
 Before presentation:
 
 **Technical:**
-- [ ] Ganache running (port 7545)
+- [ ] Ganache running (port 8545)
 - [ ] Contracts deployed with real prices
 - [ ] Auto-updater working
 - [ ] Frontend showing correct prices

@@ -15,8 +15,8 @@ Enabled = true
 
 [[EVM.Nodes]]
 Name = "ganache"
-WSURL = "ws://host.docker.internal:7545"
-HTTPURL = "http://host.docker.internal:7545"
+WSURL = "ws://host.docker.internal:8545"
+HTTPURL = "http://host.docker.internal:8545"
 
 [Feature]
 LogPoller = true

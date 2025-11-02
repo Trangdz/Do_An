@@ -7,8 +7,8 @@ echo ═════════════════════════
 echo.
 
 REM Start Ganache in background and save output
-echo 📡 Starting Ganache on port 7545...
-start "Ganache" cmd /k "npx ganache --port 7545 --chain.chainId 1337 --wallet.mnemonic "test test test test test test test test test test test junk" --wallet.totalAccounts 10"
+echo 📡 Starting Ganache on port 8545...
+start "Ganache" cmd /k "npx ganache --port 8545 --chain.chainId 1337 --wallet.mnemonic "test test test test test test test test test test test junk" --wallet.totalAccounts 10"
 
 echo.
 echo ⏳ Waiting 10 seconds for Ganache to start...

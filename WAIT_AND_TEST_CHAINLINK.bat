@@ -8,7 +8,7 @@ timeout /t 5 /nobreak >nul
 
 echo.
 echo Step 1: Testing Ganache connection...
-node -e "const http = require('http'); const body = JSON.stringify({jsonrpc:'2.0', method:'eth_blockNumber', params:[], id:1}); const req = http.request({hostname:'127.0.0.1', port:7545, method:'POST', headers:{'Content-Type':'application/json'}}, (res) => {let data=''; res.on('data', d => data+=d); res.on('end', () => {const result = JSON.parse(data); const block = parseInt(result.result, 16); console.log('✅ Ganache is running! Block:', block); process.exit(0);});}); req.on('error', (e) => {console.log('❌ Ganache not accessible:', e.message); process.exit(1);}); req.write(body); req.end();"
+node -e "const http = require('http'); const body = JSON.stringify({jsonrpc:'2.0', method:'eth_blockNumber', params:[], id:1}); const req = http.request({hostname:'127.0.0.1', port:8545, method:'POST', headers:{'Content-Type':'application/json'}}, (res) => {let data=''; res.on('data', d => data+=d); res.on('end', () => {const result = JSON.parse(data); const block = parseInt(result.result, 16); console.log('✅ Ganache is running! Block:', block); process.exit(0);});}); req.on('error', (e) => {console.log('❌ Ganache not accessible:', e.message); process.exit(1);}); req.write(body); req.end();"
 
 if errorlevel 1 (
     echo.

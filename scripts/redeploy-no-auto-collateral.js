@@ -54,7 +54,7 @@ async function main() {
   console.log('\n📝 Saving addresses to addresses.js...');
   const addressesFile = path.join(__dirname, '../lendhub-frontend-nextjs/src/addresses.js');
   const content = `// Auto-generated for GANACHE
-// Network: http://127.0.0.1:7545 | Chain ID: 1337
+// Network: http://127.0.0.1:8545 | Chain ID: 1337
 // Mnemonic: test test test test test test test test test test test junk
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";

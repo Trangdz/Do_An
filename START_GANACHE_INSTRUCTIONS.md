@@ -32,7 +32,7 @@ Get-Process Ganache
 2. Click "New Workspace" hoặc "Load Workspace"
 3. Settings:
    - **Hostname:** 127.0.0.1
-   - **Port:** 7545 (hoặc 8545)
+   - **Port:** 8545 (hoặc 8545)
    - **Network ID:** 1337
    - **Block Time:** 0
    - **Gas Limit:** 6721975
@@ -45,7 +45,7 @@ Get-Process Ganache
 
 ```powershell
 # Check port
-Test-NetConnection -ComputerName localhost -Port 7545
+Test-NetConnection -ComputerName localhost -Port 8545
 # Should return: True
 ```
 
@@ -75,9 +75,9 @@ npx next dev
 Get-Process | Where-Object {$_.ProcessName -like "*Ganache*"}
 ```
 
-### Check 2: Port 7545 đang listen?
+### Check 2: Port 8545 đang listen?
 ```powershell
-netstat -ano | findstr :7545
+netstat -ano | findstr :8545
 ```
 
 ### Check 3: Contract đã deploy?
@@ -92,7 +92,7 @@ cat lendhub-frontend-nextjs/src/addresses.js
 ```javascript
 // File: hardhat.config.cjs
 ganache: {
-  url: "http://127.0.0.1:7545",
+  url: "http://127.0.0.1:8545",
   chainId: 1337,  // ← Phải match với Ganache
 }
 ```

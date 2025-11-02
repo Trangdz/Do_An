@@ -281,7 +281,7 @@ Error: could not detect network
 Solution:
 - Start Ganache GUI or ganache-cli
 - Check hardhat.config.cjs network settings
-- Ensure port 7545 is correct
+- Ensure port 8545 is correct
 ```
 
 ---

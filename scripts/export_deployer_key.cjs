@@ -58,7 +58,7 @@ async function main() {
   console.log('2. Tìm "Private Keys" section trong output của Ganache');
   console.log('3. Copy private key của Account (0)');
   console.log('4. MetaMask → Import Account → Private Key → Paste');
-  console.log('5. Chuyển network sang "Ganache Local" (port 7545, ChainID 1337)');
+  console.log('5. Chuyển network sang "Ganache Local" (port 8545, ChainID 1337)');
   console.log('═══════════════════════════════════════════════════════════════');
 }
 

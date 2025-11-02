@@ -291,7 +291,7 @@ const realtimePrices = useRealtimePrices(
 ## ✅ **CHECKLIST**
 
 Before demo:
-- [ ] Ganache running (port 7545)
+- [ ] Ganache running (port 8545)
 - [ ] Contracts deployed
 - [ ] Auto-updater running (Terminal 1)
 - [ ] Frontend running (Terminal 2)

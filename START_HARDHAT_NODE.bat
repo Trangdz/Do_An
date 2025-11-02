@@ -5,7 +5,7 @@ echo ========================================
 echo.
 echo Configuration:
 echo   - Host: 0.0.0.0 (accessible from Docker)
-echo   - Port: 7545
+echo   - Port: 8545
 echo   - Network: ganache
 echo   - Chain ID: 5777
 echo   - WebSocket: Enabled
@@ -15,7 +15,7 @@ echo.
 pause
 
 REM Start Hardhat node
-npx hardhat node --host 0.0.0.0 --port 7545 --network ganache
+npx hardhat node --host 0.0.0.0 --port 8545 --network ganache
 
 pause
 

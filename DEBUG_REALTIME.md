@@ -31,7 +31,7 @@ Nếu không có calls → Provider chưa connect
 Đảm bảo:
 - Network: Ganache
 - Chain ID: 1337
-- RPC: http://127.0.0.1:7545
+- RPC: http://127.0.0.1:8545
 
 ---
 

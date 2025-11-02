@@ -103,7 +103,7 @@ async function main() {
   console.log("║  6. Click 'Import'                                                 ║");
   console.log("║                                                                    ║");
   console.log("║  ⚠️  MAKE SURE:                                                     ║");
-  console.log("║  - Network is 'Ganache Local' (port 7545, not 8545!)              ║");
+  console.log("║  - Network is 'Ganache Local' (port 8545, not 8545!)              ║");
   console.log("║  - Chain ID is 1337                                                ║");
   console.log("║  - After import, you should see ~99.99 ETH                         ║");
   console.log("║                                                                    ║");

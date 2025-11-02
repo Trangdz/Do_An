@@ -15,7 +15,7 @@
 - ✅ Pre-check account data
 
 ### 3. Configuration
-- ✅ Port 7545 config
+- ✅ Port 8545 config
 - ✅ Contract addresses updated
 - ✅ Frontend restarted clean
 

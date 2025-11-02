@@ -87,7 +87,7 @@ export function useSharedAPR(
     if (!poolAddress || !assetAddress) return;
 
     // Use RPC provider directly to avoid MetaMask circuit breaker
-    const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+    const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 
     // Subscribe
     if (!listeners.has(key)) listeners.set(key, new Set());
@@ -184,7 +184,7 @@ export async function triggerAPRRefresh(
   const key = `${poolAddress.toLowerCase()}-${assetAddress.toLowerCase()}`;
   try {
     // Use RPC provider directly to avoid MetaMask circuit breaker
-    const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+    const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
     const next = await fetchAPR(rpcProvider, poolAddress, assetAddress);
     store.set(key, next);
     listeners.get(key)?.forEach(fn => fn());

@@ -53,7 +53,7 @@ function updateConfig() {
     console.log('📋 Current config:');
     console.log(`   🏦 Pool: ${poolAddress}`);
     console.log(`   💰 Oracle: ${oracleAddress}`);
-    console.log(`   🔗 RPC: http://127.0.0.1:7545`);
+    console.log(`   🔗 RPC: http://127.0.0.1:8545`);
     console.log(`   🗄️ MongoDB: mongodb://localhost:27017/lendhub_local`);
     
   } catch (error) {

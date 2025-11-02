@@ -4,7 +4,7 @@ echo Starting Fresh Ganache Blockchain
 echo ========================================
 echo.
 echo This will start Ganache with:
-echo - Port: 7545
+echo - Port: 8545
 echo - Chain ID: 1337
 echo - Network ID: 1337
 echo - 10 accounts with 1000 ETH each
@@ -13,7 +13,7 @@ echo Press Ctrl+C to stop
 echo.
 
 npx ganache ^
-  --port 7545 ^
+  --port 8545 ^
   --networkId 1337 ^
   --chainId 1337 ^
   --accounts 10 ^

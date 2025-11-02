@@ -75,7 +75,7 @@ async function checkBlockchain() {
   } catch (error) {
     console.error('❌ Blockchain check failed:', error);
     console.log('\n💡 Troubleshooting tips:');
-    console.log('   1. Make sure Ganache is running on port 7545');
+    console.log('   1. Make sure Ganache is running on port 8545');
     console.log('   2. Check if contracts are deployed');
     console.log('   3. Verify RPC URL in config.env');
   }
