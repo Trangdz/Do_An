@@ -141,7 +141,7 @@ LENDING_POOL_ADDRESS=0x...
 PRICE_ORACLE_ADDRESS=0x...
 
 # RPC settings
-RPC_URL=http://localhost:8545
+RPC_URL=http://localhost:7545
 CHAIN_ID=1337
 ```
 

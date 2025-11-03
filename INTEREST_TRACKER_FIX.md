@@ -53,7 +53,7 @@ npm run interest-tracker
 
 2. **Kiểm tra RPC connection:**
    ```bash
-   curl -X POST http://localhost:8545 \
+   curl -X POST http://localhost:7545 \
      -H "Content-Type: application/json" \
      -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
    ```

@@ -62,7 +62,7 @@ docker-compose logs -f
 ## 🌐 Access Points
 
 ### Ganache Blockchain
-- **RPC URL**: http://localhost:8545
+- **RPC URL**: http://localhost:7545
 - **Network ID**: 1337
 - **Chain ID**: 1337
 - **Accounts**: 10 accounts with 1000 ETH each
@@ -84,7 +84,7 @@ docker-compose logs -f
 ┌─────────────────┐    ┌─────────────────┐
 │   Ganache       │    │   Chainlink     │
 │   (Blockchain)  │◄───┤   Node 1        │
-│   Port: 8545    │    │   Port: 6688    │
+│   Port: 7545    │    │   Port: 6688    │
 └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
@@ -96,7 +96,7 @@ docker-compose logs -f
 ┌─────────────────┐    ┌─────────────────┐
 │   Ganache       │    │   Chainlink     │
 │   (Blockchain)  │◄───┤   Node 2        │
-│   Port: 8545    │    │   Port: 6689    │
+│   Port: 7545    │    │   Port: 6689    │
 └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
@@ -139,7 +139,7 @@ node indexer/test-oracle-integration.cjs
 #### 1. Port Conflicts
 ```bash
 # Check if ports are in use
-netstat -an | findstr :8545
+netstat -an | findstr :7545
 netstat -an | findstr :6688
 netstat -an | findstr :6689
 netstat -an | findstr :5433
@@ -187,7 +187,7 @@ docker-compose restart chainlink-node1 chainlink-node2
 # Test Ganache connection
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
-  http://localhost:8545
+  http://localhost:7545
 ```
 
 #### Chainlink Node Health

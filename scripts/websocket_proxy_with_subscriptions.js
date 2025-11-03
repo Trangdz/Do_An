@@ -1,7 +1,7 @@
 const http = require('http');
 const WebSocket = require('ws');
 
-const HTTP_RPC_URL = 'http://127.0.0.1:8545';
+const HTTP_RPC_URL = 'http://127.0.0.1:7545';
 const WS_PORT = 7546;
 const POLL_INTERVAL = 1000; // Poll every 1 second
 
@@ -24,7 +24,7 @@ function makeRPCCall(method, params = []) {
 
     const req = http.request({
       hostname: '127.0.0.1',
-      port: 8545,
+      port: 7545,
       method: 'POST',
       path: '/',
       headers: {

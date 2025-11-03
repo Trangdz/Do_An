@@ -11,7 +11,7 @@ echo.
 
 REM Use hardhat node command (better WebSocket support than Ganache)
 REM Hardhat node by default uses Chain ID 31337, but we'll configure it
-npx hardhat node --hostname 0.0.0.0 --port 8545
+npx hardhat node --hostname 0.0.0.0 --port 7545
 
 pause
 

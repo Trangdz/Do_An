@@ -4,7 +4,7 @@ const { ethers } = require('ethers');
 console.log('🚀 LendHub v2 Next.js - Comprehensive Feature Test\n');
 
 // Test configuration
-const RPC_URL = 'http://127.0.0.1:8545';
+const RPC_URL = 'http://127.0.0.1:7545';
 const CHAIN_ID = 1337;
 
 // Contract addresses (latest deployed)

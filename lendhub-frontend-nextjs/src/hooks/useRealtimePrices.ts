@@ -45,7 +45,7 @@ export function useRealtimePrices(
     const fetchPrices = async () => {
       try {
         // Use JsonRpcProvider directly instead of MetaMask provider
-        const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+        const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
         const oracle = new ethers.Contract(oracleAddress, oracleABI, rpcProvider);
         const newPrices: { [address: string]: TokenPrice } = {};
 

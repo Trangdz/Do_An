@@ -11,7 +11,7 @@ $processes = Get-Process | Where-Object {$_.ProcessName -eq "powershell"}
 if ($processes.Count -eq 0) {
     Write-Host "❌ Không tìm thấy PowerShell process nào đang chạy." -ForegroundColor Red
     Write-Host "`n💡 Có thể Ganache đã bị tắt. Hãy khởi động lại:`n" -ForegroundColor Yellow
-    Write-Host "npx ganache --port 8545 --chain.chainId 1337 --wallet.mnemonic 'test test test test test test test test test test test junk' --wallet.totalAccounts 10`n" -ForegroundColor Green
+    Write-Host "npx ganache --port 7545 --chain.chainId 1337 --wallet.mnemonic 'test test test test test test test test test test test junk' --wallet.totalAccounts 10`n" -ForegroundColor Green
     exit
 }
 
@@ -52,7 +52,7 @@ Write-Host "4. Chọn 'Import Account'" -ForegroundColor White
 Write-Host "5. Chọn 'Private Key'" -ForegroundColor White
 Write-Host "6. Paste private key" -ForegroundColor White
 Write-Host "7. Click 'Import'" -ForegroundColor White
-Write-Host "8. Đảm bảo đang ở network 'Ganache Local' (port 8545)" -ForegroundColor White
+Write-Host "8. Đảm bảo đang ở network 'Ganache Local' (port 7545)" -ForegroundColor White
 Write-Host "`n✨ SAU KHI IMPORT XONG, BẠN SẼ THẤY ~99.99 ETH VÀ TẤT CẢ TOKENS! ✨`n" -ForegroundColor Green
 
 Write-Host "═══════════════════════════════════════════════════════════════`n" -ForegroundColor Gray

@@ -15,7 +15,7 @@ Ganache hiện tại có 10 accounts với 100 ETH mỗi account, NHƯNG:
 3. **New Workspace** hoặc **Quickstart**
 4. **Settings:**
    - Hostname: `127.0.0.1`
-   - Port: `8545`
+   - Port: `7545`
    - Network ID: `1337`
    - Chain ID: `1337`
    - Mnemonic: `test test test test test test test test test test test junk` ← IMPORTANT!
@@ -34,7 +34,7 @@ Update Hardhat config để dùng accounts từ Ganache:
 ```javascript
 // hardhat.config.cjs
 ganache: {
-  url: "http://127.0.0.1:8545",
+  url: "http://127.0.0.1:7545",
   chainId: 1337,
   accounts: [],  // Let Ganache manage accounts
 }

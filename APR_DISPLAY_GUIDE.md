@@ -150,7 +150,7 @@ Sau khi tích hợp, các chỉ số sẽ **TỰ ĐỘNG HIỂN THỊ** thay vì
 
 1. **Start Ganache:**
    ```bash
-   ganache-cli -p 8545 -i 1337 -m "test test test test test test test test test test test junk"
+   ganache-cli -p 7545 -i 1337 -m "test test test test test test test test test test test junk"
    ```
 
 2. **Deploy contracts:**

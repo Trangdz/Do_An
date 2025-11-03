@@ -144,13 +144,13 @@ Sau khi import, kiểm tra:
 
 ```
 Network Name:     Ganache Local
-New RPC URL:      http://127.0.0.1:8545
+New RPC URL:      http://127.0.0.1:7545
 Chain ID:         1337
 Currency Symbol:  ETH
 ```
 
 ⚠️ **QUAN TRỌNG:**
-- RPC URL phải là `http://127.0.0.1:8545` (PORT **8545**, KHÔNG phải 8545!)
+- RPC URL phải là `http://127.0.0.1:7545` (PORT **7545**, KHÔNG phải 7545!)
 - Chain ID phải là `1337`
 
 3. Click **"Save"**
@@ -192,7 +192,7 @@ Bây giờ bạn sẽ thấy:
 
 ```bash
 # Trong terminal/PowerShell tại thư mục project
-npx ganache --port 8545 --chain.chainId 1337 --wallet.mnemonic "test test test test test test test test test test test junk" --wallet.totalAccounts 10
+npx ganache --port 7545 --chain.chainId 1337 --wallet.mnemonic "test test test test test test test test test test test junk" --wallet.totalAccounts 10
 ```
 
 Sau đó:
@@ -207,7 +207,7 @@ Sau đó:
 
 Kiểm tra:
 1. **Address có đúng không?** → Phải là `0xC42B5Ed782ebE05C3621b601be03b89E86ed5558`
-2. **Network có đúng không?** → Phải là "Ganache Local" (port 8545, Chain ID 1337)
+2. **Network có đúng không?** → Phải là "Ganache Local" (port 7545, Chain ID 1337)
 3. **Contracts đã deploy chưa?** → Kiểm tra file `deployment-info.json` có tồn tại không
 4. **Frontend addresses đúng chưa?** → Kiểm tra file `lendhub-frontend-nextjs/src/addresses.js`
 
@@ -225,7 +225,7 @@ npx hardhat run scripts/deploy_all_in_one.cjs --network ganache
 ### ❌ "Network khác Chain ID"
 
 - Xóa network "Ganache Local" cũ trong MetaMask
-- Add lại với **đúng** Chain ID = **1337** và RPC URL = `http://127.0.0.1:8545`
+- Add lại với **đúng** Chain ID = **1337** và RPC URL = `http://127.0.0.1:7545`
 
 ---
 

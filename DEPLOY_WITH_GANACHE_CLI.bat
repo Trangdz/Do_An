@@ -10,7 +10,7 @@ echo.
 pause
 
 REM Start Ganache CLI in background
-start "Ganache CLI" cmd /k "ganache --host 0.0.0.0 --port 8545 --networkId 5777 --gasLimit 0x1fffffffffffff --gasPrice 20000000000 --deterministic --accounts 10 --defaultBalanceEther 1000 --mnemonic ""uniform message payment medal rural toward reject resist test immune smile ridge"" --db ""%CD%\ganache_cli_data"""
+start "Ganache CLI" cmd /k "ganache --host 0.0.0.0 --port 7545 --networkId 5777 --gasLimit 0x1fffffffffffff --gasPrice 20000000000 --deterministic --accounts 10 --defaultBalanceEther 1000 --mnemonic ""uniform message payment medal rural toward reject resist test immune smile ridge"" --db ""%CD%\ganache_cli_data"""
 
 echo.
 echo Waiting 5 seconds for Ganache to start...

@@ -7,7 +7,7 @@ echo ⚠️  CAN RESTART GANACHE DE CO ETH MOI!
 echo.
 echo Buoc 1: Dung Ganache hien tai (Ctrl+C)
 echo Buoc 2: Chay lai Ganache:
-echo    npx ganache --server.host 0.0.0.0 --server.port 8545 --chain.chainId 5777 --chain.networkId 5777
+echo    npx ganache --server.host 0.0.0.0 --server.port 7545 --chain.chainId 5777 --chain.networkId 5777
 echo.
 echo Sau do nhan phim bat ky de tiep tuc...
 pause

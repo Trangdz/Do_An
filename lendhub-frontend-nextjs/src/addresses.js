@@ -1,5 +1,5 @@
 // Auto-generated for GANACHE CLI
-// Network: http://127.0.0.1:8545 | Chain ID: 5777
+// Network: http://127.0.0.1:7545 | Chain ID: 5777
 // Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";

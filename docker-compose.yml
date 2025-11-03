@@ -1,52 +1,40 @@
-version: '3.7'
+version: '3.8'
 
 services:
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
+    platform: linux/amd64
     container_name: chainlink_postgres
-    restart: always
     environment:
-      POSTGRES_PASSWORD: password
       POSTGRES_USER: postgres
-      POSTGRES_DB: chainlink
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: chainlink_db
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - pgdata:/var/lib/postgresql/data
 
-  chainlink:
-    image: smartcontract/chainlink:1.13.0
+  chainlink-node:
+    image: smartcontract/chainlink:2.2.0
+    platform: linux/amd64
     container_name: chainlink_node
-    restart: always
+    user: root
     depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - ROOT=/chainlink
-      - LOG_LEVEL=debug
-      - ETH_CHAIN_ID=5777
-      - MIN_OUTGOING_CONFIRMATIONS=1
-      - LINK_CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
-      - CHAINLINK_TLS_PORT=0
-      - SECURE_COOKIES=false
-      - ALLOW_ORIGINS=*
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/chainlink?sslmode=disable
-      - ETH_URL=http://host.docker.internal:8545
-    ports:
-      - "6688:6688"
+      - postgres
     volumes:
       - ./chainlink-data:/chainlink
-      - ./chainlink-password.txt:/chainlink/.password:ro
-      - ./chainlink-api.txt:/chainlink/.api:ro
-    command: node start --password /chainlink/.password --api /chainlink/.api
-    user: root
+    ports:
+      - "6688:6688"
+    command: [
+      "node",
+      "-config", "/chainlink/config.toml",
+      "-secrets", "/chainlink/secrets.toml",
+      "start",
+      "-p", "/chainlink/.password",
+      "-a", "/chainlink/.api"
+    ]
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
 volumes:
-  postgres_data:
+  pgdata:

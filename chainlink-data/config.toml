@@ -1,14 +1,22 @@
-[EVM]
-[[EVM.Nodes]]
-Name = "ganache"
-WSURL = "ws://192.168.34.106:8545"
-HTTPURL = "http://192.168.34.106:8545"
-ChainID = "5777"
+[WebServer]
+AllowOrigins = "*"
+SecureCookies = false
+HTTPPort = 6688
+
+[WebServer.TLS]
+HTTPSPort = 0
 
 [Log]
-Level = "debug"
+Level = "info"
 
-[WebServer]
-HTTPPort = 6688
-TLS = { Port = 0 }
-SecureCookies = false
+[[EVM]]
+ChainID = 1337
+Enabled = true
+
+[[EVM.Nodes]]
+Name = "ganache"
+WSURL  = "ws://host.docker.internal:7545"
+HTTPURL= "http://host.docker.internal:7545"
+
+[Feature]
+LogPoller = true

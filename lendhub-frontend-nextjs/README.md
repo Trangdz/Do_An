@@ -22,7 +22,7 @@ A modern DeFi lending platform built with Next.js, React, TypeScript, and Ethers
 2. **Start Ganache:**
    ```bash
    # In another terminal
-   npx ganache-cli --port 8545
+   npx ganache-cli --port 7545
    ```
 
 3. **Deploy contracts:**
@@ -97,7 +97,7 @@ npm run deploy:netlify  # Deploy to Netlify
 
 Create `.env.local`:
 ```env
-NEXT_PUBLIC_RPC_URL=http://localhost:8545
+NEXT_PUBLIC_RPC_URL=http://localhost:7545
 NEXT_PUBLIC_CHAIN_ID=1337
 NEXT_PUBLIC_POOL=0x...
 NEXT_PUBLIC_ORACLE=0x...
@@ -242,7 +242,7 @@ npm run test:all
    - Ensure MetaMask is connected
 
 3. **Connection Issues**
-   - Verify Ganache is running on port 8545
+   - Verify Ganache is running on port 7545
    - Check network configuration
    - Ensure contracts are deployed
 

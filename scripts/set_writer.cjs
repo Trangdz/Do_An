@@ -1,25 +1,12 @@
-const { ethers } = require("hardhat");
-const fs = require("fs");
-
+const hre = require("hardhat");
+const data = require("../deployments/local-chainlink.json");
 async function main() {
+  const [deployer] = await hre.ethers.getSigners();
+  const aggregator = await hre.ethers.getContractAt("PriceAggregator", data.aggregator);
   const node = process.env.NODE_ADDRESS;
-  if (!node) throw new Error("Set NODE_ADDRESS env var");
-
-  const meta = JSON.parse(fs.readFileSync("deployments/local-chainlink.json", "utf8"));
-  const aggAddr = meta.priceAggregator;
-  
-  console.log("Aggregator:", aggAddr);
-  console.log("Node:", node);
-  
-  const agg = await ethers.getContractAt("PriceAggregator", aggAddr);
-  const tx = await agg.setWriter(node, true);
+  const tx = await aggregator.connect(deployer).setWriter(node, true);
   await tx.wait();
-  
-  console.log("Writer authorized!");
+  console.log("Authorized writer:", node);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
-
+main().catch(console.error);

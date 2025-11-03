@@ -1,88 +1,61 @@
 const axios = require("axios");
+const fs = require("fs");
 
-const CL_API_URL = process.env.CL_API_URL || "http://localhost:6688";
-const CL_EMAIL = "phamlendhub@email.com";
-const CL_PASSWORD = "SuperSecretUIpass!@#";
-
-async function main() {
-  console.log("\n╔════════════════════════════════════════════════════════════════════╗");
-  console.log("║          🔍 KIỂM TRA CHAINLINK JOB RUNS                          ║");
-  console.log("╚════════════════════════════════════════════════════════════════════╝\n");
+(async () => {
+  const [email, password] = fs.readFileSync("./chainlink-data/.api", "utf8").trim().split("\n");
+  const api = axios.create({ baseURL: "http://localhost:6688", withCredentials: true });
   
-  try {
-    const loginRes = await axios.post(`${CL_API_URL}/sessions`, {
-      email: CL_EMAIL,
-      password: CL_PASSWORD
-    });
-    const cookie = loginRes.headers["set-cookie"];
+  // Login and get cookie
+  const loginRes = await api.post("/sessions", { email, password });
+  const cookie = loginRes.headers["set-cookie"];
+  
+  // Get jobs with cookie
+  const jobsRes = await api.get("/v2/jobs", {
+    headers: { "Cookie": cookie ? cookie.join("; ") : "" }
+  });
+  console.log("=== Jobs ===");
+  jobsRes.data.data.forEach(job => {
+    console.log(`Job ID: ${job.id}, Name: ${job.name}, Type: ${job.type}`);
+  });
+  
+  if (jobsRes.data.data.length === 0) {
+    console.log("No jobs found!");
+    return;
+  }
+  
+  // Get job runs for first job
+  const jobId = jobsRes.data.data[0].id;
+  console.log("\n=== Job Runs for Job " + jobId + " ===");
+  
+  const runsRes = await api.get("/v2/jobs/" + jobId + "/runs", {
+    headers: { "Cookie": cookie ? cookie.join("; ") : "" }
+  });
+  const runs = runsRes.data.data;
+  
+  if (runs.length === 0) {
+    console.log("No runs yet. Job may be waiting for schedule.");
+    return;
+  }
+  
+  // Show last 5 runs
+  console.log(`Found ${runs.length} runs. Showing last 5:\n`);
+  runs.slice(0, 5).forEach((run, idx) => {
+    console.log(`--- Run ${idx + 1} ---`);
+    console.log(`Status: ${run.status}`);
+    console.log(`Created At: ${run.createdAt}`);
+    console.log(`Finished At: ${run.finishedAt || "Not finished"}`);
     
-    const jobsRes = await axios.get(`${CL_API_URL}/v2/jobs`, {
-      headers: { Cookie: cookie }
-    });
-    
-    const jobs = jobsRes.data.data || [];
-    console.log(`📋 Tìm thấy ${jobs.length} jobs:\n`);
-    
-    for (const job of jobs) {
-      const jobId = job.id;
-      const jobName = job.attributes.name;
-      
-      console.log(`\n${jobName} (ID: ${jobId})`);
-      console.log("─".repeat(70));
-      
-      try {
-        const runsRes = await axios.get(
-          `${CL_API_URL}/v2/jobs/${jobId}/runs`,
-          { headers: { Cookie: cookie } }
-        );
-        
-        const runs = runsRes.data.data || [];
-        
-        if (runs.length === 0) {
-          console.log("  ⚠️  Chưa có runs nào");
-        } else {
-          console.log(`  📊 Tổng số runs: ${runs.length}`);
-          console.log(`  📋 Latest runs (tối đa 5):\n`);
-          
-          const latestRuns = runs.slice(0, 5);
-          for (const run of latestRuns) {
-            const status = run.attributes.status || "unknown";
-            const createdAt = new Date(run.attributes.createdAt).toLocaleString();
-            const finishedAt = run.attributes.finishedAt 
-              ? new Date(run.attributes.finishedAt).toLocaleString() 
-              : "Chưa hoàn thành";
-            
-            console.log(`    Run ID: ${run.id}`);
-            console.log(`      Status: ${status}`);
-            console.log(`      Created: ${createdAt}`);
-            console.log(`      Finished: ${finishedAt}`);
-            
-            if (status === "errored") {
-              const errors = run.attributes.errors || [];
-              if (errors.length > 0) {
-                console.log(`      ❌ Error: ${JSON.stringify(errors[0], null, 2)}`);
-              }
-            } else if (status === "completed") {
-              console.log(`      ✅ Completed successfully`);
-            } else if (status === "in_progress") {
-              console.log(`      ⏳ Đang chạy...`);
-            }
-            
-            console.log("");
-          }
-        }
-      } catch (error) {
-        console.log(`  ❌ Lỗi lấy runs: ${error.message}`);
-      }
+    if (run.errors && run.errors.length > 0) {
+      console.log(`\n❌ Errors:`);
+      run.errors.forEach(err => {
+        console.log(`  - ${err.message || err}`);
+      });
     }
     
-    console.log("\n╔════════════════════════════════════════════════════════════════════╗");
-    console.log("║              ✅ KIỂM TRA HOÀN TẤT                                  ║");
-    console.log("╚════════════════════════════════════════════════════════════════════╝\n");
+    if (run.outputs && run.outputs.length > 0) {
+      console.log(`\nOutputs:`, JSON.stringify(run.outputs, null, 2));
+    }
     
-  } catch (error) {
-    console.error("❌ Lỗi:", error.response?.data || error.message);
-  }
-}
-
-main().catch(console.error);
+    console.log("");
+  });
+})();

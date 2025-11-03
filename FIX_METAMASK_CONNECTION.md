@@ -41,7 +41,7 @@ Tất cả 10 test accounts đã có tokens:
 
 Network Settings:
 - **Network Name**: Ganache Local
-- **RPC URL**: `http://127.0.0.1:8545`
+- **RPC URL**: `http://127.0.0.1:7545`
 - **Chain ID**: `5777`
 - **Currency Symbol**: ETH
 

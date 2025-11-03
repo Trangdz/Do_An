@@ -1,7 +1,7 @@
 {
   "network": "Ganache Local",
   "chainId": 1337,
-  "rpcUrl": "http://127.0.0.1:8545",
+  "rpcUrl": "http://127.0.0.1:7545",
   "timestamp": "2025-10-31T10:15:24.480Z",
   "deployer": "0xC42B5Ed782ebE05C3621b601be03b89E86ed5558",
   "withChainlink": true,

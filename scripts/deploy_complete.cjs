@@ -163,7 +163,7 @@ async function main() {
 
     // 2) Write .env.local to override config/contracts.ts
     const envLocalPath = path.join(frontendDir, '.env.local');
-    const envLocal = `NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8545\nNEXT_PUBLIC_CHAIN_ID=1337\nNEXT_PUBLIC_POOL=${poolAddr}\nNEXT_PUBLIC_ORACLE=${oracleAddr}\nNEXT_PUBLIC_IRM=${irmAddr}\nNEXT_PUBLIC_WETH=${wethAddr}\nNEXT_PUBLIC_DAI=${daiAddr}\nNEXT_PUBLIC_USDC=${usdcAddr}\n`;
+    const envLocal = `NEXT_PUBLIC_RPC_URL=http://127.0.0.1:7545\nNEXT_PUBLIC_CHAIN_ID=1337\nNEXT_PUBLIC_POOL=${poolAddr}\nNEXT_PUBLIC_ORACLE=${oracleAddr}\nNEXT_PUBLIC_IRM=${irmAddr}\nNEXT_PUBLIC_WETH=${wethAddr}\nNEXT_PUBLIC_DAI=${daiAddr}\nNEXT_PUBLIC_USDC=${usdcAddr}\n`;
     fs.writeFileSync(envLocalPath, envLocal);
 
     console.log("\n🛠️ Frontend updated:");

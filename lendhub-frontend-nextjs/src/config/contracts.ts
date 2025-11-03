@@ -9,7 +9,7 @@ import {
 
 // Contract configuration from environment variables
 export const CONFIG = {
-  RPC_URL: process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545',
+  RPC_URL: process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:7545',
   CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '5777', 10), // 5777
   CHAIN_ID_HEX: process.env.NEXT_PUBLIC_CHAIN_ID_HEX || '0x1691', // 5777 in hex
   

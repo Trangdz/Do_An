@@ -13,7 +13,7 @@ async function main() {
     console.log("USDC:", USDCAddress);
     
     // Connect to network
-    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
     const signer = await provider.getSigner(0); // Use account 0
     const userAddress = await signer.getAddress();
     console.log("Using account:", userAddress);

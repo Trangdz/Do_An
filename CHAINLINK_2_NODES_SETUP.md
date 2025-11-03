@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      BLOCKCHAIN (Hardhat)                        │
-│                    ws://localhost:8545                           │
+│                    ws://localhost:7545                           │
 └──────────────┬──────────────────────────────┬───────────────────┘
                │                              │
       ┌────────▼────────┐            ┌────────▼────────┐
@@ -339,7 +339,7 @@ docker compose -f docker-compose-dual-nodes.yml down
 ## TROUBLESHOOTING
 
 ### Node không kết nối được Hardhat
-- Kiểm tra `config.toml`: `WSURL = "ws://host.docker.internal:8545"`
+- Kiểm tra `config.toml`: `WSURL = "ws://host.docker.internal:7545"`
 - Hardhat phải chạy trước Docker.
 
 ### Job không chạy

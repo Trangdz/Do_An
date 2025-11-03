@@ -5,7 +5,7 @@ async function main() {
     console.log("=============================================");
 
     // Ganache connection
-    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
     
     // Contract addresses (update these with your deployed addresses)
     const LendingPoolAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // Update this

@@ -2,7 +2,7 @@ const { ethers } = require('ethers');
 
 class ChainlinkDockerTester {
   constructor() {
-    this.ganacheUrl = 'http://localhost:8545';
+    this.ganacheUrl = 'http://localhost:7545';
     this.node1Url = 'http://localhost:6688';
     this.node2Url = 'http://localhost:6689';
   }

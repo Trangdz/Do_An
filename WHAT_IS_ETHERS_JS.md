@@ -15,7 +15,7 @@ Ethers.js = Cầu nối giữa JavaScript ↔️ Ethereum Blockchain
 ### 1. **Kết nối với Blockchain**
 ```javascript
 // Kết nối tới blockchain
-const provider = new ethers.JsonRpcProvider('http://localhost:8545');
+const provider = new ethers.JsonRpcProvider('http://localhost:7545');
 const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io');
 ```
 
@@ -137,7 +137,7 @@ const { ethers } = require('ethers');
 
 async function readReserveData() {
     // Step 1: Tạo provider
-    const provider = new ethers.JsonRpcProvider('http://localhost:8545');
+    const provider = new ethers.JsonRpcProvider('http://localhost:7545');
     
     // Step 2: Load contract
     const poolAddress = '0x56328671A331a3563e86C4CC53b5E1945733A3E3';
@@ -164,7 +164,7 @@ const { ethers } = require('ethers');
 
 async function updateParameters() {
     // Step 1: Tạo provider
-    const provider = new ethers.JsonRpcProvider('http://localhost:8545');
+    const provider = new ethers.JsonRpcProvider('http://localhost:7545');
     
     // Step 2: Load wallet
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
@@ -258,7 +258,7 @@ https://docs.ethers.org/
 const { ethers } = require('ethers');
 
 // 2. Kết nối
-const provider = new ethers.JsonRpcProvider('http://localhost:8545');
+const provider = new ethers.JsonRpcProvider('http://localhost:7545');
 
 // 3. Load contract
 const contract = new ethers.Contract(address, abi, provider);

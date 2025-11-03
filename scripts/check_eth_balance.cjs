@@ -6,7 +6,7 @@ async function main() {
   console.log("\n🔍 Checking ETH balance...\n");
   console.log("Account:", accountAddress);
   
-  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
   
   try {
     const balance = await provider.getBalance(accountAddress);

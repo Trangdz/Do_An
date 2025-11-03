@@ -13,7 +13,7 @@ async function main() {
   console.log("║          🔍 CHECKING TOKEN BALANCES FOR TEST ACCOUNTS               ║");
   console.log("╚════════════════════════════════════════════════════════════════════╝\n");
 
-  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
   
   // Token addresses
   const tokens = {

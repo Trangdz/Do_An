@@ -17,7 +17,7 @@
 
 ## ✅ ĐÃ FIX:
 
-1. ✅ **Port Config:** Frontend đã chuyển từ port 8545 → 8545
+1. ✅ **Port Config:** Frontend đã chuyển từ port 7545 → 7545
 2. ✅ **Contract Deploy:** Deploy thành công với mnemonic mới
 3. ✅ **Addresses Updated:** addresses.js và .env.local đã được update
 
@@ -39,7 +39,7 @@ Frontend cần reload để nhận config mới:
 
 ## 🎯 KIỂM TRA:
 
-1. ✅ Ganache đang chạy trên port 8545
+1. ✅ Ganache đang chạy trên port 7545
 2. ✅ Contracts đã deploy
 3. ✅ Frontend đang dùng đúng port
 4. ✅ Refresh browser để áp dụng

@@ -47,7 +47,7 @@ Hệ thống đã được implement để **tự động lưu trữ và tính l
 File: `indexer/config.env`
 ```env
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/lendhub
-RPC_URL=http://localhost:8545
+RPC_URL=http://localhost:7545
 LENDING_POOL_ADDRESS=0x...
 ORACLE_ADDRESS=0x...
 ```

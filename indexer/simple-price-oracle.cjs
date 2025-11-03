@@ -88,7 +88,7 @@ class SimplePriceOracle {
 
 async function main() {
   const oracle = new SimplePriceOracle(
-    'http://127.0.0.1:8545',
+    'http://127.0.0.1:7545',
     '0x211047ff1b0181fE687D15e02357c77782be7B89', // Oracle address from config
     'mongodb://localhost:27017/lendhub_local'
   );

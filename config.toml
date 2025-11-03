@@ -16,8 +16,8 @@ ChainID = '1337'
 
 [[EVM.Nodes]]
 Name = 'Ganache'
-WSURL = 'ws://host.docker.internal:8545'
-HTTPURL = 'http://host.docker.internal:8545'
+WSURL = 'ws://host.docker.internal:7545'
+HTTPURL = 'http://host.docker.internal:7545'
 
 [EVM.GasEstimator]
 Mode = 'FixedPrice'

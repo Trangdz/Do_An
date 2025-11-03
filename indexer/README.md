@@ -34,7 +34,7 @@ Copy `config.env` and update with your values:
 MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/lendhub?retryWrites=true&w=majority
 
 # Blockchain Configuration
-RPC_URL=http://localhost:8545
+RPC_URL=http://localhost:7545
 LENDING_POOL_ADDRESS=0x... # Your LendingPool contract address
 ORACLE_ADDRESS=0x... # Your PriceOracle contract address
 

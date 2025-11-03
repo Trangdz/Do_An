@@ -1,20 +1,11 @@
-const { ethers } = require("hardhat");
-
+const hre = require("hardhat");
 async function main() {
+  const [deployer] = await hre.ethers.getSigners();
   const node = process.env.NODE_ADDRESS;
-  const amountEth = process.env.AMOUNT_ETH || "1.0";
-  if (!node) throw new Error("Set NODE_ADDRESS env var");
-
-  const [sender] = await ethers.getSigners();
-  console.log("From:", sender.address);
-  console.log("To (node):", node);
-  console.log("Amount:", amountEth, "ETH");
-
-  const tx = await sender.sendTransaction({ to: node, value: ethers.parseEther(amountEth) });
+  const amount = hre.ethers.parseEther(process.env.AMOUNT_ETH || "5.0");
+  const tx = await deployer.sendTransaction({ to: node, value: amount });
   await tx.wait();
-  console.log("Sent. Tx:", tx.hash);
+  console.log(`Funded ${node} with ${process.env.AMOUNT_ETH} ETH`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
-
-
+main().catch(console.error);

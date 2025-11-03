@@ -37,7 +37,7 @@ async function testCompleteFlow() {
   console.log('🧪 === AUTOMATED COMPLETE FLOW TEST ===\n');
   
   // Setup provider and accounts
-  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
   const [deployer, user1, user2] = await provider.listAccounts();
   const signer1 = await provider.getSigner(user1);
   const signer2 = await provider.getSigner(user2);

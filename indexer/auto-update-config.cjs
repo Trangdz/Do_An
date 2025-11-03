@@ -227,7 +227,7 @@ if (require.main === module) {
   const addresses = {
     poolAddress: '0x99E9FeE4528ab3eD69e07E775cE868209f5FC3d7',
     oracleAddress: '0x211047ff1b0181fE687D15e02357c77782be7B89',
-    rpcUrl: 'http://127.0.0.1:8545',
+    rpcUrl: 'http://127.0.0.1:7545',
     mongoUri: 'mongodb://localhost:27017/lendhub_local'
   };
   

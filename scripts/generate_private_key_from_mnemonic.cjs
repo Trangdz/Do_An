@@ -63,7 +63,7 @@ for (const mnemonic of mnemonics) {
         console.log("║                                                                    ║");
         console.log("║  ⚠️  IMPORTANT:                                                     ║");
         console.log("║  - Make sure you're on 'Ganache Local' network                     ║");
-        console.log("║  - RPC URL: http://127.0.0.1:8545 (port 8545, not 8545!)          ║");
+        console.log("║  - RPC URL: http://127.0.0.1:7545 (port 7545, not 7545!)          ║");
         console.log("║  - Chain ID: 1337                                                  ║");
         console.log("║                                                                    ║");
         console.log("║  ✅ After import, you should see:                                  ║");

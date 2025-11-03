@@ -11,7 +11,7 @@ async function main() {
   console.log("\n🔍 Checking prices in aggregators...\n");
   
   const aggregators = JSON.parse(fs.readFileSync("deployments/aggregators.json", "utf8")).aggregators;
-  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
   
   for (const [symbol, address] of Object.entries(aggregators)) {
     try {

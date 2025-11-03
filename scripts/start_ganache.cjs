@@ -3,7 +3,7 @@ const { spawn } = require('child_process');
 console.log('🚀 Starting Ganache...');
 
 // Start Ganache with specific configuration
-const ganache = spawn('npx', ['ganache', '--port', '8545', '--chainId', '1337', '--gasLimit', '10000000'], {
+const ganache = spawn('npx', ['ganache', '--port', '7545', '--chainId', '1337', '--gasLimit', '10000000'], {
   stdio: 'inherit',
   shell: true
 });
@@ -23,5 +23,5 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-console.log('✅ Ganache started on http://127.0.0.1:8545');
+console.log('✅ Ganache started on http://127.0.0.1:7545');
 console.log('Press Ctrl+C to stop');

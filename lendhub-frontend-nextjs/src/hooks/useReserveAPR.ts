@@ -51,7 +51,7 @@ export function useReserveAPR(
         setData(prev => ({ ...prev, isLoading: true, error: null }));
         
         // Use RPC provider directly to avoid MetaMask circuit breaker
-        const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+        const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
         const aprData = await getReserveAPRData(rpcProvider, poolAddress, assetAddress);
         
         if (isMounted) {

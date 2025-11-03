@@ -2,7 +2,7 @@ const { ethers } = require("ethers");
 
 async function main() {
   try {
-    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
     const network = await provider.getNetwork();
     const blockNumber = await provider.getBlockNumber();
     
@@ -43,7 +43,7 @@ async function main() {
     console.log("❌ Ganache is NOT running or not accessible");
     console.log("Error:", error.message);
     console.log("\n💡 Please start Ganache:");
-    console.log("npx ganache --port 8545 --chain.chainId 1337 --wallet.mnemonic \"high project east dream doctor glad picnic fiscal assault asthma vendor amateur\" --wallet.totalAccounts 10");
+    console.log("npx ganache --port 7545 --chain.chainId 1337 --wallet.mnemonic \"high project east dream doctor glad picnic fiscal assault asthma vendor amateur\" --wallet.totalAccounts 10");
   }
 }
 

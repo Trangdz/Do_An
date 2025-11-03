@@ -1,0 +1,7 @@
+﻿type = "cron"
+schemaVersion = 1
+name = "Test Job"
+schedule = "@every 1m"
+observationSource = '''
+encode [type="ethabiencode" abi="setPrice(uint256 value)" data={"value": 123}]
+'''

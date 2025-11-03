@@ -1,7 +1,7 @@
 const http = require('http');
 const WebSocket = require('ws');
 
-const HTTP_RPC_URL = 'http://127.0.0.1:8545';
+const HTTP_RPC_URL = 'http://127.0.0.1:7545';
 const WS_PORT = 7546; // WebSocket proxy port
 
 // HTTP server để forward JSON-RPC requests
@@ -19,7 +19,7 @@ wss.on('connection', (ws) => {
       // Forward to HTTP RPC
       const httpRequest = http.request({
         hostname: '127.0.0.1',
-        port: 8545,
+        port: 7545,
         method: 'POST',
         path: '/',
         headers: {

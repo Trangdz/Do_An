@@ -231,7 +231,7 @@ A: "Có ạ. Chainlink dùng multiple nodes → fetch từ multiple
 ## ✅ **CHECKLIST TRƯỚC KHI DEMO**
 
 ### **Technical:**
-- [ ] Ganache đang chạy (port 8545)
+- [ ] Ganache đang chạy (port 7545)
 - [ ] Deploy với `deploy_ganache.cjs` (có real prices)
 - [ ] Frontend đang chạy (port 3000)
 - [ ] Check giá trong app = giá trong CoinGecko

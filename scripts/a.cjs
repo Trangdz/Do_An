@@ -135,7 +135,7 @@ async function main() {
   // Update addresses.js
   const addressesJsPath = path.join(frontendDir, 'src', 'addresses.js');
   const addressesJs = `// Auto-generated for GANACHE
-// Network: http://127.0.0.1:8545 | Chain ID: 1337
+// Network: http://127.0.0.1:7545 | Chain ID: 1337
 // Mnemonic: test test test test test test test test test test test junk
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
@@ -157,7 +157,7 @@ ${signers.slice(0, numUsers).map((s, i) => `export const User${i}Address = "${s.
   // Update .env.local
   const envLocalPath = path.join(frontendDir, '.env.local');
   const envLocal = `# GANACHE LOCAL NETWORK
-NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8545
+NEXT_PUBLIC_RPC_URL=http://127.0.0.1:7545
 NEXT_PUBLIC_CHAIN_ID=1337
 NEXT_PUBLIC_POOL=${poolAddr}
 NEXT_PUBLIC_ORACLE=${oracleAddr}
@@ -208,10 +208,10 @@ NEXT_PUBLIC_LINK=${linkAddr}
   if (indexerConfig.includes('RPC_URL=')) {
     indexerConfig = indexerConfig.replace(
       /RPC_URL=.*/,
-      `RPC_URL=http://127.0.0.1:8545`
+      `RPC_URL=http://127.0.0.1:7545`
     );
   } else {
-    indexerConfig += `\nRPC_URL=http://127.0.0.1:8545\n`;
+    indexerConfig += `\nRPC_URL=http://127.0.0.1:7545\n`;
   }
   
   // Update MONGODB_URI
@@ -228,7 +228,7 @@ NEXT_PUBLIC_LINK=${linkAddr}
   console.log("✅ Updated indexer config.env");
   console.log(`   🏦 Pool: ${poolAddr}`);
   console.log(`   💰 Oracle: ${oracleAddr}`);
-  console.log(`   🔗 RPC: http://127.0.0.1:8545`);
+  console.log(`   🔗 RPC: http://127.0.0.1:7545`);
   console.log(`   🗄️ MongoDB: mongodb://localhost:27017/lendhub_local`);
 
   // ============================================
@@ -255,10 +255,10 @@ NEXT_PUBLIC_LINK=${linkAddr}
   
   console.log("\n📋 NEXT STEPS:");
   console.log("1. Start Ganache with this command:");
-  console.log('   ganache-cli -p 8545 -i 1337 -m "test test test test test test test test test test test junk"');
+  console.log('   ganache-cli -p 7545 -i 1337 -m "test test test test test test test test test test test junk"');
   console.log("2. Import any of the 10 accounts to MetaMask");
   console.log("3. Start frontend: cd lendhub-frontend-nextjs && npm run dev");
-  console.log("4. Connect MetaMask to Ganache (localhost:8545, Chain ID: 1337)");
+  console.log("4. Connect MetaMask to Ganache (localhost:7545, Chain ID: 1337)");
   console.log("5. Start indexer: cd indexer && node index.js");
   console.log("6. Start testing!");
   

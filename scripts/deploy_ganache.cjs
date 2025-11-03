@@ -212,7 +212,7 @@ async function main() {
     const addressesJsPath = path.join(frontendDir, 'src', 'addresses.js');
     const mockAggLine = mockAggregator ? `export const MockV3AggregatorAddress = "${await mockAggregator.getAddress()}";\n` : '';
     const addressesJs = `// Contract addresses (auto-updated by deploy script - GANACHE)
-// Network: Ganache Local (http://127.0.0.1:8545)
+// Network: Ganache Local (http://127.0.0.1:7545)
 // Chain ID: 1337
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
 export const LendingPoolAddress = "${poolAddr}";
@@ -234,7 +234,7 @@ export const LiquidatorAddress = "${liquidator.address}";
     // 2) Write .env.local to override config/contracts.ts
     const envLocalPath = path.join(frontendDir, '.env.local');
     const envLocal = `# GANACHE LOCAL NETWORK
-NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8545
+NEXT_PUBLIC_RPC_URL=http://127.0.0.1:7545
 NEXT_PUBLIC_CHAIN_ID=1337
 NEXT_PUBLIC_POOL=${poolAddr}
 NEXT_PUBLIC_ORACLE=${oracleAddr}
@@ -330,7 +330,7 @@ NEXT_PUBLIC_LINK=${linkAddr}
 
   console.log("\n🎉 Complete deployment to GANACHE finished! ✅");
   console.log("\n📋 Next steps:");
-  console.log("1. Ganache is running at http://127.0.0.1:8545");
+  console.log("1. Ganache is running at http://127.0.0.1:7545");
   console.log("2. Import Ganache accounts to MetaMask:");
   console.log(`   - Deployer: ${deployer.address}`);
   console.log(`   - User: ${user.address}`);

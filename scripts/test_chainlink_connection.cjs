@@ -5,7 +5,7 @@ async function main() {
   
   // Test if we can reach Ganache from host
   try {
-    const ganacheRes = await axios.post('http://127.0.0.1:8545', {
+    const ganacheRes = await axios.post('http://127.0.0.1:7545', {
       jsonrpc: "2.0",
       method: "eth_blockNumber",
       params: [],

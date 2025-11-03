@@ -3,7 +3,7 @@ echo Starting Ganache for Docker/Chainlink...
 echo ========================================
 echo.
 echo Configuration:
-echo - Port: 8545
+echo - Port: 7545
 echo - Network ID: 1337
 echo - Chain ID: 1337
 echo - Host: 0.0.0.0 (accessible from Docker)
@@ -14,7 +14,7 @@ echo Press Ctrl+C to stop
 echo.
 
 npx ganache ^
-  --port 8545 ^
+  --port 7545 ^
   --networkId 1337 ^
   --chainId 1337 ^
   --accounts 10 ^
