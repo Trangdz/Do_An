@@ -1,12 +1,6 @@
 {
-  "network": "5777",
-  "deployer": "0x51c4941fcc9e5aDC2B97CCfe594d7363aA64A108",
-  "aggregators": {
-    "ETH": "0xCb215B63885E7fbE526c3eb60E0DBf346B95eb25",
-    "WETH": "0x2B8e8EFd011c9B43765D9f7b32D54eFe3fbc5eCd",
-    "USDC": "0xE61cD632ef12182Cfce5B5A086f6f5e7bDf322C9",
-    "DAI": "0x3F584c47bB8Eb94E004A8f412c778681E3DBe4B7",
-    "LINK": "0x5b69cB58C4A20797C6F5C1a9e1b7BE2E0d9b801D"
-  },
-  "timestamp": "2025-11-02T09:28:54.474Z"
+  "network": "1337",
+  "deployer": "0x7a45700Fd383262624Df7F75dB4D718DF47d711C",
+  "aggregators": {},
+  "timestamp": "2025-11-03T08:26:33.122Z"
 }

@@ -1,3 +1,17 @@
 {
-  "aggregator": "0x1ca2a5D1B747c106E0F5CC020913c6FCBAe5be7C"
+  "network": "1337",
+  "deployer": "0x7a45700Fd383262624Df7F75dB4D718DF47d711C",
+  "contracts": {
+    "lendingPool": "0xD96AaC9568D25Bb940b1315Bd05Fa38337F813d2",
+    "interestRateModel": "0x3B3476833e89A93408dCAB413439b927c75cB88f",
+    "priceOracle": "0x4eA7b31c30fDe39DF4CeAD773D13634e736B6cc1",
+    "multiPriceAggregator": "0x93B5d81A103Bb53634246edfe929D9f1868b099A"
+  },
+  "tokens": {
+    "weth": "0x268d24f35E86d6DeF7E69219bE82a5254AE7E839",
+    "usdc": "0xaeA085EBCa9606026777AC5C059BE75043465051",
+    "dai": "0x9B9f136e08DF1AaB1034398900bA54a610b52ad4",
+    "link": "0x38630eEA4ca7c294bB7a67aECD904bD6fbf53572"
+  },
+  "timestamp": "2025-11-03T08:26:33.103Z"
 }
