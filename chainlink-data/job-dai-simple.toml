@@ -1,0 +1,16 @@
+type = "cron"
+schemaVersion = 1
+name = "DAI/USD Simple"
+forwardingAllowed = false
+maxTaskDuration = "0s"
+schedule = "@every 30s"
+observationSource = """
+fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=USDTDAI" allowUnrestrictedNetworkAccess=true]\n
+parse    [type="jsonparse" path="price" data="$(fetch)"]\n
+divide   [type="divide" input="100000000" divisor="$(parse)"]\n
+multiply [type="multiply" input="$(divide)" times=100000000]\n
+encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"DAI\\\", \\\"price\\\": $(multiply)}"]\n
+submit   [type="ethtx" to="0x33891f1fDA4555b733473D34EEF02cAd458db9a3" data="$(encode)" gasLimit="500000"]\n
+fetch->parse->divide->multiply->encode->submit
+"""
+
