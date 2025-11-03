@@ -48,16 +48,23 @@ export function useChainlinkPrice(
         const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
         const aggregator = new ethers.Contract(aggregatorAddress, AGGREGATOR_ABI, provider);
 
-        // Lấy decimals và giá - thử latestRoundData trước, fallback to latestAnswer
-        let decimalsValue, answer, roundId, updatedAt;
-        
+        // Nếu địa chỉ không phải contract, trả về 0 và không báo lỗi
+        const codeAt = await provider.getCode(aggregatorAddress);
+        if (!codeAt || codeAt === '0x') {
+          if (isMounted) {
+            setData({ price: 0, roundId: 0, updatedAt: new Date(), isLoading: false, error: null });
+          }
+          return;
+        }
+
+        // Luôn dùng 8 decimals cho local PriceAggregator (không có decimals())
+        let decimalsValue = 8;
+        let answer: bigint | number = 0n;
+        let roundId: number | bigint = 0n;
+        let updatedAt: number | bigint = 0n;
+
         try {
-          const [decimalsVal, roundDataResult] = await Promise.all([
-            aggregator.decimals(),
-            aggregator.latestRoundData()
-          ]);
-          
-          decimalsValue = decimalsVal;
+          const roundDataResult = await aggregator.latestRoundData();
           [roundId, answer, , updatedAt, ] = roundDataResult;
         } catch (error: any) {
           // Check if error is "NoData" - aggregator exists but hasn't been updated yet
@@ -68,7 +75,7 @@ export function useChainlinkPrice(
           const errorData = error?.data || error?.transaction?.data || '';
           
           const isNoDataError = 
-            errorCode === 'CALL_EXCEPTION' && (
+            (errorCode === 'CALL_EXCEPTION' || errorCode === 'BAD_DATA') && (
               errorMessage.includes('NoData') ||
               errorMessage.includes('execution reverted') ||
               errorMessage.includes('no data present') ||

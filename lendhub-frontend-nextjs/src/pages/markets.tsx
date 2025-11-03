@@ -6,6 +6,7 @@ import { PriceOracleAddress, LendingPoolAddress } from '@/addresses';
 import { useRealtimePrices } from '@/hooks/useRealtimePrices';
 import { useReserveAPR } from '@/hooks/useReserveAPR';
 import { useChainlinkPrice } from '@/hooks/useChainlinkPrice';
+import useMultiPriceAggregator from '@/hooks/useMultiPriceAggregator';
 import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
 
 // Token icon component
@@ -35,15 +36,28 @@ function MarketRow({ token, poolAddress }: any) {
     30000 // Refresh every 30s
   );
   
-  // Get price from Chainlink PriceAggregator if available, fallback to 0
-  const { price: chainlinkPrice, isLoading: priceLoading, error: priceError } = useChainlinkPrice(
-    token.aggregatorAddress || '',
-    10000 // Update every 10s
+  // Prefer MultiPriceAggregator if configured, otherwise fallback to per-token aggregator
+  const multiAddr = (CONFIG as any).MULTI_PRICE_AGGREGATOR || '';
+  const { price: multiPrice, isLoading: multiLoading, error: multiError } = useMultiPriceAggregator(
+    multiAddr,
+    token.symbol,
+    30000
   );
+
+  // Only call per-token Chainlink hook when MultiPriceAggregator is not configured
+  const enablePerToken = !multiAddr;
+  const perToken = enablePerToken
+    ? useChainlinkPrice(token.aggregatorAddress || '', 30000)
+    : { price: 0, isLoading: false, error: null as any };
+  const chainlinkPrice = perToken.price;
+  const priceLoading = perToken.isLoading;
+  const priceError = perToken.error as any;
   
   // Use Chainlink price if available, otherwise fallback to 0
   // If there's an error but it's a NoData error, still show 0 (not an error)
-  const price = (priceError && !priceError.includes('NoData')) ? 0 : (chainlinkPrice || 0);
+  const price = multiAddr
+    ? (multiError ? 0 : (multiPrice || 0))
+    : ((priceError && !priceError.includes('NoData')) ? 0 : (chainlinkPrice || 0));
   
   const formatPercentage = (value: number) => {
     if (!value || value === 0) return '0.00%';
@@ -178,7 +192,7 @@ export default function MarketsPage() {
   const isConnected = !!metamaskDetails.currentAccount;
   
   // Get token addresses (excluding ETH native token)
-  const tokens = CONFIG.TOKENS.filter(t => !t.isNative);
+  const tokens = CONFIG.TOKENS.filter(t => t.symbol !== 'ETH');
 
   return (
     <AppLayout>
@@ -280,7 +294,7 @@ export default function MarketsPage() {
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 All prices are fetched from Chainlink Oracle in real-time. 
-                Prices update automatically every 10 seconds.
+                Prices update automatically every 30 seconds.
               </p>
             </CardContent>
           </Card>

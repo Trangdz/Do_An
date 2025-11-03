@@ -17,6 +17,8 @@ export const CONFIG = {
   LENDING_POOL: LendingPoolAddress,
   PRICE_ORACLE: PriceOracleAddress,
   WETH: WETHAddress,
+  // Optional: MultiPriceAggregator (string address via env). Fallback to latest deployed address
+  MULTI_PRICE_AGGREGATOR: process.env.NEXT_PUBLIC_MULTI_PRICE_AGGREGATOR || '0x149Ad3c157e4d1356534daEd0B893913432bff5f',
   
   // Token configuration
   TOKENS: [
