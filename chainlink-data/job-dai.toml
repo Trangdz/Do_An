@@ -1,17 +1,19 @@
 type = "cron"
 schemaVersion = 1
-name = "DAI/USD Price v2"
+name = "DAI/USD Simple v4"
 forwardingAllowed = false
 maxTaskDuration = "0s"
 schedule = "@every 30s"
 observationSource = """
 fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=USDTDAI" allowUnrestrictedNetworkAccess=true]\n
 parse    [type="jsonparse" path="price" data="$(fetch)"]\n
-multiply_parse [type="multiply" input="$(parse)" times=100000000]\n
-divide   [type="divide" input="100000000000000000" divisor="$(multiply_parse)"]\n
-multiply_round [type="multiply" input="$(divide)" times=100000000]\n
-divide_final [type="divide" input="$(multiply_round)" divisor="100000000000000000"]\n
-encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"DAI\\\", \\\"price\\\": $(divide_final)}"]\n
-submit   [type="ethtx" to="0x33891f1fDA4555b733473D34EEF02cAd458db9a3" data="$(encode)" gasLimit="500000"]\n
-fetch->parse->multiply_parse->divide->multiply_round->divide_final->encode->submit
+# p_scaled = price * 1e8 (USDT/DAI)
+scale    [type="multiply" input="$(parse)" times=100000000]\n
+# invert_scaled = 1e16 / p_scaled  => DAI/USD with 8 decimals
+invert   [type="divide" input="10000000000000000" divisor="$(scale)"]\n
+# invert đã là số nguyên 8 decimals nếu đầu vào có 8 decimals
+encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"DAI\\\", \\\"price\\\": $(invert)}"]\n
+submit   [type="ethtx" to="0x149Ad3c157e4d1356534daEd0B893913432bff5f" data="$(encode)" gasLimit="500000"]\n
+fetch->parse->scale->invert->encode->submit
 """
+

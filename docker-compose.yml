@@ -2,39 +2,31 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
-    platform: linux/amd64
-    container_name: chainlink_postgres
+    image: postgres:15
+    container_name: cl-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: mysecretpassword
-      POSTGRES_DB: chainlink_db
+      - POSTGRES_PASSWORD=mysecretpassword
+      - POSTGRES_DB=postgres
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  chainlink-node:
-    image: smartcontract/chainlink:2.2.0
-    platform: linux/amd64
-    container_name: chainlink_node
-    user: root
+  chainlink:
+    image: chainlink-local
+    container_name: chainlink-node
     depends_on:
       - postgres
+    env_file: .env
+    command: ["local", "n", "-p", "/chainlink/.password", "-a", "/chainlink/.api"]
     volumes:
       - ./chainlink-data:/chainlink
     ports:
       - "6688:6688"
-    command: [
-      "node",
-      "-config", "/chainlink/config.toml",
-      "-secrets", "/chainlink/secrets.toml",
-      "start",
-      "-p", "/chainlink/.password",
-      "-a", "/chainlink/.api"
-    ]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+
+networks:
+  chainlink-local:
+    driver: bridge
 
 volumes:
   pgdata:
