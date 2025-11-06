@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "march visit wrist dawn boil antenna exchange army dilemma eagle faith claim",
+        mnemonic: "endorse below law public produce reopen social ask reveal increase farm glad",
         count: 10, // Generate 10 accounts
       },
     },

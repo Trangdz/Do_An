@@ -13,12 +13,12 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   chainlink:
-    image: chainlink-local
+    image: smartcontract/chainlink:2.2.0
     container_name: chainlink-node
     depends_on:
       - postgres
-    env_file: .env
-    command: ["local", "n", "-p", "/chainlink/.password", "-a", "/chainlink/.api"]
+    user: root
+    command: ["node", "-config", "/chainlink/config.toml", "-secrets", "/chainlink/secrets.toml", "start", "-p", "/chainlink/.password", "-a", "/chainlink/.api"]
     volumes:
       - ./chainlink-data:/chainlink
     ports:

@@ -18,7 +18,7 @@ export const CONFIG = {
   PRICE_ORACLE: PriceOracleAddress,
   WETH: WETHAddress,
   // Optional: MultiPriceAggregator (string address via env). Fallback to latest deployed address
-  MULTI_PRICE_AGGREGATOR: process.env.NEXT_PUBLIC_MULTI_PRICE_AGGREGATOR || '0x149Ad3c157e4d1356534daEd0B893913432bff5f',
+  MULTI_PRICE_AGGREGATOR: process.env.NEXT_PUBLIC_MULTI_PRICE_AGGREGATOR || '0x1de99f8B97E975506b17275300998442ee9b7Acf',
   
   // Token configuration
   TOKENS: [

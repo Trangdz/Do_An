@@ -35,6 +35,31 @@ async function main() {
     "deployments/multi-price.json",
     JSON.stringify({ aggregator: multiAddr }, null, 2)
   );
+  
+  // Auto-update Chainlink TOML job targets to newly deployed MultiPriceAggregator
+  try {
+    const jobsDir = path.join(process.cwd(), "chainlink-data");
+    const jobFiles = [
+      "job-eth.toml",
+      "job-weth.toml",
+      "job-usdc.toml",
+      "job-dai.toml",
+      "job-link.toml",
+    ];
+    for (const jf of jobFiles) {
+      const p = path.join(jobsDir, jf);
+      if (!fs.existsSync(p)) continue;
+      let content = fs.readFileSync(p, "utf8");
+      // Replace any existing to="0x..." with the new aggregator address
+      content = content.replace(/to="0x[a-fA-F0-9]{40}"/g, `to="${multiAddr}"`);
+      // Ensure submit step has to= set (in case missing)
+      content = content.replace(/(submit\s+\[type="ethtx"\s+)(data=)/, `$1to="${multiAddr}" $2`);
+      fs.writeFileSync(p, content);
+    }
+    console.log("✅ Updated Chainlink job TOMLs with MultiPriceAggregator address:", multiAddr);
+  } catch (e) {
+    console.warn("⚠️  Could not auto-update Chainlink job TOMLs:", e.message);
+  }
   console.log("\n╔════════════════════════════════════════════════════════════════════╗");
   console.log("║          🚀 LENDHUB COMPLETE DEPLOYMENT TO GANACHE CLI             ║");
   console.log("╚════════════════════════════════════════════════════════════════════╝\n");
