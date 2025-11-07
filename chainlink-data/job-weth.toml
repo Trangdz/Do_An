@@ -1,6 +1,6 @@
 type = "cron"
 schemaVersion = 1
-name = "ETH/USD Price"
+name = "WETH/USD Price"
 forwardingAllowed = false
 maxTaskDuration = "0s"
 schedule = "@every 30s"
@@ -8,8 +8,7 @@ observationSource = """
 fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT" allowUnrestrictedNetworkAccess=true]\n
 parse    [type="jsonparse" path="price" data="$(fetch)"]\n
 multiply [type="multiply" input="$(parse)" times=100000000]\n
-encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"ETH\\\", \\\"price\\\": $(multiply)}"]\n
+encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"WETH\\\", \\\"price\\\": $(multiply)}"]\n
 submit   [type="ethtx" to="0x1D00835fB29E1E2f7FDf52533Da99315B951670f" data="$(encode)" gasLimit="500000"]\n
 fetch->parse->multiply->encode->submit
 """
-

@@ -75,15 +75,23 @@ export async function getReserveAPRData(
       throw new Error('Invalid pool address');
     }
     
+    // Handle zero address (native tokens like ETH) gracefully - return default values
     if (!assetAddress || assetAddress === '0x0000000000000000000000000000000000000000') {
-      console.error('❌ Invalid asset address');
-      throw new Error('Invalid asset address');
+      console.warn('⚠️ Zero address or invalid asset address - returning default values (native token like ETH)');
+      return {
+        supplyAPR: 0,
+        borrowAPR: 0,
+        utilization: 0,
+        totalSupplied: '0',
+        totalBorrowed: '0',
+      };
     }
     
     // LendingPool ABI - Map correctly to ReserveData struct (18 fields total)
     const poolABI = [
       'function reserves(address) external view returns (uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate)',
-      'function interestRateModel() external view returns (address)'
+      'function interestRateModel() external view returns (address)',
+      'function _accrue(address) external' // For testing - not needed for read
     ];
     
     const pool = new ethers.Contract(poolAddress, poolABI, provider);
@@ -123,61 +131,35 @@ export async function getReserveAPRData(
     console.log('📦 Reserve data retrieved, lastUpdate:', reserveRaw.lastUpdate.toString());
     
     // Extract fields from named tuple
-    const reserve = {
-      reserveCash: reserveRaw.reserveCash,                    // uint128
-      totalDebtPrincipal: reserveRaw.totalDebtPrincipal,     // uint128
-      reserveFactorBps: reserveRaw.reserveFactorBps,         // uint16
-      optimalUBps: reserveRaw.optimalUBps,                   // uint16
-      baseRateRayPerSec: reserveRaw.baseRateRayPerSec,        // uint64
-      slope1RayPerSec: reserveRaw.slope1RayPerSec,            // uint64
-      slope2RayPerSec: reserveRaw.slope2RayPerSec             // uint64
-    };
+    // Reserve already has updated rates from _accrue() - use them directly
+    const reserveCash = reserveRaw.reserveCash;
+    const totalDebtPrincipal = reserveRaw.totalDebtPrincipal;
+    const liquidityRateRayPerSec = reserveRaw.liquidityRateRayPerSec;
+    const variableBorrowRateRayPerSec = reserveRaw.variableBorrowRateRayPerSec;
+    const reserveFactorBps = reserveRaw.reserveFactorBps;
+    const decimals = reserveRaw.decimals || 18; // Default to 18 if not provided
     
     console.log('✅ Reserve data:', {
-      cash: reserve.reserveCash.toString(),
-      debt: reserve.totalDebtPrincipal.toString(),
-      optimalU: reserve.optimalUBps.toString()
+      cash: reserveCash.toString(),
+      debt: totalDebtPrincipal.toString(),
+      liquidityRate: liquidityRateRayPerSec.toString(),
+      borrowRate: variableBorrowRateRayPerSec.toString(),
+      reserveFactor: reserveFactorBps.toString(),
+      decimals: decimals.toString()
     });
     
-    // Get InterestRateModel address
-    const irmAddress = await pool.interestRateModel();
-    
-    // InterestRateModel ABI
-    const irmABI = [
-      'function getRates(uint256 cash, uint256 debtNow, uint16 reserveFactorBps, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec) external pure returns (uint64 borrowRateRayPerSec, uint64 supplyRateRayPerSec)'
-    ];
-    
-    const irm = new ethers.Contract(irmAddress, irmABI, provider);
-    
-    console.log('🔧 IRM Parameters:', {
-      cash: reserve.reserveCash.toString(),
-      debt: reserve.totalDebtPrincipal.toString(),
-      reserveFactorBps: reserve.reserveFactorBps.toString(),
-      optimalUBps: reserve.optimalUBps.toString(),
-      baseRate: reserve.baseRateRayPerSec.toString(),
-      slope1: reserve.slope1RayPerSec.toString(),
-      slope2: reserve.slope2RayPerSec.toString()
-    });
-    
-    // Calculate current rates
-    const rates = await irm.getRates(
-      reserve.reserveCash,
-      reserve.totalDebtPrincipal,
-      reserve.reserveFactorBps,
-      reserve.optimalUBps,
-      reserve.baseRateRayPerSec,
-      reserve.slope1RayPerSec,
-      reserve.slope2RayPerSec
-    );
-    
-    console.log('📊 Raw Rates from IRM:', {
-      borrowRateRayPerSec: rates.borrowRateRayPerSec.toString(),
-      supplyRateRayPerSec: rates.supplyRateRayPerSec.toString()
+    // Use rates directly from reserve (already updated by _accrue())
+    // These rates are already calculated based on current utilization
+    console.log('📊 Using rates directly from reserve (already updated by _accrue()):', {
+      liquidityRateRayPerSec: liquidityRateRayPerSec.toString(),
+      variableBorrowRateRayPerSec: variableBorrowRateRayPerSec.toString()
     });
     
     // Convert rates to APR
-    const supplyAPR = rayPerSecToAPR(rates.supplyRateRayPerSec);
-    const borrowAPR = rayPerSecToAPR(rates.borrowRateRayPerSec);
+    // Supply APR = liquidityRate (what suppliers earn)
+    // Borrow APR = variableBorrowRate (what borrowers pay)
+    const supplyAPR = rayPerSecToAPR(liquidityRateRayPerSec);
+    const borrowAPR = rayPerSecToAPR(variableBorrowRateRayPerSec);
     
     console.log('💰 APR Results:', {
       supplyAPR: supplyAPR.toFixed(4) + '%',
@@ -185,22 +167,22 @@ export async function getReserveAPRData(
     });
     
     // Calculate utilization
-    const utilization = calculateUtilization(
-      reserve.totalDebtPrincipal,
-      reserve.reserveCash + reserve.totalDebtPrincipal
-    );
+    // Utilization = totalBorrowed / (reserveCash + totalBorrowed)
+    const totalLiquidity = reserveCash + totalDebtPrincipal;
+    const utilization = totalLiquidity > 0n
+      ? calculateUtilization(totalDebtPrincipal, totalLiquidity)
+      : 0;
     
     console.log('📈 Utilization:', utilization.toFixed(2) + '%');
     
-    // Format totals (values are in 1e18 precision in contract)
-    // Simply format as strings without conversion
+    // Format totals using correct decimals from reserve
     const totalSupplied = ethers.formatUnits(
-      reserve.reserveCash + reserve.totalDebtPrincipal,
-      18
+      totalLiquidity,
+      decimals
     );
     const totalBorrowed = ethers.formatUnits(
-      reserve.totalDebtPrincipal,
-      18
+      totalDebtPrincipal,
+      decimals
     );
     
     return {

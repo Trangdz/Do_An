@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
+// DEPRECATED: This contract is no longer used.
+// MultiPriceAggregator now implements IPriceOracle interface directly.
+// This file is kept for reference only.
+
 pragma solidity ^0.8.20;
 
 import "../interfaces/IPriceOracle.sol";
 
 /// @notice Oracle giá đơn giản, lưu giá cố định cho mỗi token
+/// @deprecated Use MultiPriceAggregator instead, which implements IPriceOracle
 contract PriceOracle is IPriceOracle {
     mapping(address => uint256) private prices;
 
@@ -21,3 +26,4 @@ contract PriceOracle is IPriceOracle {
         return price;
     }
 }
+

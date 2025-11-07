@@ -1,6 +1,6 @@
 type = "cron"
 schemaVersion = 1
-name = "DAI/USD Simple v4"
+name = "DAI/USD price"
 forwardingAllowed = false
 maxTaskDuration = "0s"
 schedule = "@every 30s"
@@ -16,4 +16,3 @@ encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" dat
 submit   [type="ethtx" to="0x1D00835fB29E1E2f7FDf52533Da99315B951670f" data="$(encode)" gasLimit="500000"]\n
 fetch->parse->scale->invert->encode->submit
 """
-

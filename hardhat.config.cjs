@@ -17,11 +17,12 @@ const config = {
       chainId: 31337,
     },
     ganache: {
-      url: "http://127.0.0.1:8545", // Ganache CLI default port
-      chainId: 5777,
+      url: "http://127.0.0.1:7545", // Ganache CLI port (match addresses.js)
+      chainId: 1337, // Ganache default Chain ID (match addresses.js)
       accounts: {
-        mnemonic: "payment deny what dwarf child talent all high job leopard relief follow",
+        mnemonic: "endorse below law public produce reopen social ask reveal increase farm glad", // Match addresses.js
         count: 10, // Generate 10 accounts
+        path: "m/44'/60'/0'/0", // Standard HD path
       },
     },
     hardhat: {

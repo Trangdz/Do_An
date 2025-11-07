@@ -63,19 +63,99 @@ export function LendModal({
           poolAddress
         });
 
+        // Validate user address
+        if (!userAddress || userAddress === ethers.ZeroAddress) {
+          console.error(`❌ [LendModal] Invalid user address: ${userAddress}`);
+          setBalance('0');
+          setAllowance('0');
+          setIsLoadingBalance(false);
+          return;
+        }
+        console.log(`✅ [LendModal] User address valid: ${userAddress}`);
+
+        // ALWAYS use direct RPC provider for read operations to avoid MetaMask circuit breaker
+        // Only use MetaMask provider for transactions (signing)
+        const rpcProvider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+        const useProvider = rpcProvider; // Force RPC for reads
+        
+        console.log(`✅ [LendModal] Using direct RPC provider: ${CONFIG.RPC_URL} (avoids circuit breaker)`);
+
+        // Validate network connection
+        try {
+          const network = await useProvider.getNetwork();
+          const chainId = Number(network.chainId);
+          console.log(`🔗 [LendModal] Network Chain ID: ${chainId}, Expected: ${CONFIG.CHAIN_ID}`);
+          
+          if (chainId !== CONFIG.CHAIN_ID) {
+            console.error(`❌ [LendModal] Network mismatch! Expected Chain ID ${CONFIG.CHAIN_ID}, got ${chainId}`);
+            console.error(`💡 [LendModal] Please switch to Chain ID ${CONFIG.CHAIN_ID} in MetaMask or check Ganache is running on port 7545`);
+            setBalance('0');
+            setAllowance('0');
+            setIsLoadingBalance(false);
+            return;
+          }
+          console.log(`✅ [LendModal] Network Chain ID correct!`);
+        } catch (networkError: any) {
+          console.error(`❌ [LendModal] Error checking network:`, networkError);
+          console.error(`💡 [LendModal] Make sure Ganache is running on ${CONFIG.RPC_URL}`);
+          setBalance('0');
+          setAllowance('0');
+          setIsLoadingBalance(false);
+          return;
+        }
+
         // Check if token contract has code before calling
         try {
-          const tokenCode = await provider.getCode(token.address);
+          const tokenCode = await useProvider.getCode(token.address);
           if (!tokenCode || tokenCode === '0x') {
             console.error(`❌ [LendModal] Token contract has no code at ${token.address}`);
+            console.error(`💡 [LendModal] Token may not be deployed. Check addresses.js or run deploy script.`);
             setBalance('0');
             setAllowance('0');
             setIsLoadingBalance(false);
             return;
           }
           console.log(`✅ [LendModal] Token contract code exists (${tokenCode.length} bytes)`);
-        } catch (codeError) {
-          console.error(`❌ [LendModal] Error checking token code:`, codeError);
+        } catch (codeError: any) {
+          console.error(`❌ [LendModal] Error checking token code:`, {
+            error: codeError.message,
+            code: codeError.code,
+            tokenAddress: token.address
+          });
+          setBalance('0');
+          setAllowance('0');
+          setIsLoadingBalance(false);
+          return;
+        }
+
+        // Validate poolAddress before checking allowance
+        if (!poolAddress || poolAddress === ethers.ZeroAddress) {
+          console.error(`❌ [LendModal] Invalid poolAddress: ${poolAddress}`);
+          setBalance('0');
+          setAllowance('0');
+          setIsLoadingBalance(false);
+          return;
+        }
+        console.log(`✅ [LendModal] Pool address valid: ${poolAddress}`);
+
+        // Check if pool contract has code
+        try {
+          const poolCode = await useProvider.getCode(poolAddress);
+          if (!poolCode || poolCode === '0x') {
+            console.error(`❌ [LendModal] Pool contract has no code at ${poolAddress}`);
+            console.error(`💡 [LendModal] LendingPool may not be deployed. Check addresses.js or run deploy script.`);
+            setBalance('0');
+            setAllowance('0');
+            setIsLoadingBalance(false);
+            return;
+          }
+          console.log(`✅ [LendModal] Pool contract code exists (${poolCode.length} bytes)`);
+        } catch (poolCodeError: any) {
+          console.error(`❌ [LendModal] Error checking pool code:`, {
+            error: poolCodeError.message,
+            code: poolCodeError.code,
+            poolAddress
+          });
           setBalance('0');
           setAllowance('0');
           setIsLoadingBalance(false);
@@ -84,12 +164,19 @@ export function LendModal({
 
         // Load real on-chain balance and allowance for ALL tokens (including WETH)
         console.log(`📊 [LendModal] Fetching balance and allowance...`);
+        console.log(`📊 [LendModal] Checking allowance for spender (LendingPool): ${poolAddress}`);
         const [balanceStr, allowanceStr] = await Promise.all([
-          getTokenBalance(provider, token.address, userAddress, token.decimals),
-          getTokenAllowance(provider, token.address, userAddress, poolAddress, token.decimals)
+          getTokenBalance(useProvider, token.address, userAddress, token.decimals),
+          getTokenAllowance(useProvider, token.address, userAddress, poolAddress, token.decimals)
         ]);
 
         console.log(`✅ [LendModal] Balance: ${balanceStr} ${token.symbol}, Allowance: ${allowanceStr} ${token.symbol}`);
+        
+        // Log allowance explanation
+        if (parseFloat(allowanceStr) === 0 && parseFloat(balanceStr) > 0) {
+          console.log(`ℹ️ [LendModal] Allowance is 0 - this is normal. User hasn't approved yet.`);
+          console.log(`ℹ️ [LendModal] When user clicks "Supply", approval will happen automatically (2-step process).`);
+        }
 
         // Store raw numeric string for calculations; avoid currency formatting here
         setBalance(balanceStr);
@@ -97,10 +184,16 @@ export function LendModal({
         
         // Fetch USD price from on-chain oracle (1e18)
         try {
-          const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, ORACLE_ABI, provider);
-          const p = await oracle.getAssetPrice1e18(token.address);
-          const price = Number(ethers.formatUnits(p, 18));
-          if (Number.isFinite(price) && price > 0) setPriceUSD(price);
+          // Validate PRICE_ORACLE address before creating contract
+          if (!CONFIG.PRICE_ORACLE || CONFIG.PRICE_ORACLE === ethers.ZeroAddress) {
+            console.warn(`⚠️ [LendModal] PRICE_ORACLE is not set or is zero address`);
+            setPriceUSD(0);
+          } else {
+            const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, ORACLE_ABI, useProvider);
+            const p = await oracle.getAssetPrice1e18(token.address);
+            const price = Number(ethers.formatUnits(p, 18));
+            if (Number.isFinite(price) && price > 0) setPriceUSD(price);
+          }
         } catch (e) {
           // If oracle not available or token not mapped, keep priceUSD=0 to avoid NaN
           console.warn(`⚠️ [LendModal] Could not fetch price from oracle:`, e);
@@ -156,16 +249,23 @@ export function LendModal({
     try {
       const amountBN = parseTokenAmount(amount, token.decimals);
       
-      // Use transaction service
-      const result = await lend(signer, token.address, amountBN);
+      // Create toast callback to show transaction progress
+      const toastCallback = (toast: { type: 'success' | 'error' | 'pending'; title: string; message: string; hash?: string }) => {
+        showToast({
+          type: toast.type,
+          title: toast.title,
+          message: toast.message,
+          hash: toast.hash
+        });
+      };
       
-      // Show success toast
-      showToast({
-        type: 'success',
-        title: 'Supply Successful!',
-        message: `Successfully supplied ${amount} ${token.symbol}`,
-        hash: result.hash
-      });
+      // Use transaction service with toast callback
+      // This will handle both approval and supply toasts automatically
+      const result = await lend(signer, token.address, amountBN, toastCallback);
+      
+      // Note: Success toast is already shown by sendWithToast via toastCallback
+      // Only show final success toast if it wasn't already shown
+      console.log('✅ Supply transaction completed:', result.hash);
       
       // Reset form and close
       setAmount('');
@@ -180,12 +280,14 @@ export function LendModal({
     } catch (error: any) {
       console.error('Error lending:', error);
       
-      // Show error toast
-      showToast({
-        type: 'error',
-        title: 'Supply Failed',
-        message: error.message || 'Transaction failed'
-      });
+      // Only show error toast if it wasn't already shown by sendWithToast
+      if (error.message !== 'USER_CANCELLED') {
+        showToast({
+          type: 'error',
+          title: 'Supply Failed',
+          message: error.message || 'Transaction failed'
+        });
+      }
     } finally {
       setIsLoading(false);
     }

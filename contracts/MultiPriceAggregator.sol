@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract MultiPriceAggregator {
+import "./interfaces/IPriceOracle.sol";
+
+/// @title MultiPriceAggregator
+/// @notice Aggregates prices from Chainlink and implements IPriceOracle for LendingPool
+contract MultiPriceAggregator is IPriceOracle {
     address public writer;
     
     struct PriceData {
@@ -11,6 +15,7 @@ contract MultiPriceAggregator {
     }
     
     mapping(string => PriceData) public prices; // symbol => PriceData
+    mapping(address => string) public tokenSymbols; // token address => symbol
     string[] public symbols; // List of all tracked symbols
     
     modifier onlyWriter() {
@@ -59,6 +64,53 @@ contract MultiPriceAggregator {
     
     function getSymbolCount() external view returns (uint256) {
         return symbols.length;
+    }
+    
+    // ========================================
+    // IPriceOracle Implementation
+    // ========================================
+    
+    /// @notice Set token symbol mapping (address → symbol)
+    /// @param token Token address
+    /// @param symbol Token symbol (e.g., "WETH", "DAI", "USDC", "LINK")
+    function setTokenSymbol(address token, string memory symbol) external {
+        // Only allow setting if symbol doesn't exist or is empty
+        // In production, you might want to add access control
+        bytes memory existingSymbol = bytes(tokenSymbols[token]);
+        require(existingSymbol.length == 0, "MultiPriceAggregator: symbol already set");
+        require(bytes(symbol).length > 0, "MultiPriceAggregator: symbol cannot be empty");
+        
+        tokenSymbols[token] = symbol;
+    }
+    
+    /// @notice Get asset price in 1e18 precision (IPriceOracle interface)
+    /// @param token Token address
+    /// @return price Price in 1e18 precision (e.g., 1e18 = $1.00)
+    function getAssetPrice1e18(address token) external view override returns (uint256) {
+        string memory symbol = tokenSymbols[token];
+        require(bytes(symbol).length > 0, "MultiPriceAggregator: token symbol not set");
+        
+        PriceData memory priceData = prices[symbol];
+        require(priceData.price > 0, "MultiPriceAggregator: price not available");
+        require(priceData.updatedAt > 0, "MultiPriceAggregator: price never updated");
+        
+        // Convert from 8 decimals to 18 decimals
+        // price8dec = 100000000 (8 decimals) = $1.00
+        // price18dec = 100000000 * 1e10 = 1000000000000000000 (18 decimals) = $1.00
+        return uint256(priceData.price) * 1e10;
+    }
+    
+    /// @notice Batch set token symbols
+    /// @param tokens Array of token addresses
+    /// @param symbols Array of token symbols
+    function setTokenSymbols(address[] calldata tokens, string[] calldata symbols) external {
+        require(tokens.length == symbols.length, "MultiPriceAggregator: arrays length mismatch");
+        
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (bytes(tokenSymbols[tokens[i]]).length == 0) {
+                tokenSymbols[tokens[i]] = symbols[i];
+            }
+        }
     }
 }
 

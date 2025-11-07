@@ -20,6 +20,21 @@ async function main() {
   const multiAddr = await multiPriceAggregator.getAddress();
   console.log("MultiPriceAggregator deployed:", multiAddr);
   
+  // Set writer if NODE_ADDRESS is provided
+  const nodeAddress = process.env.NODE_ADDRESS;
+  if (nodeAddress) {
+    console.log("\n🔐 Setting writer for MultiPriceAggregator...");
+    const setWriterTx = await multiPriceAggregator.setWriter(nodeAddress, true);
+    await setWriterTx.wait();
+    console.log("✅ Writer set to:", nodeAddress);
+    console.log("   Chainlink node can now update prices");
+  } else {
+    console.log("\n⚠️  NODE_ADDRESS not set - writer not configured");
+    console.log("   To set writer later, run:");
+    console.log("   $env:NODE_ADDRESS=\"0xYOUR_NODE_ADDRESS\"");
+    console.log("   npx hardhat run scripts/set_multi_writer.cjs --network ganache");
+  }
+  
   // Ensure deployments directory exists
   const deploymentsDir = "deployments";
   if (!fs.existsSync(deploymentsDir)) fs.mkdirSync(deploymentsDir);
@@ -157,46 +172,44 @@ async function main() {
   const irmAddress = await interestRateModel.getAddress();
   console.log("✅ InterestRateModel deployed:", irmAddress);
 
-  // Deploy PriceOracle
-  const PriceOracleFactory = await ethers.getContractFactory("PriceOracle");
-  const priceOracle = await PriceOracleFactory.deploy();
-  await priceOracle.waitForDeployment();
-  const oracleAddress = await priceOracle.getAddress();
-  console.log("✅ PriceOracle deployed:", oracleAddress);
-  // const MultiPriceAggregator = await hre.ethers.getContractFactory("MultiPriceAggregator");
-  // const multiPriceAggregator = await MultiPriceAggregator.deploy();
-  // await multiPriceAggregator.waitForDeployment();
-  // const multiAddr = await multiPriceAggregator.getAddress();
-  // console.log("MultiPriceAggregator deployed:", multiAddr);
-  // Deploy LendingPool
+  // ========================================
+  // 2️⃣ SET TOKEN SYMBOLS IN MultiPriceAggregator
+  // ========================================
+  console.log("\n2️⃣  Setting Token Symbols in MultiPriceAggregator...");
+  console.log("─".repeat(70));
+  
+  // Set token address → symbol mapping
+  // This allows MultiPriceAggregator to implement IPriceOracle interface
+  const tokens = [wethAddress, daiAddress, usdcAddress, linkAddress];
+  const symbols = ["WETH", "DAI", "USDC", "LINK"];
+  
+  await multiPriceAggregator.setTokenSymbols(tokens, symbols);
+  console.log("✅ Token symbols set:");
+  console.log("   WETH:", wethAddress, "→ WETH");
+  console.log("   DAI: ", daiAddress, "→ DAI");
+  console.log("   USDC:", usdcAddress, "→ USDC");
+  console.log("   LINK:", linkAddress, "→ LINK");
+  console.log("\n💡 Prices will be automatically updated by Chainlink jobs");
+  console.log("   No manual price setting needed!");
+
+  // ========================================
+  // 3️⃣ DEPLOY LENDING POOL (using MultiPriceAggregator as Oracle)
+  // ========================================
+  console.log("\n3️⃣  Deploying LendingPool...");
+  console.log("─".repeat(70));
+  
+  // Use MultiPriceAggregator as Oracle (it implements IPriceOracle)
   const LendingPoolFactory = await ethers.getContractFactory("LendingPool");
   const lendingPool = await LendingPoolFactory.deploy(
     irmAddress,
-    oracleAddress,
+    multiAddr, // Use MultiPriceAggregator as oracle
     wethAddress,
     daiAddress
   );
   await lendingPool.waitForDeployment();
   const poolAddress = await lendingPool.getAddress();
   console.log("✅ LendingPool deployed:", poolAddress);
-
-  // ========================================
-  // 3️⃣ SET ORACLE PRICES
-  // ========================================
-  console.log("\n3️⃣  Setting Oracle Prices...");
-  console.log("─".repeat(70));
-
-  await priceOracle.setAssetPrice(wethAddress, ethers.parseEther("1600"));
-  console.log("✅ WETH price: $1600");
-
-  await priceOracle.setAssetPrice(daiAddress, ethers.parseEther("1"));
-  console.log("✅ DAI price: $1");
-
-  await priceOracle.setAssetPrice(usdcAddress, ethers.parseEther("1"));
-  console.log("✅ USDC price: $1");
-
-  await priceOracle.setAssetPrice(linkAddress, ethers.parseEther("10"));
-  console.log("✅ LINK price: $10");
+  console.log("   Using MultiPriceAggregator as Oracle (prices from Chainlink)");
 
   // ========================================
   // 4️⃣ INITIALIZE RESERVES
@@ -380,7 +393,7 @@ async function main() {
     contracts: {
       lendingPool: poolAddress,
       interestRateModel: irmAddress,
-      priceOracle: oracleAddress,
+      priceOracle: multiAddr, // MultiPriceAggregator now serves as PriceOracle
       multiPriceAggregator: multiAddr,
     },
     tokens: {
@@ -422,6 +435,7 @@ async function main() {
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
 export const LendingPoolAddress = "${poolAddress}";
 export const InterestRateModelAddress = "${irmAddress}";
+export const PriceOracleAddress = "${multiAddr}"; // MultiPriceAggregator serves as PriceOracle
 export const PricemultiAddr = "${multiAddr}";
 export const LendingHelperAddress = "0x0000000000000000000000000000000000000000";
 export const WETHAddress = "${wethAddress}";
@@ -448,7 +462,7 @@ ${userAddresses.map((addr, i) => `export const User${i}Address = "${addr}";`).jo
   console.log("─".repeat(70));
   console.log("  LendingPool:        ", poolAddress);
   console.log("  InterestRateModel:  ", irmAddress);
-  console.log("  PriceOracle:        ", multiAddr);
+  console.log("  PriceOracle:        ", multiAddr, "(MultiPriceAggregator)");
   // console.log("  PriceAggregator:    ", aggregatorAddress);
   
   console.log("\n🪙 TOKEN ADDRESSES:");
@@ -467,10 +481,9 @@ ${userAddresses.map((addr, i) => `export const User${i}Address = "${addr}";`).jo
   
   console.log("\n📊 ORACLE PRICES:");
   console.log("─".repeat(70));
-  console.log("  • WETH: $1,600");
-  console.log("  • DAI:  $1");
-  console.log("  • USDC: $1");
-  console.log("  • LINK: $10");
+  console.log("  💡 Prices are automatically updated by Chainlink jobs");
+  console.log("  💡 No manual price setting needed!");
+  console.log("  💡 Prices will be available once Chainlink jobs run");
   
   console.log("\n🔧 RESERVE CONFIGURATION:");
   console.log("─".repeat(70));

@@ -1,90 +1,52 @@
-const fs = require("fs");
-const https = require("https");
-const http = require("http");
+const hre = require("hardhat");
 
 async function main() {
-    console.log("🔍 Getting Chainlink Node Address...\n");
-    
-    // Read API credentials
-    let apiKey, password;
+  console.log("=== Getting Chainlink Node Address ===\n");
+  
+  // Method 1: Check from recent transactions to MultiPriceAggregator
+  const multiPriceData = require("./deployments/multi-price.json");
+  const aggregatorAddress = multiPriceData.aggregator;
+  const provider = hre.ethers.provider;
+  
+  console.log("Checking recent transactions to MultiPriceAggregator...");
+  console.log("Contract:", aggregatorAddress);
+  console.log("");
+  
+  const currentBlock = await provider.getBlockNumber();
+  let nodeAddresses = new Set();
+  
+  for (let i = currentBlock; i > Math.max(0, currentBlock - 100); i--) {
     try {
-        const apiContent = fs.readFileSync("chainlink-data/.api", "utf8").trim().split("\n");
-        apiKey = apiContent[0];
-        password = apiContent[1] || apiContent[0]; // Fallback if single line
+      const block = await provider.getBlock(i, true);
+      if (block && block.transactions) {
+        for (const txHash of block.transactions) {
+          const tx = await provider.getTransaction(txHash);
+          if (tx && tx.to && tx.to.toLowerCase() === aggregatorAddress.toLowerCase()) {
+            nodeAddresses.add(tx.from);
+          }
+        }
+      }
     } catch (e) {
-        console.error("❌ Cannot read chainlink-data/.api");
-        console.error("   Make sure Docker Chainlink is running and credentials exist");
-        process.exit(1);
+      // Skip
     }
-    
-    const chainlinkUrl = process.env.CHAINLINK_URL || "http://localhost:6688";
-    console.log("📍 Chainlink URL:", chainlinkUrl);
+  }
+  
+  if (nodeAddresses.size > 0) {
+    console.log("Found Chainlink node address(es) from transactions:");
+    for (const addr of nodeAddresses) {
+      console.log("  ", addr);
+    }
     console.log("");
-    
-    // Try to get chain keys from Chainlink API
-    try {
-        const response = await fetch(`${chainlinkUrl}/v2/keys/evm`, {
-            method: "GET",
-            headers: {
-                "X-Chainlink-EA-AccessKey": apiKey,
-                "X-Chainlink-EA-Secret": password,
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.data && data.data.length > 0) {
-            const chainKeys = data.data;
-            console.log("✅ Found Chainlink Chain Keys:");
-            console.log("");
-            
-            chainKeys.forEach((key, index) => {
-                console.log(`   Key ${index + 1}:`);
-                console.log(`      Address: ${key.attributes.address}`);
-                console.log(`      Type: ${key.attributes.keyType || "EVM"}`);
-                console.log("");
-            });
-            
-            // Use first key as default
-            const primaryAddress = chainKeys[0].attributes.address;
-            console.log("📍 Primary Node Address:", primaryAddress);
-            console.log("");
-            console.log("💡 Use this address for funding:");
-            console.log(`   $env:NODE_ADDRESS="${primaryAddress}"`);
-            console.log("");
-            
-            return primaryAddress;
-        } else {
-            console.log("⚠️  No chain keys found");
-            console.log("   Chainlink node might not be fully initialized yet");
-            console.log("   Wait a few seconds and try again");
-            return null;
-        }
-    } catch (error) {
-        console.error("❌ Error getting chain keys:", error.message);
-        console.error("");
-        console.error("💡 Alternative methods:");
-        console.error("   1. Check Chainlink UI: http://localhost:6688");
-        console.error("      → Keys → Chain Keys");
-        console.error("");
-        console.error("   2. Check Docker logs:");
-        console.error("      docker-compose logs chainlink | Select-String 'account'");
-        console.error("");
-        console.error("   3. Wait a few seconds if node just started");
-        return null;
-    }
+    console.log("💡 Use this address to set writer:");
+    console.log(`   $env:NODE_ADDRESS="${Array.from(nodeAddresses)[0]}"`);
+    console.log("   npx hardhat run scripts/set_multi_writer.cjs --network ganache");
+  } else {
+    console.log("❌ No transactions found");
+    console.log("\n💡 To find Chainlink node address:");
+    console.log("   1. Open Chainlink UI: http://localhost:6688");
+    console.log("   2. Go to Keys section");
+    console.log("   3. Copy the sending address");
+  }
 }
 
-main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-});
-
-
-
-
-
+main().catch(console.error);

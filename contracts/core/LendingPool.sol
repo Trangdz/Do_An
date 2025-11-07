@@ -8,7 +8,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import "../libraries/LendingMath.sol";
 import "../models/ReserveUserModels.sol";
 import "./InterestRateModel.sol";
-import "./PriceOracle.sol";
+import "../interfaces/IPriceOracle.sol";
 
 using LendingMath for uint256;
 using ReserveUserModels for ReserveUserModels.ReserveData;
@@ -41,11 +41,11 @@ contract LendingPool is ReentrancyGuard, Pausable {
  mapping(address => mapping(address => ReserveUserModels.UserReserveData)) public userReserves;
 
     InterestRateModel public immutable interestRateModel;
-    PriceOracle public immutable oracle;
+    IPriceOracle public immutable oracle;
 
     constructor(address irm, address _oracle, address _weth, address _dai) {
         interestRateModel = InterestRateModel(irm);
-        oracle = PriceOracle(_oracle);
+        oracle = IPriceOracle(_oracle);
         WETH = _weth;
         DAI = _dai;
     }

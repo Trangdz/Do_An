@@ -4,7 +4,7 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <meta name="description" content="LendHub v2 - Decentralized Lending Protocol" />
+        <meta name="description" content="Lend & Borrow" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <body>

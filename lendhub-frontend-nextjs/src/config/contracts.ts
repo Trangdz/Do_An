@@ -10,15 +10,15 @@ import {
 // Contract configuration from environment variables
 export const CONFIG = {
   RPC_URL: process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:7545',
-  CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '5777', 10), // 5777
-  CHAIN_ID_HEX: process.env.NEXT_PUBLIC_CHAIN_ID_HEX || '0x1691', // 5777 in hex
+  CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '1337', 10), // 1337 (Ganache default)
+  CHAIN_ID_HEX: process.env.NEXT_PUBLIC_CHAIN_ID_HEX || '0x539', // 1337 in hex
   
   // Contract addresses (auto-imported from addresses.js)
   LENDING_POOL: LendingPoolAddress,
   PRICE_ORACLE: PriceOracleAddress,
   WETH: WETHAddress,
   // Optional: MultiPriceAggregator (string address via env). Fallback to latest deployed address
-  MULTI_PRICE_AGGREGATOR: process.env.NEXT_PUBLIC_MULTI_PRICE_AGGREGATOR || '0x1de99f8B97E975506b17275300998442ee9b7Acf',
+  MULTI_PRICE_AGGREGATOR: process.env.NEXT_PUBLIC_MULTI_PRICE_AGGREGATOR || '0x1D00835fB29E1E2f7FDf52533Da99315B951670f',
   
   // Token configuration
   TOKENS: [

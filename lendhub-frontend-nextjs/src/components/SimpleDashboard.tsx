@@ -449,9 +449,9 @@ export function SimpleDashboard() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-foreground">
-                  LendHub v2
+                  Lend & Borrow System
                 </h1>
-                <p className="text-sm text-muted-foreground">Decentralized Lending Protocol</p>
+                <p className="text-sm text-muted-foreground"></p>
               </div>
             </div>
             <div className="flex items-center space-x-3">

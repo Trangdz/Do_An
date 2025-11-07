@@ -15,18 +15,26 @@ export interface ToastConfig {
 export interface TxResult {
   hash: string;
   receipt: ethers.TransactionReceipt;
+  isApproval?: boolean; // Flag to indicate if this was an approval transaction
 }
+
+// Optional toast callback for UI notifications
+export type ToastCallback = (toast: { type: 'success' | 'error' | 'pending'; title: string; message: string; hash?: string }) => void;
 
 /**
  * Send transaction with toast notifications
  */
 export async function sendWithToast(
   txPromise: Promise<ethers.TransactionResponse>,
-  config: ToastConfig
+  config: ToastConfig,
+  toastCallback?: ToastCallback
 ): Promise<TxResult> {
   try {
     // Show pending toast
     console.log('⏳', config.pending);
+    if (toastCallback) {
+      toastCallback({ type: 'pending', title: config.pending, message: 'Waiting for transaction...' });
+    }
     
     // Send transaction
     const tx = await txPromise;
@@ -34,6 +42,9 @@ export async function sendWithToast(
     
     // Show pending with hash
     console.log('⏳', `${config.pending} - Hash: ${tx.hash}`);
+    if (toastCallback) {
+      toastCallback({ type: 'pending', title: config.pending, message: `Transaction sent: ${tx.hash.slice(0, 10)}...${tx.hash.slice(-8)}`, hash: tx.hash });
+    }
     
     // Wait for confirmation
     const receipt = await tx.wait();
@@ -43,6 +54,11 @@ export async function sendWithToast(
       gasUsed: receipt?.gasUsed?.toString(),
       status: receipt?.status
     });
+    
+    // Show success toast
+    if (toastCallback) {
+      toastCallback({ type: 'success', title: config.success, message: `Transaction confirmed: ${tx.hash.slice(0, 10)}...${tx.hash.slice(-8)}`, hash: tx.hash });
+    }
     
     return {
       hash: tx.hash,
@@ -65,9 +81,15 @@ export async function sendWithToast(
     const isUserRejected = /denied|user denied|ACTION_REJECTED|rejected/i.test(String(rawMsg)) || code === 4001;
     if (isUserRejected) {
       // Normalize to a stable, catchable message
+      if (toastCallback) {
+        toastCallback({ type: 'error', title: 'Transaction Cancelled', message: 'You cancelled the transaction' });
+      }
       throw new Error('USER_CANCELLED');
     }
     const clean = String(rawMsg || 'Transaction failed').replace(/\n.*/, '');
+    if (toastCallback) {
+      toastCallback({ type: 'error', title: config.error, message: clean });
+    }
     throw new Error(clean);
   }
 }
@@ -79,7 +101,8 @@ export async function approveIfNeeded(
   signer: ethers.Signer,
   tokenAddress: string,
   spender: string,
-  amount: bigint
+  amount: bigint,
+  toastCallback?: ToastCallback
 ): Promise<TxResult | null> {
   // Disallow native ETH approvals
   if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
@@ -122,11 +145,13 @@ export async function approveIfNeeded(
   // Send approval transaction
   const txPromise = tokenContract.approve(spender, amount);
   
-  return await sendWithToast(txPromise, {
+  const result = await sendWithToast(txPromise, {
     pending: 'Approving token...',
     success: 'Token approved successfully!',
     error: 'Approval failed'
-  });
+  }, toastCallback);
+  
+  return { ...result, isApproval: true };
 }
 
 /**
@@ -135,7 +160,8 @@ export async function approveIfNeeded(
 export async function lend(
   signer: ethers.Signer,
   tokenAddress: string,
-  amount: bigint
+  amount: bigint,
+  toastCallback?: ToastCallback
 ): Promise<TxResult> {
   const provider = signer.provider as ethers.Provider;
   if (!provider) throw new Error('No provider');
@@ -157,8 +183,15 @@ export async function lend(
 
   const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, signer);
   
-  // Approve if needed
-  await approveIfNeeded(signer, tokenAddress, CONFIG.LENDING_POOL, amount);
+  // Approve if needed (with toast callback to show approval progress)
+  const approvalResult = await approveIfNeeded(signer, tokenAddress, CONFIG.LENDING_POOL, amount, toastCallback);
+  
+  // If approval happened, wait a bit for state to be updated before proceeding
+  if (approvalResult && approvalResult.isApproval) {
+    console.log('⏳ Approval completed, waiting for state update before supplying...');
+    // Small delay to ensure allowance state is updated on-chain
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
   
   // Pre-flight simulate to get explicit revert reason instead of -32603
   try {
@@ -175,7 +208,7 @@ export async function lend(
     pending: 'Supplying tokens...',
     success: 'Tokens supplied successfully!',
     error: 'Supply failed'
-  });
+  }, toastCallback);
 }
 
 /**

@@ -46,7 +46,23 @@ export function useMultiPriceAggregator(
         const aggregator = new ethers.Contract(aggregatorAddress, ABI, provider);
 
         const [rawPrice, roundId, updatedAt] = await aggregator.getPrice(symbol);
-        const price = parseFloat(ethers.formatUnits(rawPrice, 8));
+        
+        // Check if price data exists (roundId > 0 means price was updated at least once)
+        if (Number(roundId) === 0 || Number(rawPrice) === 0) {
+          if (isMounted) {
+            setData(prev => ({
+              ...prev,
+              isLoading: false,
+              error: 'No price data yet',
+            }));
+          }
+          return;
+        }
+        
+        // Convert from int256 (8 decimals) to USD
+        // rawPrice is int256, need to handle negative values
+        const priceBigInt = BigInt(rawPrice.toString());
+        const price = parseFloat(ethers.formatUnits(priceBigInt < 0n ? -priceBigInt : priceBigInt, 8));
 
         if (isMounted) {
           setData({

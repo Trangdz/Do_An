@@ -15,8 +15,8 @@ export function AppHeader() {
               <span className="text-primary-foreground font-bold text-lg">L</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">LendHub v2</h1>
-              <p className="text-sm text-muted-foreground">Decentralized Lending Protocol</p>
+              <h1 className="text-2xl font-bold text-foreground">Lend & Borrow System</h1>
+              <p className="text-sm text-muted-foreground"></p>
             </div>
           </div>
           <nav className="flex items-center space-x-2">

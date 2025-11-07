@@ -7,6 +7,7 @@ import { useRealtimePrices } from '@/hooks/useRealtimePrices';
 import { useReserveAPR } from '@/hooks/useReserveAPR';
 import { useChainlinkPrice } from '@/hooks/useChainlinkPrice';
 import useMultiPriceAggregator from '@/hooks/useMultiPriceAggregator';
+import { formatPercentage } from '@/lib/math';
 import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
 
 // Token icon component
@@ -29,11 +30,13 @@ function TokenIcon({ symbol }: { symbol: string }) {
 // Market row component with APY/APR
 function MarketRow({ token, poolAddress }: any) {
   // Get APR data for this token (hooks now use direct RPC to avoid circuit breaker)
+  // getReserveAPRData will handle zero address (ETH) gracefully and return default values
+  // Refresh every 10 seconds to update after transactions
   const { supplyAPR, borrowAPR, utilization, totalSupplied, totalBorrowed, isLoading } = useReserveAPR(
     null, // Provider no longer needed - hook uses direct RPC
     poolAddress,
-    token.address,
-    30000 // Refresh every 30s
+    token.address, // Zero address for ETH is handled gracefully in getReserveAPRData
+    10000 // Refresh every 10s to update quickly after transactions
   );
   
   // Prefer MultiPriceAggregator if configured, otherwise fallback to per-token aggregator
@@ -41,7 +44,7 @@ function MarketRow({ token, poolAddress }: any) {
   const { price: multiPrice, isLoading: multiLoading, error: multiError } = useMultiPriceAggregator(
     multiAddr,
     token.symbol,
-    30000
+    60000 // Update every 1 minute (60000ms)
   );
 
   // Only call per-token Chainlink hook when MultiPriceAggregator is not configured
@@ -58,11 +61,6 @@ function MarketRow({ token, poolAddress }: any) {
   const price = multiAddr
     ? (multiError ? 0 : (multiPrice || 0))
     : ((priceError && !priceError.includes('NoData')) ? 0 : (chainlinkPrice || 0));
-  
-  const formatPercentage = (value: number) => {
-    if (!value || value === 0) return '0.00%';
-    return `${(value * 100).toFixed(2)}%`;
-  };
   
   const formatNumber = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -90,9 +88,13 @@ function MarketRow({ token, poolAddress }: any) {
       <td className="py-4 px-4">
         <div className="flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-green-500" />
-          <span className="font-semibold text-foreground">
-            ${price ? price.toFixed(2) : '—'}
-          </span>
+          {multiLoading ? (
+            <div className="animate-pulse bg-muted h-5 w-16 rounded"></div>
+          ) : (
+            <span className="font-semibold text-foreground">
+              {price && price > 0 ? `$${price.toFixed(2)}` : '—'}
+            </span>
+          )}
         </div>
       </td>
       
@@ -191,8 +193,8 @@ export default function MarketsPage() {
   const { metamaskDetails } = useLendContext();
   const isConnected = !!metamaskDetails.currentAccount;
   
-  // Get token addresses (excluding ETH native token)
-  const tokens = CONFIG.TOKENS.filter(t => t.symbol !== 'ETH');
+  // Get all tokens including ETH (ETH price is available from MultiPriceAggregator)
+  const tokens = CONFIG.TOKENS;
 
   return (
     <AppLayout>
@@ -201,7 +203,7 @@ export default function MarketsPage() {
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Markets</h1>
           <p className="text-muted-foreground">
-            Overview of all supported assets with real-time APY, prices from Chainlink Oracle
+            Overview
           </p>
         </div>
 
@@ -224,7 +226,7 @@ export default function MarketsPage() {
         <CardHeader>
             <CardTitle className="text-xl text-foreground">All Markets</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Live interest rates and market statistics
+              
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -294,7 +296,7 @@ export default function MarketsPage() {
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 All prices are fetched from Chainlink Oracle in real-time. 
-                Prices update automatically every 30 seconds.
+                Prices update automatically every 1 minute.
               </p>
             </CardContent>
           </Card>
