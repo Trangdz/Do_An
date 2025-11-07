@@ -166,17 +166,32 @@ export async function lend(
   const provider = signer.provider as ethers.Provider;
   if (!provider) throw new Error('No provider');
 
+  // Ensure wallet is connected to expected network (Ganache by default)
+  const network = await provider.getNetwork();
+  const expectedChainId = BigInt(CONFIG.CHAIN_ID);
+  if (network.chainId !== expectedChainId) {
+    throw new Error(
+      `Wallet connected to wrong network (chainId ${network.chainId}). Please switch to chainId ${expectedChainId} (${CONFIG.RPC_URL}).`
+    );
+  }
+
+  // Use configured RPC to validate contract bytecode instead of wallet provider.
+  // This avoids false negatives when BrowserProvider caches results or when signer provider throws.
+  const rpcProvider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+
   // Disallow native ETH here. To supply ETH, wrap to WETH first using wrapEth().
   if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
     throw new Error('Cannot supply native ETH via LendingPool. Wrap to WETH first.');
   }
 
   // Preflight: verify addresses are real contracts
-  const poolCode = await provider.getCode(CONFIG.LENDING_POOL);
+  const poolCode = await rpcProvider.getCode(CONFIG.LENDING_POOL);
   if (!poolCode || poolCode === '0x') {
-    throw new Error('LendingPool address is not a contract on this network. Check CONFIG.LENDING_POOL and network.');
+    throw new Error(
+      `LendingPool address ${CONFIG.LENDING_POOL} has no contract code on ${CONFIG.RPC_URL}. Redeploy or update configuration.`
+    );
   }
-  const tokenCode = await provider.getCode(tokenAddress);
+  const tokenCode = await rpcProvider.getCode(tokenAddress);
   if (!tokenCode || tokenCode === '0x') {
     throw new Error('Token address is not a contract on this network.');
   }

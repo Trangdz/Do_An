@@ -2,13 +2,17 @@ const hre = require("hardhat");
 const fs = require("fs");
 
 async function main() {
-  const data = JSON.parse(fs.readFileSync("./deployments/multi-price.json", "utf8"));
-  const aggregator = await hre.ethers.getContractAt("MultiPriceAggregator", data.aggregator);
+  const data = JSON.parse(fs.readFileSync("./deployments/local-chainlink.json", "utf8"));
+  const aggregatorAddress = data.contracts.multiPriceAggregator;
+  if (!aggregatorAddress) {
+    throw new Error("multiPriceAggregator address not found in deployments/local-chainlink.json");
+  }
+  const aggregator = await hre.ethers.getContractAt("MultiPriceAggregator", aggregatorAddress);
   
   const symbols = ["ETH", "WETH", "USDC", "DAI", "LINK"];
   
   console.log("=== Multi-Price Aggregator ===");
-  console.log("Contract:", data.aggregator);
+  console.log("Contract:", aggregatorAddress);
   console.log("");
   
   for (const symbol of symbols) {

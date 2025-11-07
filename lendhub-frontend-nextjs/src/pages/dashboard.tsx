@@ -22,7 +22,9 @@ export default function DashboardPage() {
     assetsToBorrow,
     accountData, 
     metamaskDetails, 
-    refresh 
+    refresh,
+    supplySummary,
+    borrowSummary,
   } = useLendContext();
   
   const [selectedToken, setSelectedToken] = useState<any>(null);
@@ -37,9 +39,16 @@ export default function DashboardPage() {
   const provider = metamaskDetails.provider;
   const signer = metamaskDetails.signer;
 
+  // Use on-chain values directly from getAccountData for accuracy
   const collateralValue = parseFloat(accountData.collateralUSD || '0');
   const debtValue = parseFloat(accountData.debtUSD || '0');
-  const healthFactor = parseFloat(accountData.healthFactor || '0');
+  const rawHealthFactor = accountData.healthFactor;
+  const healthFactor = rawHealthFactor === 'Infinity'
+    ? Number.POSITIVE_INFINITY
+    : (typeof rawHealthFactor === 'number' ? rawHealthFactor : parseFloat(rawHealthFactor || '0'));
+  const displayHealthFactor = Number.isFinite(healthFactor)
+    ? formatNumber(healthFactor, 2)
+    : '∞';
   const isHealthy = healthFactor >= 1;
 
   // Debounce refresh to avoid circuit breaker
@@ -258,46 +267,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Account Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="bg-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground">Collateral Value</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">
-                {formatCurrency(collateralValue)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Threshold-weighted USD</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground">Debt Value</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">
-                {formatCurrency(debtValue)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Total borrowed USD</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground">Health Factor</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${isHealthy ? 'text-green-600' : 'text-red-600'}`}>
-                {healthFactor === Number.MAX_SAFE_INTEGER ? '∞' : formatNumber(healthFactor, 2)}
-              </div>
-              <p className={`text-xs ${isHealthy ? 'text-green-600/70' : 'text-red-600/70'}`}>
-                {isHealthy ? 'Healthy' : 'At Risk'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Summary removed */}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Your Deposits */}
@@ -465,8 +435,8 @@ export default function DashboardPage() {
             poolLiquidity={selectedToken.availableLiquidity || '0'}
             price={selectedToken.price || parseFloat(selectedToken.priceUSD || '0')}
             liquidationThreshold={selectedToken.liquidationThreshold || 8000}
-            collateralUSD={collateralValue}
-            debtUSD={debtValue}
+            collateralUSD={Number.isFinite(collateralValue) ? collateralValue : 0}
+            debtUSD={Number.isFinite(debtValue) ? debtValue : 0}
             onSuccess={handleWithdrawSuccess}
           />
         )}
@@ -508,8 +478,8 @@ export default function DashboardPage() {
             provider={provider}
             price={selectedToken.price || parseFloat(selectedToken.priceUSD || '0')}
             poolLiquidity={selectedToken.available?.toString() || selectedToken.availableLiquidity || '0'}
-            collateralUSD={collateralValue}
-            debtUSD={debtValue}
+            collateralUSD={Number.isFinite(collateralValue) ? collateralValue : 0}
+            debtUSD={Number.isFinite(debtValue) ? debtValue : 0}
             onSuccess={refresh}
           />
         )}

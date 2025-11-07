@@ -1,15 +1,17 @@
 const { MongoClient } = require('mongodb');
-require('dotenv').config({ path: './config.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, 'config.env') });
 
 async function testConnection() {
   console.log('🧪 Testing MongoDB connection...');
+  console.log(`🔧 MongoDB URI: ${process.env.MONGODB_URI ? 'Set' : 'Not set'}`);
   
   try {
     const client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
-    const db = client.db('lendhub');
+    const db = client.db('lendhub_local');
     
-    console.log('✅ Connected to MongoDB Atlas');
+    console.log('✅ Connected to MongoDB');
     
     // Test collections
     const collections = await db.listCollections().toArray();

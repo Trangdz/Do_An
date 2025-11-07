@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useRouter } from 'next/router';
 
 export default function BorrowPage() {
-  const { yourBorrows, assetsToBorrow, metamaskDetails, accountData, refresh } = useLendContext();
+  const { yourBorrows, assetsToBorrow, metamaskDetails, accountData, refresh, supplySummary, borrowSummary } = useLendContext();
   const router = useRouter();
   
   // Debug: log data
@@ -44,8 +44,12 @@ export default function BorrowPage() {
   const provider = metamaskDetails.provider;
   const signer = metamaskDetails.signer;
 
-  const collateralValue = parseFloat(accountData.collateralUSD || '0');
-  const debtValue = parseFloat(accountData.debtUSD || '0');
+  const collateralValueFromSummary = supplySummary?.totalUSDCollateral ?? 0;
+  const debtValueFromSummary = borrowSummary?.totalUSDBalance ?? 0;
+  const fallbackCollateral = parseFloat(accountData.collateralUSD || '0');
+  const fallbackDebt = parseFloat(accountData.debtUSD || '0');
+  const collateralValue = collateralValueFromSummary > 0 ? collateralValueFromSummary : fallbackCollateral;
+  const debtValue = debtValueFromSummary > 0 ? debtValueFromSummary : fallbackDebt;
 
   // Filter stablecoins
   const stablecoins = ['USDC', 'DAI', 'USDT', 'TUSD', 'SUSD', 'BUSD'];
@@ -211,8 +215,8 @@ export default function BorrowPage() {
             provider={provider}
             price={parseFloat(selectedToken.priceUSD || '0')}
             poolLiquidity={selectedToken.reserveCash || '0'}
-            collateralUSD={collateralValue}
-            debtUSD={debtValue}
+            collateralUSD={Number.isFinite(collateralValue) ? collateralValue : 0}
+            debtUSD={Number.isFinite(debtValue) ? debtValue : 0}
             onSuccess={handleBorrowSuccess}
           />
         )}

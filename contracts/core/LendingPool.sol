@@ -259,6 +259,50 @@ function _maxWithdrawAllowed(address user, address asset) internal view returns 
     return supply;
 }
 
+/// @notice View helper to check if user can withdraw a collateral amount while keeping HF >= 1
+/// @return ok true if allowed, hfAfter health factor after hypothetical withdrawal
+function canWithdrawCollateral(address user, address asset, uint256 amount /* asset native decimals */)
+    external
+    view
+    returns (bool ok, uint256 hfAfter)
+{
+    ReserveUserModels.UserReserveData storage u = userReserves[user][asset];
+    ReserveUserModels.ReserveData storage r = reserves[asset];
+    uint256 amt1e18 = _to1e18(amount, r.decimals);
+
+    // If not using as collateral or no debt -> always allowed
+    (uint256 totalColl, uint256 totalDebt, ) = _getAccountData(user);
+    if (!u.useAsCollateral || totalDebt == 0) {
+        return (true, type(uint256).max);
+    }
+
+    // Current weighted collateral of this asset
+    uint256 supply = _currentSupply(user, asset);
+    if (amt1e18 > supply) return (false, 0);
+    uint256 price = oracle.getAssetPrice1e18(asset);
+    uint256 beforeWeighted = ((supply * price) / 1e18) * uint256(r.ltvBps) / 10000;
+    uint256 afterWeighted = (((supply - amt1e18) * price) / 1e18) * uint256(r.ltvBps) / 10000;
+    uint256 collAfter = totalColl - beforeWeighted + afterWeighted;
+    hfAfter = totalDebt == 0 ? type(uint256).max : (collAfter * 1e18) / totalDebt;
+    ok = hfAfter >= 1e18;
+}
+
+/// @notice View helper to check if user can disable a collateral asset while keeping HF >= 1
+function canDisableCollateral(address user, address asset) external view returns (bool ok, uint256 hfAfter) {
+    ReserveUserModels.UserReserveData storage u = userReserves[user][asset];
+    (uint256 totalColl, uint256 totalDebt, ) = _getAccountData(user);
+    if (!u.useAsCollateral || totalDebt == 0) return (true, type(uint256).max);
+
+    ReserveUserModels.ReserveData storage r = reserves[asset];
+    uint256 supply = _currentSupply(user, asset);
+    uint256 price = oracle.getAssetPrice1e18(asset);
+    uint256 weighted = ((supply * price) / 1e18) * uint256(r.ltvBps) / 10000;
+    uint256 collAfter = totalColl > weighted ? totalColl - weighted : 0;
+    if (collAfter == 0) return (false, 0);
+    hfAfter = (collAfter * 1e18) / totalDebt;
+    ok = hfAfter >= 1e18;
+}
+
 
 
 function lend(address asset, uint256 amount) external {
@@ -284,12 +328,8 @@ function lend(address asset, uint256 amount) external {
     u.supply.principal = uint128(sNew);
     u.supply.index = r.liquidityIndex;
     
-    // Auto-enable as collateral if asset has LTV > 0
-    // This provides better UX - users don't need to manually enable collateral
-    if (r.ltvBps > 0 && !u.useAsCollateral) {
-        u.useAsCollateral = true;
-        emit CollateralEnabled(msg.sender, asset);
-    }
+    // Do NOT auto-enable collateral on supply.
+    // Collateral must be toggled explicitly by user via setUserUseReserveAsCollateral.
 
     // 4) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
@@ -470,6 +510,12 @@ function getAccountData(address user) external view returns (
     return _getAccountData(user);
 }
 
+/// @notice Convenience view that returns only Health Factor (1e18). If no debt → max uint
+function calculateHealthFactor(address user) external view returns (uint256) {
+    (, , uint256 hf) = _getAccountData(user);
+    return hf;
+}
+
 /**
  * @notice Get current supply balance (with interest) for a user
  * @param user The address of the user
@@ -536,6 +582,13 @@ function initReserve(
     _allAssets.push(asset);
 }
 
+/// @notice Admin: toggle whether an asset is borrowable (post-init)
+function setReserveBorrowable(address asset, bool isBorrowable) external onlyOwner {
+    _requireInited(asset);
+    reserves[asset].isBorrowable = isBorrowable;
+    emit ReserveBorrowableSet(asset, isBorrowable);
+}
+
 
     modifier onlyOwner() { require(msg.sender == owner, "OWN"); _; }
 
@@ -596,6 +649,7 @@ function initReserve(
 
     event CollateralEnabled(address indexed user, address indexed asset);
     event CollateralDisabled(address indexed user, address indexed asset);
+event ReserveBorrowableSet(address indexed asset, bool isBorrowable);
 
     event Liquidated(
   address indexed liquidator,

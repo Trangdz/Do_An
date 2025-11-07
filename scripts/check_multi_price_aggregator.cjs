@@ -3,8 +3,8 @@ const fs = require("fs");
 
 async function main() {
   // Read deployment address
-  const data = JSON.parse(fs.readFileSync("./deployments/multi-price.json", "utf8"));
-  const aggregatorAddress = data.aggregator;
+  const data = JSON.parse(fs.readFileSync("./deployments/local-chainlink.json", "utf8"));
+  const aggregatorAddress = data.contracts.multiPriceAggregator;
   
   console.log("=== MultiPriceAggregator Status ===\n");
   console.log("Contract Address:", aggregatorAddress);

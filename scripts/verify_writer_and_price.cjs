@@ -3,8 +3,11 @@ const fs = require("fs");
 
 async function main() {
   // Read addresses
-  const multiPriceData = JSON.parse(fs.readFileSync("./deployments/multi-price.json", "utf8"));
-  const aggregatorAddress = multiPriceData.aggregator;
+  const data = JSON.parse(fs.readFileSync("./deployments/local-chainlink.json", "utf8"));
+  const aggregatorAddress = data.contracts.multiPriceAggregator;
+  if (!aggregatorAddress) {
+    throw new Error("multiPriceAggregator address not found in deployments/local-chainlink.json");
+  }
   
   console.log("=== Verifying Writer and Price Update ===\n");
   console.log("MultiPriceAggregator:", aggregatorAddress);

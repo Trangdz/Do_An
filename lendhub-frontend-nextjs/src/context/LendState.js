@@ -536,10 +536,23 @@ const LendState = (props) => {
         hf = ethers.parseUnits("115792089237316195423570985008687907853269984665640564039457.584007913129639935", 18); // Max uint256
       }
       
+      const collateralUSDValue = Number(ethers.formatUnits(col, 18));
+      const debtUSDValue = Number(ethers.formatUnits(debt, 18));
+      let healthFactorValue;
+
+      if (debt === 0n) {
+        healthFactorValue = 'Infinity';
+      } else {
+        const hfNumber = Number(ethers.formatUnits(hf, 18));
+        healthFactorValue = Number.isFinite(hfNumber) && hfNumber < 1e9
+          ? hfNumber.toString()
+          : 'Infinity';
+      }
+
       const accountData = {
-        collateralUSD: ethers.formatUnits(col, 18),
-        debtUSD: ethers.formatUnits(debt, 18),
-        healthFactor: ethers.formatUnits(hf, 18)
+        collateralUSD: collateralUSDValue.toString(),
+        debtUSD: debtUSDValue.toString(),
+        healthFactor: healthFactorValue
       };
 
       console.log('📊 Account Data (formatted):', accountData);
@@ -552,7 +565,7 @@ const LendState = (props) => {
       const accountData = {
         collateralUSD: "0",
         debtUSD: "0", 
-        healthFactor: "115792089237316195423570985008687907853269984665640564039457.584007913129639935"
+        healthFactor: "Infinity"
       };
       setAccountData(accountData);
       return accountData;
@@ -571,7 +584,8 @@ const LendState = (props) => {
       const abi = [
         'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)',
         'function getCurrentSupplyBalance(address user, address asset) view returns (uint256)',
-        'function getCurrentDebtBalance(address user, address asset) view returns (uint256)'
+        'function getCurrentDebtBalance(address user, address asset) view returns (uint256)',
+        'function reserves(address) view returns (uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate)'
       ];
       const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, rpcProvider);
 
@@ -580,6 +594,9 @@ const LendState = (props) => {
           try {
             console.log(`🔍 Checking supply for ${token.symbol} (${token.address})`);
             const userReserve = await pool.userReserves(metamaskDetails.currentAccount, token.address);
+            const reserveData = await pool.reserves(token.address);
+            const liqThresholdBps = Number(reserveData.liqThresholdBps ?? 0);
+            const ltvBps = Number(reserveData.ltvBps ?? 0);
             
             // ✅ Lấy balance VỚI lãi tích lũy
             let supplyBalance, borrowBalance;
@@ -609,12 +626,16 @@ const LendState = (props) => {
             
             if (parseFloat(supplyFormatted) > 0) {
               const price = await getPriceUSD(token.address);
-              const balanceUSD = parseFloat(supplyFormatted) * parseFloat(price);
+              const balanceUSD = Number(supplyFormatted) * Number(price);
+              const collateralUSD = balanceUSD * (liqThresholdBps > 0 ? liqThresholdBps / 10000 : 0);
               
               console.log(`✅ Found supply for ${token.symbol}:`, {
                 principal: supplyPrincipalFormatted,
                 withInterest: supplyFormatted,
-                balanceUSD
+                balanceUSD,
+                collateralUSD,
+                liqThresholdBps,
+                ltvBps
               });
               
               return {
@@ -624,9 +645,12 @@ const LendState = (props) => {
                 decimals: token.decimals,
                 supplyPrincipal: supplyPrincipalFormatted,
                 supplyBalance: supplyFormatted,  // ✅ Với lãi
-                balanceUSD: balanceUSD,
+                balanceUSD,
+                collateralUSD,
                 priceUSD: price,
                 isCollateral: userReserve.useAsCollateral,
+                liqThresholdBps,
+                ltvBps,
               };
             }
             console.log(`❌ No supply found for ${token.symbol}`);
@@ -642,10 +666,10 @@ const LendState = (props) => {
       setSupplyAssets(validSupplies);
 
       // Calculate summary
-      const totalUSDBalance = validSupplies.reduce((sum, asset) => sum + asset.balanceUSD, 0);
+      const totalUSDBalance = validSupplies.reduce((sum, asset) => sum + (Number(asset.balanceUSD) || 0), 0);
+      const totalUSDCollateral = validSupplies.reduce((sum, asset) => sum + (Number(asset.collateralUSD) || 0), 0);
       const weightedAvgAPY = validSupplies.length > 0 ? 
         validSupplies.reduce((sum, asset) => sum + (asset.apy || 0), 0) / validSupplies.length : 0;
-      const totalUSDCollateral = validSupplies.reduce((sum, asset) => sum + asset.balanceUSD, 0);
 
       setSupplySummary({
         totalUSDBalance,
@@ -742,7 +766,7 @@ const LendState = (props) => {
       setYourBorrows(validBorrows);
 
       // Calculate summary
-      const totalUSDBalance = validBorrows.reduce((sum, asset) => sum + asset.balanceUSD, 0);
+      const totalUSDBalance = validBorrows.reduce((sum, asset) => sum + (Number(asset.balanceUSD) || 0), 0);
       const weightedAvgAPY = validBorrows.length > 0 ? 
         validBorrows.reduce((sum, asset) => sum + (asset.apy || 0), 0) / validBorrows.length : 0;
       const totalBorrowPowerUsed = totalUSDBalance;

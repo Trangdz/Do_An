@@ -208,7 +208,10 @@ export default function HistoryPage() {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-foreground text-xl">
-                          {tx.amount} {tx.asset?.symbol || 'Unknown'}
+                          {parseFloat(tx.amount || '0').toLocaleString('en-US', { 
+                            minimumFractionDigits: 2, 
+                            maximumFractionDigits: 6 
+                          })} {tx.asset?.symbol || 'Unknown'}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {formatCurrency(parseFloat(tx.amountUSD || '0'))} USD

@@ -265,6 +265,16 @@ export function formatPercentage(value: number, decimals: number = 2): string {
  * Format currency
  */
 export function formatCurrency(value: number, symbol: string = '$', decimals: number = 2): string {
+  // Handle very large numbers that might be incorrectly formatted
+  if (value > 1000000000000) {
+    // If value is suspiciously large, it might be a formatting error
+    // Check if it's actually a small number with wrong decimals
+    const billions = value / 1000000000000;
+    if (billions < 1000) {
+      // Likely a formatting error - return formatted with proper decimals
+      return `${symbol}${value.toFixed(decimals)}`;
+    }
+  }
   return `${symbol}${formatNumber(value, decimals)}`;
 }
 

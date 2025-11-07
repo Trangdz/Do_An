@@ -32,7 +32,9 @@ export function SimpleDashboard() {
     supplyAssets,
     assetsToBorrow,
     yourBorrows,
-    accountData, 
+    accountData,
+    supplySummary,
+    borrowSummary,
     // Functions
     connectWallet,
     refresh,
@@ -61,9 +63,13 @@ export function SimpleDashboard() {
   });
   
   // Account data
+  // Prefer exact on-chain values from getAccountData
   const collateralValue = parseFloat(accountData.collateralUSD || '0');
   const debtValue = parseFloat(accountData.debtUSD || '0');
-  const healthFactor = parseFloat(accountData.healthFactor || '0');
+  const rawHF = accountData.healthFactor;
+  const healthFactor = rawHF === 'Infinity'
+    ? Number.POSITIVE_INFINITY
+    : (typeof rawHF === 'number' ? rawHF : parseFloat(rawHF || '0'));
   
   // ETH balance from user assets
   const ethBalance = parseFloat(userAssets.find((a: any) => a.symbol === 'ETH')?.balance || '0');
@@ -600,7 +606,7 @@ export function SimpleDashboard() {
                 }`}>
                   {!accountData.healthFactor ? (
                     <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : healthFactor === Number.MAX_SAFE_INTEGER ? (
+                  ) : !Number.isFinite(healthFactor) ? (
                     '∞'
                   ) : (
                     formatNumber(healthFactor, 2)
@@ -774,8 +780,8 @@ export function SimpleDashboard() {
           poolLiquidity={selectedToken.availableLiquidity || '0'}
           price={selectedToken.price || 0}
           liquidationThreshold={selectedToken.liquidationThreshold || 8000}
-          collateralUSD={collateralValue || 0}
-          debtUSD={debtValue || 0}
+          collateralUSD={Number.isFinite(collateralValue) ? collateralValue : 0}
+          debtUSD={Number.isFinite(debtValue) ? debtValue : 0}
           onSuccess={handleWithdrawSuccess}
         />
       )}
@@ -798,8 +804,8 @@ export function SimpleDashboard() {
           provider={provider}
           price={selectedToken.price || 0}
           poolLiquidity={selectedToken.availableLiquidity || '0'}
-          collateralUSD={collateralValue || 0}
-          debtUSD={debtValue || 0}
+          collateralUSD={Number.isFinite(collateralValue) ? collateralValue : 0}
+          debtUSD={Number.isFinite(debtValue) ? debtValue : 0}
           onSuccess={handleBorrowSuccess}
         />
       )}

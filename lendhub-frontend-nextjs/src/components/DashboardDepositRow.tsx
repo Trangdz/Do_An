@@ -118,34 +118,33 @@ export function DashboardDepositRow({ deposit, onWithdrawClick, provider, signer
         console.warn('Could not check account data:', checkError);
       }
       
-      // Estimate gas
+      // 1) Static call to surface revert reason clearly (instead of opaque estimateGas error)
+      try {
+        await pool.getFunction('setUserUseReserveAsCollateral').staticCall(
+          deposit.address,
+          !isCollateral
+        );
+      } catch (simError: any) {
+        const simReason = simError?.reason || simError?.shortMessage || simError?.message || '';
+        console.error('Static call failed (toggle collateral):', simReason);
+        if (simReason) {
+          alert(`❌ Cannot toggle collateral\n\n${simReason}`);
+        } else {
+          alert('❌ Cannot toggle collateral (simulation failed). Please ensure you have supply and correct network.');
+        }
+        setIsToggling(false);
+        return;
+      }
+
+      // 2) Estimate gas (best effort). If node can\'t estimate, send with safe fallback.
       let estimatedGas;
       try {
         estimatedGas = await pool.setUserUseReserveAsCollateral.estimateGas(
-          deposit.address, 
+          deposit.address,
           !isCollateral
         );
       } catch (estError: any) {
-        const estReason = estError?.reason || estError?.shortMessage || estError?.message || '';
-        console.error('Gas estimation failed:', estReason);
-        
-        if (estReason.includes('Health factor would be < 1') || estReason.includes('Health factor')) {
-          alert('❌ CANNOT DISABLE COLLATERAL!\n\n⚠️ Safety Check Failed:\n\nYou have DEBT and this is your ONLY collateral.\n\nDisabling would make:\n• Health Factor < 1.00\n• Your position LIQUIDATABLE!\n\n✅ TO FIX:\n1. Repay ALL your debt first\n   OR\n2. Enable another asset as collateral\n3. Then disable this one\n\n🛡️ Protocol protects you!');
-          setIsToggling(false);
-          return;
-        }
-        
-        if (estReason.includes('Asset cannot be used as collateral')) {
-          alert('❌ Asset cannot be used as collateral\n\nThis asset has LTV = 0%.');
-          setIsToggling(false);
-          return;
-        }
-        
-        if (estReason.includes('No supply balance')) {
-          alert('❌ No supply balance\n\nYou must supply this asset first.');
-          setIsToggling(false);
-          return;
-        }
+        console.warn('Gas estimation failed; using fallback gas limit. Error:', estError?.message || estError);
       }
       
       const txOptions: any = {};
@@ -156,7 +155,11 @@ export function DashboardDepositRow({ deposit, onWithdrawClick, provider, signer
       const tx = await pool.setUserUseReserveAsCollateral(
         deposit.address, 
         !isCollateral,
-        txOptions
+        {
+          ...(txOptions || {}),
+          // If estimate failed, include a conservative fallback gasLimit
+          gasLimit: (txOptions?.gasLimit as bigint) || (250000n)
+        }
       );
       
       await tx.wait();
