@@ -13,18 +13,25 @@ const config = {
   },
   networks: {
     localhost: {
-      url: "http://127.0.0.1:7545",
+      url: "http://127.0.0.1:8545",
       chainId: 31337,
     },
     ganache: {
-      url: "http://127.0.0.1:7545",
-      chainId: 1337,
+      url: "http://127.0.0.1:8545", // Ganache CLI default port
+      chainId: 5777,
       accounts: {
-        mnemonic: "endorse below law public produce reopen social ask reveal increase farm glad",
+        mnemonic: "payment deny what dwarf child talent all high job leopard relief follow",
         count: 10, // Generate 10 accounts
+      },
+    },
+    hardhat: {
+      chainId: 5777,
+      accounts: {
+        mnemonic: "dwarf virtual cotton sudden uncover initial true apple call prepare inquiry west",
+        count: 10,
       },
     },
   },
 };
-
 module.exports = config;
+

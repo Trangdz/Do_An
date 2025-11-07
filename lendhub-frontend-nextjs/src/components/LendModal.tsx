@@ -6,6 +6,8 @@ import { Input } from './ui/Input';
 import { Label } from './ui/Label';
 import { formatCurrency, formatNumber, formatBalance, formatWETHBalance } from '../lib/math';
 import { lend, getTokenBalance, getTokenAllowance, parseTokenAmount } from '../lib/tx';
+import { ORACLE_ABI } from '../config/abis';
+import { CONFIG } from '../config/contracts';
 import { useToast } from './ui/Toast';
 
 
@@ -43,34 +45,89 @@ export function LendModal({
   const [allowance, setAllowance] = useState('0');
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [priceUSD, setPriceUSD] = useState<number>(0);
   const { showToast } = useToast();
 
-  // Load user balance and allowance
+  // Load user balance, allowance, and price (USD) from oracle
   useEffect(() => {
     if (!open || !signer || !provider) return;
 
     const loadData = async () => {
+      setIsLoadingBalance(true);
       try {
         const userAddress = await signer.getAddress();
+        console.log(`🔍 [LendModal] Loading balance for ${token.symbol}:`, {
+          tokenAddress: token.address,
+          userAddress,
+          decimals: token.decimals,
+          poolAddress
+        });
+
+        // Check if token contract has code before calling
+        try {
+          const tokenCode = await provider.getCode(token.address);
+          if (!tokenCode || tokenCode === '0x') {
+            console.error(`❌ [LendModal] Token contract has no code at ${token.address}`);
+            setBalance('0');
+            setAllowance('0');
+            setIsLoadingBalance(false);
+            return;
+          }
+          console.log(`✅ [LendModal] Token contract code exists (${tokenCode.length} bytes)`);
+        } catch (codeError) {
+          console.error(`❌ [LendModal] Error checking token code:`, codeError);
+          setBalance('0');
+          setAllowance('0');
+          setIsLoadingBalance(false);
+          return;
+        }
+
         // Load real on-chain balance and allowance for ALL tokens (including WETH)
+        console.log(`📊 [LendModal] Fetching balance and allowance...`);
         const [balanceStr, allowanceStr] = await Promise.all([
           getTokenBalance(provider, token.address, userAddress, token.decimals),
           getTokenAllowance(provider, token.address, userAddress, poolAddress, token.decimals)
         ]);
 
+        console.log(`✅ [LendModal] Balance: ${balanceStr} ${token.symbol}, Allowance: ${allowanceStr} ${token.symbol}`);
+
         // Store raw numeric string for calculations; avoid currency formatting here
         setBalance(balanceStr);
         setAllowance(allowanceStr);
         
-      } catch (error) {
-        console.error('Error loading token data:', error);
+        // Fetch USD price from on-chain oracle (1e18)
+        try {
+          const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, ORACLE_ABI, provider);
+          const p = await oracle.getAssetPrice1e18(token.address);
+          const price = Number(ethers.formatUnits(p, 18));
+          if (Number.isFinite(price) && price > 0) setPriceUSD(price);
+        } catch (e) {
+          // If oracle not available or token not mapped, keep priceUSD=0 to avoid NaN
+          console.warn(`⚠️ [LendModal] Could not fetch price from oracle:`, e);
+          setPriceUSD(0);
+        }
+        
+      } catch (error: any) {
+        console.error('❌ [LendModal] Error loading token data:', {
+          error: error.message,
+          code: error.code,
+          token: token.symbol,
+          address: token.address,
+          stack: error.stack
+        });
         // Fallback to simulation for WETH
         if (token.symbol === 'WETH') {
           const userBalance = token.userBalance || simulatedBalance || 0;
           const formattedBalance = formatCurrency(userBalance);
           setBalance(formattedBalance);
           setAllowance('1000000');
+        } else {
+          // For other tokens, set to 0 but log the error
+          setBalance('0');
+          setAllowance('0');
         }
+      } finally {
+        setIsLoadingBalance(false);
       }
     };
 
@@ -249,7 +306,9 @@ export function LendModal({
             </div>
             <div className="text-right">
               <span className="text-sm text-gray-500">
-                ≈ ${(parseFloat(amount) * 1600).toFixed(2)} USD
+                {parseFloat(amount) > 0 && priceUSD > 0
+                  ? `≈ $${(parseFloat(amount) * priceUSD).toFixed(2)} USD`
+                  : ' '}
               </span>
             </div>
           </div>

@@ -81,11 +81,33 @@ export async function approveIfNeeded(
   spender: string,
   amount: bigint
 ): Promise<TxResult | null> {
+  // Disallow native ETH approvals
+  if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
+    throw new Error('Cannot approve native ETH. Select an ERC20 token.');
+  }
+
   const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
   const userAddress = await signer.getAddress();
-  
-  // Check current allowance
-  const currentAllowance = await tokenContract.allowance(userAddress, spender);
+
+  // Check current allowance with defensive guards: non-contract / BAD_DATA → treat as 0
+  let currentAllowance: bigint = BigInt(0);
+  try {
+    const provider = signer.provider as ethers.Provider;
+    const code = provider && await provider.getCode(tokenAddress);
+    if (!code || code === '0x') {
+      console.warn('[approveIfNeeded] tokenAddress has no code, treating allowance as 0');
+    } else {
+      currentAllowance = await tokenContract.allowance(userAddress, spender);
+    }
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    if (/could not decode result|BAD_DATA|missing revert data/i.test(msg)) {
+      console.warn('[approveIfNeeded] allowance decode failed, treating as 0');
+      currentAllowance = BigInt(0);
+    } else {
+      throw e;
+    }
+  }
   
   if (currentAllowance >= amount) {
     console.log('✅ Allowance sufficient, skipping approval');
@@ -521,20 +543,40 @@ export async function getTokenBalance(
 ): Promise<string> {
   try {
     if (!provider || !tokenAddress || !userAddress) {
-      console.warn('getTokenBalance: Missing parameters', { provider: !!provider, tokenAddress, userAddress });
+      console.warn('❌ [getTokenBalance] Missing parameters', { provider: !!provider, tokenAddress, userAddress });
       return "0";
     }
     
-  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    // Check if contract has code before creating contract instance
+    try {
+      const code = await provider.getCode(tokenAddress);
+      if (!code || code === '0x') {
+        console.error(`❌ [getTokenBalance] Token contract has no code at ${tokenAddress}`);
+        return "0";
+      }
+      console.log(`✅ [getTokenBalance] Contract code exists (${code.length} bytes) for ${tokenAddress}`);
+    } catch (codeError: any) {
+      console.error(`❌ [getTokenBalance] Error checking contract code:`, {
+        tokenAddress,
+        error: codeError.message,
+        code: codeError.code
+      });
+      return "0";
+    }
+    
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    console.log(`🔍 [getTokenBalance] Calling balanceOf(${userAddress}) for token ${tokenAddress}`);
     
     // Retry logic for circuit breaker errors
     let lastError;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-  const balance = await tokenContract.balanceOf(userAddress);
+        const balance = await tokenContract.balanceOf(userAddress);
         const formatted = formatUnits(balance, decimals);
         if (attempt > 0) {
-          console.log(`✅ Balance fetched on attempt ${attempt + 1}: ${formatted}`);
+          console.log(`✅ [getTokenBalance] Balance fetched on attempt ${attempt + 1}: ${formatted}`);
+        } else {
+          console.log(`✅ [getTokenBalance] Balance: ${formatted} (decimals: ${decimals})`);
         }
         return formatted;
       } catch (error: any) {
@@ -549,7 +591,7 @@ export async function getTokenBalance(
         if (isCircuitBreaker && attempt < 2) {
           // Wait before retry (exponential backoff)
           const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-          console.warn(`⚠️ Circuit breaker open, retrying in ${waitTime}ms... (attempt ${attempt + 1}/3)`);
+          console.warn(`⚠️ [getTokenBalance] Circuit breaker open, retrying in ${waitTime}ms... (attempt ${attempt + 1}/3)`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         }
@@ -570,11 +612,15 @@ export async function getTokenBalance(
       error?.message?.includes('circuit breaker');
     
     if (!isCircuitBreaker) {
-      console.error('getTokenBalance error:', {
+      console.error('❌ [getTokenBalance] Error:', {
         tokenAddress,
         userAddress,
+        decimals,
         error: error.message,
-        code: error.code
+        code: error.code,
+        reason: error.reason,
+        shortMessage: error.shortMessage,
+        stack: error.stack
       });
     }
     return "0";
@@ -591,9 +637,46 @@ export async function getTokenAllowance(
   spender: string,
   decimals: number = 18
 ): Promise<string> {
-  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-  const allowance = await tokenContract.allowance(userAddress, spender);
-  return formatUnits(allowance, decimals);
+  try {
+    // Native ETH or non-contract → no allowance
+    if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
+      console.log(`ℹ️ [getTokenAllowance] Native ETH, no allowance needed`);
+      return '0';
+    }
+    
+    console.log(`🔍 [getTokenAllowance] Checking allowance for token ${tokenAddress}, user ${userAddress}, spender ${spender}`);
+    
+    const code = await provider.getCode(tokenAddress);
+    if (!code || code === '0x') {
+      console.error(`❌ [getTokenAllowance] Token contract has no code at ${tokenAddress}`);
+      return '0';
+    }
+    console.log(`✅ [getTokenAllowance] Contract code exists (${code.length} bytes)`);
+    
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    console.log(`📊 [getTokenAllowance] Calling allowance(${userAddress}, ${spender})`);
+    const allowance = await tokenContract.allowance(userAddress, spender);
+    const formatted = formatUnits(allowance, decimals);
+    console.log(`✅ [getTokenAllowance] Allowance: ${formatted} (decimals: ${decimals})`);
+    return formatted;
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    if (/could not decode result|BAD_DATA|missing revert data/i.test(msg)) {
+      console.warn('⚠️ [getTokenAllowance] Decode failed:', { tokenAddress, userAddress, spender, error: msg });
+      return '0';
+    }
+    console.error('❌ [getTokenAllowance] Error:', {
+      tokenAddress,
+      userAddress,
+      spender,
+      decimals,
+      error: msg,
+      code: e?.code,
+      reason: e?.reason,
+      shortMessage: e?.shortMessage
+    });
+    return '0';
+  }
 }
 
 /**
