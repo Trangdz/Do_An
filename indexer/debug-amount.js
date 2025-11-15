@@ -32,3 +32,12 @@ console.log('\n✅ Conclusion:');
 console.log('Contract emits amount in 1e18 format, so we MUST format with 18 decimals');
 console.log('Then we can format the display number to 6 decimal places for readability');
 
+
+
+
+
+
+
+
+
+

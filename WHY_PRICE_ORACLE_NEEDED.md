@@ -245,3 +245,12 @@ uint256 price = oracle.getAssetPrice1e18(asset);
 
 **PriceOracle không phải là redundant, mà là cần thiết cho kiến trúc tốt!**
 
+
+
+
+
+
+
+
+
+

@@ -313,3 +313,12 @@ LendingPool pool = new LendingPool(address(oracle));  // ✅ Hoạt động ngay
 
 **Đây là cách các dự án DeFi lớn (Aave, Compound) làm!**
 
+
+
+
+
+
+
+
+
+

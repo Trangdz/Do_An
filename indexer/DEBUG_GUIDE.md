@@ -182,3 +182,12 @@ npm run check
 - [ ] Xem log chi tiết có lỗi gì không?
 - [ ] Chạy debug script để kiểm tra?
 
+
+
+
+
+
+
+
+
+

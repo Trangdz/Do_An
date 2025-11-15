@@ -64,3 +64,12 @@ async function checkDatabaseAmounts() {
 
 checkDatabaseAmounts();
 
+
+
+
+
+
+
+
+
+

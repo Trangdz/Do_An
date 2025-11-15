@@ -167,3 +167,12 @@ grep "to=" chainlink-data/job-*.toml
 - **Kiểm tra Chainlink UI** để xem jobs có chạy không
 - **Nếu jobs fail**, xem logs trong Chainlink UI để debug
 
+
+
+
+
+
+
+
+
+

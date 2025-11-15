@@ -252,3 +252,12 @@ LendingPool vẫn dùng giá cố định từ PriceOracle, không phản ánh g
 
 Đây là giải pháp ít thay đổi nhất và tận dụng được infrastructure hiện có.
 
+
+
+
+
+
+
+
+
+

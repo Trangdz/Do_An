@@ -90,3 +90,12 @@ node test.js
 - Indexer chạy real-time, lắng nghe các block mới
 - Dữ liệu được lưu vào database `lendhub_local`
 
+
+
+
+
+
+
+
+
+

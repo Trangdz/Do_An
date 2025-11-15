@@ -218,3 +218,12 @@ contract PriceOracle is IPriceOracle {
 
 **Kết quả:** Kiến trúc đơn giản hơn, giống với các dự án production thực tế!
 
+
+
+
+
+
+
+
+
+

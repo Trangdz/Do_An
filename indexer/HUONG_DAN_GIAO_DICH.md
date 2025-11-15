@@ -194,3 +194,12 @@ db.metadata.findOne({ key: "lastIndexedBlock" })
 
 **Indexer sẽ tự động làm việc trong background!** 🚀
 
+
+
+
+
+
+
+
+
+
