@@ -7,7 +7,7 @@ HTTPPort = 6688
 HTTPSPort = 0
 
 [Log]
-Level = "info"
+Level = "debug"
 
 [[EVM]]
 ChainID = 1337
@@ -23,11 +23,3 @@ LogPoller = true
 WSURL = "ws://192.168.34.106:8545"
 HTTPURL = "http://192.168.34.106:8545"
 ChainID = "5777"
-
-[Log]
-Level = "debug"
-
-[WebServer]
-HTTPPort = 6688
-TLS = { Port = 0 }
-SecureCookies = false

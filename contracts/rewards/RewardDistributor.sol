@@ -23,6 +23,9 @@ contract RewardDistributor is ReentrancyGuard, Ownable {
 
     LENDXToken public immutable lendxToken;
     
+    // RewardAccumulator address (authorized to accumulate rewards)
+    address public rewardAccumulator;
+    
     // User => accumulated reward amount (in LENDX, 1e18)
     mapping(address => uint256) public rewards;
     
@@ -40,13 +43,27 @@ contract RewardDistributor is ReentrancyGuard, Ownable {
     constructor(address _lendxToken, address initialOwner) Ownable(initialOwner) {
         lendxToken = LENDXToken(_lendxToken);
     }
+    
+    /**
+     * @notice Set RewardAccumulator address (only owner or current rewardAccumulator)
+     * @dev Allows current rewardAccumulator to update itself (for migration)
+     */
+    function setRewardAccumulator(address _rewardAccumulator) external {
+        require(
+            msg.sender == owner() || msg.sender == rewardAccumulator,
+            "RewardDistributor: unauthorized"
+        );
+        rewardAccumulator = _rewardAccumulator;
+    }
 
     /**
      * @notice Accumulate rewards for a user (called by LendingPool or authorized contract)
      * @param user Address of the user
      * @param amount Amount of LENDX to add to user's reward balance
      */
-    function accumulateReward(address user, uint256 amount) external onlyOwner {
+    function accumulateReward(address user, uint256 amount) external {
+        // Allow owner or RewardAccumulator to call this
+        require(msg.sender == owner() || msg.sender == rewardAccumulator, "RewardDistributor: unauthorized");
         if (user == address(0)) revert InvalidAddress();
         if (amount == 0) return;
         

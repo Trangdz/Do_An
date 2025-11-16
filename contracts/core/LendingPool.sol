@@ -77,6 +77,48 @@ contract LendingPool is ReentrancyGuard, Pausable {
             }
         }
     }
+    
+    /**
+     * @notice Internal function to update supply balance in RewardAccumulator
+     */
+    function _updateSupplyReward(address user, address asset, uint256 supplyBalance) internal {
+        if (rewardAccumulator != address(0)) {
+            // Use call with sufficient gas limit
+            // updateSupplyBalance does: read state, calculate, call RewardDistributor, update state
+            // RewardDistributor.accumulateReward does: check auth, update mapping, emit event
+            // Total gas needed: ~50000 for updateSupplyBalance + ~30000 for accumulateReward = ~80000
+            // Use 200000 to be safe
+            (bool success, bytes memory returnData) = rewardAccumulator.call{gas: 200000}(
+                abi.encodeWithSignature("updateSupplyBalance(address,address,uint256)", user, asset, supplyBalance)
+            );
+            // Don't revert if reward update fails (non-critical)
+            if (!success) {
+                // Emit event for debugging (can be filtered out in production)
+                // This helps identify why rewards aren't accumulating
+                emit RewardUpdateFailed(user, asset, returnData);
+            }
+        }
+    }
+    
+    // Event for debugging reward update failures
+    event RewardUpdateFailed(address indexed user, address indexed asset, bytes returnData);
+    
+    /**
+     * @notice Internal function to update borrow balance in RewardAccumulator
+     */
+    function _updateBorrowReward(address user, address asset, uint256 borrowBalance) internal {
+        if (rewardAccumulator != address(0)) {
+            // Use call with sufficient gas limit (same as _updateSupplyReward)
+            (bool success, bytes memory returnData) = rewardAccumulator.call{gas: 200000}(
+                abi.encodeWithSignature("updateBorrowBalance(address,address,uint256)", user, asset, borrowBalance)
+            );
+            // Don't revert if reward update fails (non-critical)
+            if (!success) {
+                // Emit event for debugging
+                emit RewardUpdateFailed(user, asset, returnData);
+            }
+        }
+    }
 
     /// @notice Cập nhật index & rates cho asset
     function _accrue(address asset) internal {
@@ -362,8 +404,8 @@ function lend(address asset, uint256 amount) external {
     // 4) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
 
-    // 5) Accumulate rewards
-    _accumulateRewards(msg.sender);
+    // 5) Update reward accumulator with new supply balance
+    _updateSupplyReward(msg.sender, asset, sNew);
 
     emit Supplied(msg.sender, asset, delta1e18);
 }
@@ -407,8 +449,8 @@ function withdraw(address asset, uint256 requested) external returns (uint256 am
     uint256 transferOut = _from1e18(amt, r.decimals);
     IERC20(asset).safeTransfer(msg.sender, transferOut);
 
-    // Accumulate rewards
-    _accumulateRewards(msg.sender);
+    // Update reward accumulator with new supply balance
+    _updateSupplyReward(msg.sender, asset, sNew);
 
     emit Withdrawn(msg.sender, asset, amt);
     return amt; // 1e18 (chuẩn 1e18, tiện test/hiển thị)
@@ -467,8 +509,8 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
     r.reserveCash = uint128(uint256(r.reserveCash) - borrowAmount1e18);
     r.totalDebtPrincipal = uint128(uint256(r.totalDebtPrincipal) + borrowAmount1e18);
     
-    // Accumulate rewards
-    _accumulateRewards(msg.sender);
+    // Update reward accumulator with new borrow balance
+    _updateBorrowReward(msg.sender, asset, newDebtTotal);
     
     emit Borrowed(msg.sender, asset, borrowAmount1e18);
 }
@@ -534,8 +576,8 @@ function repay(address asset, uint256 amount, address onBehalfOf) external nonRe
         r.totalDebtPrincipal = uint128(currentTotalDebt - repayAmount1e18);
     }
     
-    // Accumulate rewards
-    _accumulateRewards(onBehalfOf);
+    // Update reward accumulator with new borrow balance
+    _updateBorrowReward(onBehalfOf, asset, newDebt);
     
     emit Repaid(msg.sender, onBehalfOf, asset, repayAmount1e18);
     return repayAmount1e18;

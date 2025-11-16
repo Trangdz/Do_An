@@ -3,15 +3,15 @@
 // Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
-export const LendingPoolAddress = "0x0D390722CD754E77C73c5313107CCc70C88606Eb";
-export const InterestRateModelAddress = "0xcB39ac957a417B4f9Ee75F9d41f3f9A6117d40b5";
-export const PriceOracleAddress = "0x27aac105Df25425BBb845983c5b240D264528Fc0"; // MultiPriceAggregator serves as PriceOracle
-export const PricemultiAddr = "0x27aac105Df25425BBb845983c5b240D264528Fc0";
+export const LendingPoolAddress = "0x507AC4DE870f3e8CC2E6a644Ccb05999b54af9fd";
+export const InterestRateModelAddress = "0x3834d96b0114cD589f5DC876d0911EEA8f235839";
+export const PriceOracleAddress = "0xec4aee56E6a82a68076753E69308367e5F04Eb97"; // MultiPriceAggregator serves as PriceOracle
+export const PricemultiAddr = "0xec4aee56E6a82a68076753E69308367e5F04Eb97";
 export const LendingHelperAddress = "0x0000000000000000000000000000000000000000";
-export const WETHAddress = "0x22816Ec5b58C874Ff4d58C4af375B61829B9D393";
-export const DAIAddress = "0x96f45e3015492AA31F931de0C51cc8097fc1BB32";
-export const USDCAddress = "0x852534C9D0B9EE790A21D7428bF8632572AD4Db6";
-export const LINKAddress = "0xea491C4A491e0E3c46aC6f591F870C721243d5D0";
+export const WETHAddress = "0x1D0F9bbc9bcab33564E434D425Ab5304FC85b241";
+export const DAIAddress = "0xF9f2f97dFA277a7751a3b2e59468e52e623c7F3F";
+export const USDCAddress = "0x6ba4BDa0548C75eEa35E6482087a50E14b3419DF";
+export const LINKAddress = "0x34793a286F1B4988DC72AA64472558Fa2BbB9A9F";
 
 // 10 Demo Users (each has 10K WETH, 1M DAI, 1M USDC, 100K LINK)
 export const User0Address = "0x8Db50A18C4f5EcC9caba8962C29f23F775402155";
@@ -24,8 +24,8 @@ export const User6Address = "0x2eF2be7bD316F752f61f2ebde4291168E03b9767";
 export const User7Address = "0x298f854F3801999c760805c216d8BdfC69eB7977";
 export const User8Address = "0x106789714F43f87fa55627D97E7f19F57730AF16";
 export const User9Address = "0x42853c760738354E28606E5f752A630E875ea094";
-
 export const LENDXTokenAddress = "0x1Ff150e33dEe880Dc799d94f7854F7D33c6413a3";
-export const RewardDistributorAddress = "0x8d15699fA5E1670C3Bc5D2CdD1E9F250461C6662";
-export const RewardAccumulatorAddress = "0x9Ea27Fd74E7F35eb7C412317D1B24C64dF6125fA";
+export const RewardDistributorAddress = "0x134AD6FBd05b5d92b71f7e48D77de2567cc096C0";
+export const RewardAccumulatorAddress = "0xC19bA1b723323cC3E0E270E42592AF0Ead13f661";
+
 export const GovernorAddress = "0x736AaE225C34D922B27fa2AE89F700850DA5DCF6";
