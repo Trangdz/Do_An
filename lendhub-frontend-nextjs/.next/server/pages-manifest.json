@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/governance/proposals/[id]": "pages/governance/proposals/[id].js",
   "/deposit": "pages/deposit.js",
+  "/governance/proposals/[id]": "pages/governance/proposals/[id].js",
   "/deposit/[symbol]": "pages/deposit/[symbol].js"
 }
