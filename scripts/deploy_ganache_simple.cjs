@@ -193,6 +193,90 @@ async function main() {
   console.log("   No manual price setting needed!");
 
   // ========================================
+  // 2.5️⃣ DEPLOY LENDX TOKEN SYSTEM & GOVERNANCE
+  // ========================================
+  console.log("\n2.5️⃣  Deploying LENDX Token System & Governance...");
+  console.log("─".repeat(70));
+
+  // Check if LENDX token system already exists
+  const addressesPath = path.join(__dirname, "../lendhub-frontend-nextjs/src/addresses.js");
+  let existingLENDXAddress = null;
+  let existingGovernorAddress = null;
+  
+  if (fs.existsSync(addressesPath)) {
+    const existingContent = fs.readFileSync(addressesPath, "utf8");
+    const lendxMatch = existingContent.match(/LENDXTokenAddress\s*=\s*"([^"]+)"/);
+    const governorMatch = existingContent.match(/GovernorAddress\s*=\s*"([^"]+)"/);
+    if (lendxMatch) existingLENDXAddress = lendxMatch[1];
+    if (governorMatch) existingGovernorAddress = governorMatch[1];
+  }
+
+  let lendxTokenAddress = existingLENDXAddress;
+  let governorAddress = existingGovernorAddress;
+
+  // Deploy LENDX Token System if not exists
+  if (!lendxTokenAddress || lendxTokenAddress === '0x0000000000000000000000000000000000000000') {
+    console.log("📦 Deploying LENDX Token System...");
+    
+    // Deploy LENDXToken
+    const LENDXTokenFactory = await ethers.getContractFactory("LENDXToken");
+    const lendxToken = await LENDXTokenFactory.deploy();
+    await lendxToken.waitForDeployment();
+    lendxTokenAddress = await lendxToken.getAddress();
+    console.log("✅ LENDXToken deployed:", lendxTokenAddress);
+
+    // Deploy RewardDistributor
+    const RewardDistributorFactory = await ethers.getContractFactory("RewardDistributor");
+    const rewardDistributor = await RewardDistributorFactory.deploy(lendxTokenAddress);
+    await rewardDistributor.waitForDeployment();
+    const rewardDistributorAddress = await rewardDistributor.getAddress();
+    console.log("✅ RewardDistributor deployed:", rewardDistributorAddress);
+
+    // Deploy TokenVesting
+    const TokenVestingFactory = await ethers.getContractFactory("TokenVesting");
+    const tokenVesting = await TokenVestingFactory.deploy(lendxTokenAddress, deployer.address);
+    await tokenVesting.waitForDeployment();
+    const tokenVestingAddress = await tokenVesting.getAddress();
+    console.log("✅ TokenVesting deployed:", tokenVestingAddress);
+
+    // Deploy DAOTreasury
+    const DAOTreasuryFactory = await ethers.getContractFactory("DAOTreasury");
+    const daoTreasury = await DAOTreasuryFactory.deploy(lendxTokenAddress);
+    await daoTreasury.waitForDeployment();
+    const daoTreasuryAddress = await daoTreasury.getAddress();
+    console.log("✅ DAOTreasury deployed:", daoTreasuryAddress);
+
+    // Distribute tokens: 20M to proposers (hardcoded addresses), 80M to RewardDistributor
+    const TOTAL_SUPPLY = ethers.parseUnits("100000000", 18); // 100M
+    const PROPOSER_AMOUNT = ethers.parseUnits("20000000", 18); // 20M
+    const REWARD_AMOUNT = ethers.parseUnits("80000000", 18); // 80M
+
+    // Transfer 20M to deployer (as proposer for demo)
+    await lendxToken.transfer(deployer.address, PROPOSER_AMOUNT);
+    console.log("✅ Transferred 20M LENDX to deployer (proposer)");
+
+    // Transfer 80M to RewardDistributor
+    await lendxToken.transfer(rewardDistributorAddress, REWARD_AMOUNT);
+    console.log("✅ Transferred 80M LENDX to RewardDistributor");
+
+    console.log("✅ LENDX Token System deployed and distributed");
+  } else {
+    console.log("✅ LENDX Token System already exists:", lendxTokenAddress);
+  }
+
+  // Deploy Governor if not exists
+  if (!governorAddress || governorAddress === '0x0000000000000000000000000000000000000000') {
+    console.log("\n📦 Deploying LendHubGovernor...");
+    const LendHubGovernorFactory = await ethers.getContractFactory("LendHubGovernor");
+    const governor = await LendHubGovernorFactory.deploy(lendxTokenAddress, deployer.address);
+    await governor.waitForDeployment();
+    governorAddress = await governor.getAddress();
+    console.log("✅ LendHubGovernor deployed:", governorAddress);
+  } else {
+    console.log("✅ Governor already exists:", governorAddress);
+  }
+
+  // ========================================
   // 3️⃣ DEPLOY LENDING POOL (using MultiPriceAggregator as Oracle)
   // ========================================
   console.log("\n3️⃣  Deploying LendingPool...");
@@ -210,6 +294,79 @@ async function main() {
   const poolAddress = await lendingPool.getAddress();
   console.log("✅ LendingPool deployed:", poolAddress);
   console.log("   Using MultiPriceAggregator as Oracle (prices from Chainlink)");
+
+  // Setup Governor: Set LendingPool and asset addresses
+  if (governorAddress) {
+    console.log("\n🔧 Setting up Governor...");
+    try {
+      const GovernorABI = [
+        "function setLendingPool(address _lendingPool) external",
+        "function setAssetAddress(string memory symbol, address assetAddress) external",
+        "function lendingPool() external view returns (address)",
+        "function assetAddresses(string memory) external view returns (address)",
+      ];
+      const governor = new ethers.Contract(governorAddress, GovernorABI, deployer);
+
+      // Set LendingPool in Governor
+      try {
+        const currentLendingPool = await governor.lendingPool();
+        if (currentLendingPool.toLowerCase() !== poolAddress.toLowerCase()) {
+          const tx = await governor.setLendingPool(poolAddress);
+          await tx.wait();
+          console.log("✅ LendingPool set in Governor:", poolAddress);
+        } else {
+          console.log("✅ LendingPool already set in Governor");
+        }
+      } catch (error) {
+        console.log("⚠️  Could not set LendingPool in Governor:", error.message);
+      }
+
+      // Set asset addresses in Governor
+      const assets = [
+        { symbol: "WETH", address: wethAddress },
+        { symbol: "DAI", address: daiAddress },
+        { symbol: "USDC", address: usdcAddress },
+        { symbol: "LINK", address: linkAddress },
+      ];
+
+      for (const asset of assets) {
+        try {
+          const currentAddress = await governor.assetAddresses(asset.symbol);
+          if (currentAddress.toLowerCase() !== asset.address.toLowerCase()) {
+            const tx = await governor.setAssetAddress(asset.symbol, asset.address);
+            await tx.wait();
+            console.log(`✅ ${asset.symbol} address set in Governor: ${asset.address}`);
+          }
+        } catch (error) {
+          console.log(`⚠️  Could not set ${asset.symbol} in Governor:`, error.message);
+        }
+      }
+
+      // Set Governor in LendingPool
+      try {
+        const LendingPoolABI = [
+          "function setGovernor(address _governor) external",
+          "function governor() external view returns (address)",
+        ];
+        const lendingPoolWithGov = new ethers.Contract(poolAddress, LendingPoolABI, deployer);
+        
+        const currentGovernor = await lendingPoolWithGov.governor();
+        if (currentGovernor.toLowerCase() !== governorAddress.toLowerCase()) {
+          const tx = await lendingPoolWithGov.setGovernor(governorAddress);
+          await tx.wait();
+          console.log("✅ Governor set in LendingPool:", governorAddress);
+          console.log("   LendingPool can now execute governance proposals");
+        } else {
+          console.log("✅ Governor already set in LendingPool");
+        }
+      } catch (error) {
+        console.log("⚠️  Could not set Governor in LendingPool (may not have setGovernor function yet)");
+        console.log("   This is OK if you're using an older LendingPool contract");
+      }
+    } catch (error) {
+      console.log("⚠️  Governor setup failed:", error.message);
+    }
+  }
 
   // ========================================
   // 4️⃣ INITIALIZE RESERVES
@@ -428,6 +585,52 @@ async function main() {
   
   const userAddresses = signers.slice(0, 10).map(s => s.address);
   
+  // Check if Governor exists to preserve it
+  let governorAddressLine = "";
+  try {
+    const existingAddressesPath = path.join(__dirname, "../lendhub-frontend-nextjs/src/addresses.js");
+    if (fs.existsSync(existingAddressesPath)) {
+      const existingContent = fs.readFileSync(existingAddressesPath, "utf8");
+      const governorMatch = existingContent.match(/export const GovernorAddress\s*=\s*"([^"]+)";/);
+      if (governorMatch) {
+        governorAddressLine = `export const GovernorAddress = "${governorMatch[1]}";\n`;
+      }
+    }
+  } catch (error) {
+    // Ignore errors
+  }
+
+  // Get LENDX token system addresses (from deployment above or existing)
+  let lendxTokenLines = "";
+  if (lendxTokenAddress) {
+    // Read existing addresses to preserve RewardDistributor, RewardAccumulator if they exist
+    try {
+      const existingAddressesPath = path.join(__dirname, "../lendhub-frontend-nextjs/src/addresses.js");
+      if (fs.existsSync(existingAddressesPath)) {
+        const existingContent = fs.readFileSync(existingAddressesPath, "utf8");
+        const rewardDistributorMatch = existingContent.match(/export const RewardDistributorAddress\s*=\s*"([^"]+)";/);
+        const rewardAccumulatorMatch = existingContent.match(/export const RewardAccumulatorAddress\s*=\s*"([^"]+)";/);
+        
+        lendxTokenLines += `export const LENDXTokenAddress = "${lendxTokenAddress}";\n`;
+        if (rewardDistributorMatch) {
+          lendxTokenLines += `export const RewardDistributorAddress = "${rewardDistributorMatch[1]}";\n`;
+        }
+        if (rewardAccumulatorMatch) {
+          lendxTokenLines += `export const RewardAccumulatorAddress = "${rewardAccumulatorMatch[1]}";\n`;
+        }
+        if (lendxTokenLines) {
+          lendxTokenLines += "\n";
+        }
+      } else {
+        // First time deployment - add LENDX token address
+        lendxTokenLines += `export const LENDXTokenAddress = "${lendxTokenAddress}";\n`;
+      }
+    } catch (error) {
+      // If error, just add LENDX token address
+      lendxTokenLines += `export const LENDXTokenAddress = "${lendxTokenAddress}";\n`;
+    }
+  }
+
   const addressesContent = `// Auto-generated for GANACHE CLI
 // Network: http://127.0.0.1:7545 | Chain ID: 1337
 // Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
@@ -445,10 +648,44 @@ export const LINKAddress = "${linkAddress}";
 
 // 10 Demo Users (each has 10K WETH, 1M DAI, 1M USDC, 100K LINK)
 ${userAddresses.map((addr, i) => `export const User${i}Address = "${addr}";`).join('\n')}
-`;
+${lendxTokenLines}${governorAddressLine}`;
 
-  fs.writeFileSync(frontendAddressesPath, addressesContent);
+  // Always write the complete file (replace, not append) to avoid duplicates
+  fs.writeFileSync(frontendAddressesPath, addressesContent, 'utf8');
   console.log("✅ Updated frontend addresses:", frontendAddressesPath);
+  
+  // Verify and clean duplicates after writing (safety check)
+  try {
+    const verifyContent = fs.readFileSync(frontendAddressesPath, 'utf8');
+    const lines = verifyContent.split('\n');
+    const newLines = [];
+    const seenNames = new Set();
+    const duplicates = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const match = line.match(/^export const (\w+Address)\s*=\s*"[^"]+";/);
+      if (match) {
+        const name = match[1];
+        if (seenNames.has(name)) {
+          duplicates.push(name);
+          continue; // Skip duplicate
+        } else {
+          seenNames.add(name);
+        }
+      }
+      newLines.push(line);
+    }
+    
+    if (duplicates.length > 0) {
+      console.warn(`⚠️  WARNING: Found ${duplicates.length} duplicate(s) after writing, cleaning...`);
+      const cleanedContent = newLines.join('\n');
+      fs.writeFileSync(frontendAddressesPath, cleanedContent, 'utf8');
+      console.log(`✅ Cleaned ${duplicates.length} duplicate(s): ${[...new Set(duplicates)].join(', ')}`);
+    }
+  } catch (error) {
+    console.warn("⚠️  Could not verify addresses.js:", error.message);
+  }
 
   // ========================================
   // 8️⃣ DISPLAY SUMMARY

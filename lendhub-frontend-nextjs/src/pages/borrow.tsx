@@ -223,4 +223,7 @@ export default function BorrowPage() {
       </div>
     </AppLayout>
   );
+}      </div>
+    </AppLayout>
+  );
 }

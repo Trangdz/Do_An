@@ -1,0 +1,9 @@
+{
+  "network": "ganache",
+  "deployer": "0x8Db50A18C4f5EcC9caba8962C29f23F775402155",
+  "contracts": {
+    "governor": "0x736AaE225C34D922B27fa2AE89F700850DA5DCF6",
+    "lendxToken": "0x1Ff150e33dEe880Dc799d94f7854F7D33c6413a3"
+  },
+  "timestamp": "2025-11-16T07:15:22.350Z"
+}

@@ -9,6 +9,7 @@ import { lend, getTokenBalance, getTokenAllowance, parseTokenAmount } from '../l
 import { ORACLE_ABI } from '../config/abis';
 import { CONFIG } from '../config/contracts';
 import { useToast } from './ui/Toast';
+import { isUserRejection, getFriendlyErrorMessage } from '@/lib/errorHandler';
 
 
 interface LendModalProps {
@@ -190,9 +191,9 @@ export function LendModal({
             setPriceUSD(0);
           } else {
             const oracle = new ethers.Contract(CONFIG.PRICE_ORACLE, ORACLE_ABI, useProvider);
-            const p = await oracle.getAssetPrice1e18(token.address);
-            const price = Number(ethers.formatUnits(p, 18));
-            if (Number.isFinite(price) && price > 0) setPriceUSD(price);
+          const p = await oracle.getAssetPrice1e18(token.address);
+          const price = Number(ethers.formatUnits(p, 18));
+          if (Number.isFinite(price) && price > 0) setPriceUSD(price);
           }
         } catch (e) {
           // If oracle not available or token not mapped, keep priceUSD=0 to avoid NaN
@@ -280,14 +281,19 @@ export function LendModal({
     } catch (error: any) {
       console.error('Error lending:', error);
       
-      // Only show error toast if it wasn't already shown by sendWithToast
-      if (error.message !== 'USER_CANCELLED') {
-        showToast({
-          type: 'error',
-          title: 'Supply Failed',
-          message: error.message || 'Transaction failed'
-        });
+      // Don't show error toast for user rejection - they already know they cancelled
+      if (isUserRejection(error) || error.message === 'USER_CANCELLED') {
+        // User rejected, no need to show error
+        return;
       }
+      
+      // Show friendly error message for other errors
+      const friendlyMessage = getFriendlyErrorMessage(error);
+      showToast({
+        type: 'error',
+        title: 'Supply Failed',
+        message: friendlyMessage
+      });
     } finally {
       setIsLoading(false);
     }

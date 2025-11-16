@@ -834,3 +834,9 @@ export function SimpleDashboard() {
     </div>
   );
 }
+        />
+      )}
+    </div>
+  );
+}
+

@@ -269,3 +269,4 @@ export function DashboardDepositRow({ deposit, onWithdrawClick, provider, signer
     </tr>
   );
 }
+

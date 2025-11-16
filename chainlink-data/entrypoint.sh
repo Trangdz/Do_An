@@ -15,3 +15,42 @@ cd /root
 # Execute chainlink
 exec /usr/local/bin/chainlink "$@"
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

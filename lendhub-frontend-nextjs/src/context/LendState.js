@@ -347,7 +347,13 @@ const LendState = (props) => {
       const price = await oracle.getAssetPrice1e18(asset);
       return ethers.formatUnits(price, 18);
     } catch (error) {
-      console.warn(`Error getting price for ${asset}:`, error);
+      // Silently handle "price not available" errors - this is expected when Chainlink hasn't updated prices yet
+      if (error?.reason?.includes('price not available') || error?.message?.includes('price not available')) {
+        // Don't log this as it's expected behavior when prices aren't set up yet
+        return "0";
+      }
+      // Only log unexpected errors
+      console.warn(`Error getting price for ${asset}:`, error.message || error.reason || error);
       return "0";
     }
   }, []);

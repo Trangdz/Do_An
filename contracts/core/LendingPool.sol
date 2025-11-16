@@ -29,6 +29,7 @@ contract LendingPool is ReentrancyGuard, Pausable {
     using RayMath for uint256;
     using SafeERC20 for IERC20;
     address public owner = msg.sender;
+    address public governor; // Governor contract address
     
     // Hardcoded addresses for demo (in production, these would be configurable)
     // Note: These addresses will be set during deployment
@@ -42,12 +43,39 @@ contract LendingPool is ReentrancyGuard, Pausable {
 
     InterestRateModel public immutable interestRateModel;
     IPriceOracle public immutable oracle;
+    
+    // Reward accumulator (optional - can be zero address if not set)
+    address public rewardAccumulator;
 
     constructor(address irm, address _oracle, address _weth, address _dai) {
         interestRateModel = InterestRateModel(irm);
         oracle = IPriceOracle(_oracle);
         WETH = _weth;
         DAI = _dai;
+    }
+    
+    /**
+     * @notice Set reward accumulator address (only owner)
+     */
+    function setRewardAccumulator(address _rewardAccumulator) external onlyOwner {
+        rewardAccumulator = _rewardAccumulator;
+    }
+    
+    /**
+     * @notice Internal function to accumulate rewards for a user
+     */
+    function _accumulateRewards(address user) internal {
+        if (rewardAccumulator != address(0)) {
+            // Call reward accumulator to calculate and accumulate rewards
+            // Using low-level call to avoid adding dependency
+            (bool success, ) = rewardAccumulator.call(
+                abi.encodeWithSignature("accumulateRewards(address)", user)
+            );
+            // Don't revert if reward accumulation fails (non-critical)
+            if (!success) {
+                // Silently fail - rewards are not critical for core functionality
+            }
+        }
     }
 
     /// @notice Cập nhật index & rates cho asset
@@ -334,6 +362,9 @@ function lend(address asset, uint256 amount) external {
     // 4) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
 
+    // 5) Accumulate rewards
+    _accumulateRewards(msg.sender);
+
     emit Supplied(msg.sender, asset, delta1e18);
 }
 
@@ -375,6 +406,9 @@ function withdraw(address asset, uint256 requested) external returns (uint256 am
     // denormalize để chuyển đi
     uint256 transferOut = _from1e18(amt, r.decimals);
     IERC20(asset).safeTransfer(msg.sender, transferOut);
+
+    // Accumulate rewards
+    _accumulateRewards(msg.sender);
 
     emit Withdrawn(msg.sender, asset, amt);
     return amt; // 1e18 (chuẩn 1e18, tiện test/hiển thị)
@@ -433,7 +467,9 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
     r.reserveCash = uint128(uint256(r.reserveCash) - borrowAmount1e18);
     r.totalDebtPrincipal = uint128(uint256(r.totalDebtPrincipal) + borrowAmount1e18);
     
-    //  
+    // Accumulate rewards
+    _accumulateRewards(msg.sender);
+    
     emit Borrowed(msg.sender, asset, borrowAmount1e18);
 }
 
@@ -497,6 +533,9 @@ function repay(address asset, uint256 amount, address onBehalfOf) external nonRe
     } else {
         r.totalDebtPrincipal = uint128(currentTotalDebt - repayAmount1e18);
     }
+    
+    // Accumulate rewards
+    _accumulateRewards(onBehalfOf);
     
     emit Repaid(msg.sender, onBehalfOf, asset, repayAmount1e18);
     return repayAmount1e18;
@@ -583,7 +622,46 @@ function initReserve(
 }
 
 /// @notice Admin: toggle whether an asset is borrowable (post-init)
-function setReserveBorrowable(address asset, bool isBorrowable) external onlyOwner {
+    /**
+     * @notice Set governor address (only owner)
+     */
+    function setGovernor(address _governor) external onlyOwner {
+        governor = _governor;
+    }
+
+    /**
+     * @notice Modifier to allow owner or governor
+     */
+    modifier onlyOwnerOrGovernor() {
+        require(msg.sender == owner || msg.sender == governor, "Not authorized");
+        _;
+    }
+
+    /**
+     * @notice Update LTV for an asset (only owner/governor)
+     * @param asset The asset address
+     * @param newLtvBps The new LTV in basis points (e.g., 8000 = 80%)
+     */
+    function updateLTV(address asset, uint16 newLtvBps) external onlyOwnerOrGovernor {
+        require(newLtvBps <= 10000, "LTV cannot exceed 100%");
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        r.ltvBps = newLtvBps;
+    }
+
+    /**
+     * @notice Update liquidation threshold for an asset (only owner/governor)
+     * @param asset The asset address
+     * @param newLiqThresholdBps The new liquidation threshold in basis points
+     */
+    function updateLiquidationThreshold(address asset, uint16 newLiqThresholdBps) external onlyOwnerOrGovernor {
+        require(newLiqThresholdBps <= 10000, "Liquidation threshold cannot exceed 100%");
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        r.liqThresholdBps = newLiqThresholdBps;
+    }
+
+    function setReserveBorrowable(address asset, bool isBorrowable) external onlyOwner {
     _requireInited(asset);
     reserves[asset].isBorrowable = isBorrowable;
     emit ReserveBorrowableSet(asset, isBorrowable);
@@ -591,6 +669,14 @@ function setReserveBorrowable(address asset, bool isBorrowable) external onlyOwn
 
 
     modifier onlyOwner() { require(msg.sender == owner, "OWN"); _; }
+
+    /**
+     * @notice Transfer ownership to a new address
+     */
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner cannot be zero address");
+        owner = newOwner;
+    }
 
     function pause() external onlyOwner { _pause(); }
     function unpause() external onlyOwner { _unpause(); }

@@ -12,3 +12,11 @@ encode   [type="ethabiencode" abi="updateAnswer(int256 answer)" data="{\\\"answe
 submit   [type="ethtx" to="0xA672D04672FF1f6A5714E41DF2ff895794873475" data="$(encode)" gasLimit="500000"]\n
 fetch->parse->multiply->encode->submit
 """
+fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT" allowUnrestrictedNetworkAccess=true]
+parse    [type="jsonparse" path="price" data="$(fetch)"]
+multiply [type="multiply" input="$(parse)" times=100000000]
+encode   [type="ethabiencode" abi="updateAnswer(int256 _answer)" data="{\\"_answer\\": $(multiply)}"]
+submit   [type="ethtx" to="0x2C0025315508a70B77aBeaB59206500b679f0902" data="$(encode)"]
+fetch -> parse -> multiply -> encode -> submit
+"""
+

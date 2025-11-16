@@ -80,10 +80,8 @@ export async function sendWithToast(
     const code = error?.code ?? error?.info?.error?.code;
     const isUserRejected = /denied|user denied|ACTION_REJECTED|rejected/i.test(String(rawMsg)) || code === 4001;
     if (isUserRejected) {
-      // Normalize to a stable, catchable message
-      if (toastCallback) {
-        toastCallback({ type: 'error', title: 'Transaction Cancelled', message: 'You cancelled the transaction' });
-      }
+      // Don't show toast for user rejection - they already know they cancelled
+      // Just throw a clean error that can be caught by UI
       throw new Error('USER_CANCELLED');
     }
     const clean = String(rawMsg || 'Transaction failed').replace(/\n.*/, '');
@@ -612,14 +610,14 @@ export async function getTokenBalance(
       return "0";
     }
     
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
     console.log(`🔍 [getTokenBalance] Calling balanceOf(${userAddress}) for token ${tokenAddress}`);
     
     // Retry logic for circuit breaker errors
     let lastError;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const balance = await tokenContract.balanceOf(userAddress);
+  const balance = await tokenContract.balanceOf(userAddress);
         const formatted = formatUnits(balance, decimals);
         if (attempt > 0) {
           console.log(`✅ [getTokenBalance] Balance fetched on attempt ${attempt + 1}: ${formatted}`);

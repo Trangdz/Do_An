@@ -10,3 +10,22 @@ async function main() {
 }
 
 main().catch(console.error);
+
+  const meta = JSON.parse(fs.readFileSync("deployments/local-chainlink.json", "utf8"));
+  const aggAddr = meta.priceAggregator;
+  
+  console.log("Aggregator:", aggAddr);
+  console.log("Node:", node);
+  
+  const agg = await ethers.getContractAt("PriceAggregator", aggAddr);
+  const tx = await agg.setWriter(node, true);
+  await tx.wait();
+  
+  console.log("Writer authorized!");
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+

@@ -26,6 +26,7 @@ export function AppHeader() {
             <a href="/borrow" className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-lg transition-colors">Borrow</a>
             <a href="/history" className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-lg transition-colors">History</a>
             <a href="/liquidations" className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-lg transition-colors">Liquidation</a>
+            <a href="/governance" className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-lg transition-colors">🗳️ Governance</a>
           </nav>
           <div className="flex items-center space-x-3">
             <div className="hidden sm:block text-right">
@@ -42,5 +43,6 @@ export function AppHeader() {
     </header>
   );
 }
+
 
 

@@ -3,7 +3,7 @@
 
 type AppRoutes = "/analytics" | "/overview"
 type AppRouteHandlerRoutes = "/api/analytics" | "/api/positions/[user]" | "/api/reserve/[asset]" | "/api/snapshot/get" | "/api/snapshot/save" | "/api/test-mongo" | "/api/transactions" | "/api/transactions-fallback"
-type PageRoutes = "/" | "/_app" | "/_document" | "/borrow" | "/borrow/[symbol]" | "/dashboard" | "/deposit" | "/deposit/[symbol]" | "/history" | "/liquidations" | "/markets"
+type PageRoutes = "/" | "/_app" | "/_document" | "/borrow" | "/borrow/[symbol]" | "/dashboard" | "/deposit" | "/deposit/[symbol]" | "/governance" | "/governance/create" | "/governance/delegation" | "/governance/proposals" | "/governance/proposals/[id]" | "/history" | "/liquidations" | "/markets"
 type LayoutRoutes = "/"
 type RedirectRoutes = never
 type RewriteRoutes = never
@@ -28,6 +28,11 @@ interface ParamMap {
   "/dashboard": {}
   "/deposit": {}
   "/deposit/[symbol]": { "symbol": string; }
+  "/governance": {}
+  "/governance/create": {}
+  "/governance/delegation": {}
+  "/governance/proposals": {}
+  "/governance/proposals/[id]": { "id": string; }
   "/history": {}
   "/liquidations": {}
   "/markets": {}
