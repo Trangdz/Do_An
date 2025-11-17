@@ -25,16 +25,6 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/dashboard.js"
     ],
-    "/governance": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/governance.js"
-    ],
-    "/governance/create": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/governance/create.js"
-    ],
     "/markets": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",

@@ -232,6 +232,9 @@ async function main() {
     const rewardDistributorAddress = await rewardDistributor.getAddress();
     console.log("✅ RewardDistributor deployed:", rewardDistributorAddress);
 
+    // Note: RewardAccumulator will be deployed after LendingPool is deployed
+    // (it needs LendingPool address)
+
     // Deploy TokenVesting
     const TokenVestingFactory = await ethers.getContractFactory("TokenVesting");
     const tokenVesting = await TokenVestingFactory.deploy(lendxTokenAddress, deployer.address);
@@ -421,6 +424,148 @@ async function main() {
     8000, baseRate, slope1, slope2
   );
   console.log("✅ LINK reserve initialized (borrowable)");
+
+  // ========================================
+  // 4.5️⃣ DEPLOY REWARD ACCUMULATOR (if LENDX system exists)
+  // ========================================
+  console.log("\n4.5️⃣  Deploying RewardAccumulator...");
+  console.log("─".repeat(70));
+  
+  // Check if LENDX token system was deployed
+  if (lendxTokenAddress && lendxTokenAddress !== '0x0000000000000000000000000000000000000000') {
+    // Get RewardDistributor address from addresses.js or deployment
+    let rewardDistributorAddress = null;
+    try {
+      const existingAddressesPath = path.join(__dirname, "../lendhub-frontend-nextjs/src/addresses.js");
+      if (fs.existsSync(existingAddressesPath)) {
+        const existingContent = fs.readFileSync(existingAddressesPath, "utf8");
+        const rewardDistributorMatch = existingContent.match(/export const RewardDistributorAddress\s*=\s*"([^"]+)";/);
+        if (rewardDistributorMatch) {
+          rewardDistributorAddress = rewardDistributorMatch[1];
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+    
+    // If RewardDistributor not found, try to get from LENDX token system deployment
+    if (!rewardDistributorAddress) {
+      try {
+        const lendxSystemPath = path.join("deployments", "lendx-token-system.json");
+        if (fs.existsSync(lendxSystemPath)) {
+          const lendxSystem = JSON.parse(fs.readFileSync(lendxSystemPath, "utf8"));
+          rewardDistributorAddress = lendxSystem.rewardDistributor;
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+    
+    if (rewardDistributorAddress && rewardDistributorAddress !== '0x0000000000000000000000000000000000000000') {
+      // Check if RewardAccumulator already exists
+      let existingRewardAccumulator = null;
+      try {
+        const existingAddressesPath = path.join(__dirname, "../lendhub-frontend-nextjs/src/addresses.js");
+        if (fs.existsSync(existingAddressesPath)) {
+          const existingContent = fs.readFileSync(existingAddressesPath, "utf8");
+          const accumulatorMatch = existingContent.match(/export const RewardAccumulatorAddress\s*=\s*"([^"]+)";/);
+          if (accumulatorMatch) {
+            existingRewardAccumulator = accumulatorMatch[1];
+          }
+        }
+      } catch (e) {
+        // Ignore
+      }
+      
+      if (!existingRewardAccumulator || existingRewardAccumulator === '0x0000000000000000000000000000000000000000') {
+        // Deploy RewardAccumulator
+        const RewardAccumulatorFactory = await ethers.getContractFactory("RewardAccumulator");
+        const rewardAccumulator = await RewardAccumulatorFactory.deploy(
+          rewardDistributorAddress,
+          poolAddress,
+          deployer.address
+        );
+        await rewardAccumulator.waitForDeployment();
+        const rewardAccumulatorAddress = await rewardAccumulator.getAddress();
+        console.log("✅ RewardAccumulator deployed:", rewardAccumulatorAddress);
+        
+        // Transfer ownership of RewardDistributor to RewardAccumulator
+        try {
+          const RewardDistributor = await ethers.getContractFactory("RewardDistributor");
+          const rewardDistributor = RewardDistributor.attach(rewardDistributorAddress);
+          const transferTx = await rewardDistributor.transferOwnership(rewardAccumulatorAddress);
+          await transferTx.wait();
+          console.log("✅ RewardDistributor ownership transferred to RewardAccumulator");
+        } catch (error) {
+          console.log("⚠️  Could not transfer RewardDistributor ownership:", error.message);
+        }
+        
+        // Set RewardAccumulator in LendingPool
+        try {
+          const setAccumulatorTx = await lendingPool.setRewardAccumulator(rewardAccumulatorAddress);
+          await setAccumulatorTx.wait();
+          console.log("✅ RewardAccumulator set in LendingPool");
+        } catch (error) {
+          console.log("⚠️  Could not set RewardAccumulator in LendingPool:", error.message);
+        }
+        
+        // Add tracked assets to RewardAccumulator
+        try {
+          const trackedAssets = [wethAddress, daiAddress, usdcAddress, linkAddress].filter(addr => addr);
+          for (const asset of trackedAssets) {
+            try {
+              const addAssetTx = await rewardAccumulator.addTrackedAsset(asset);
+              await addAssetTx.wait();
+            } catch (error) {
+              // Asset might already be tracked, ignore
+            }
+          }
+          console.log("✅ Tracked assets added to RewardAccumulator");
+        } catch (error) {
+          console.log("⚠️  Could not add tracked assets:", error.message);
+        }
+      } else {
+        console.log("✅ RewardAccumulator already exists:", existingRewardAccumulator);
+        // Still try to configure it
+        try {
+          const RewardAccumulator = await ethers.getContractFactory("RewardAccumulator");
+          const rewardAccumulator = RewardAccumulator.attach(existingRewardAccumulator);
+          
+          // Update LendingPool address if needed
+          try {
+            const currentPool = await rewardAccumulator.lendingPool();
+            if (currentPool.toLowerCase() !== poolAddress.toLowerCase()) {
+              const updateTx = await rewardAccumulator.setLendingPool(poolAddress);
+              await updateTx.wait();
+              console.log("✅ LendingPool address updated in RewardAccumulator");
+            }
+          } catch (error) {
+            // May not have setLendingPool function
+          }
+          
+          // Set in LendingPool if not set
+          try {
+            const currentAccumulator = await lendingPool.rewardAccumulator();
+            if (currentAccumulator.toLowerCase() !== existingRewardAccumulator.toLowerCase()) {
+              const setTx = await lendingPool.setRewardAccumulator(existingRewardAccumulator);
+              await setTx.wait();
+              console.log("✅ RewardAccumulator set in LendingPool");
+            }
+          } catch (error) {
+            // Ignore
+          }
+        } catch (error) {
+          console.log("⚠️  Could not configure existing RewardAccumulator:", error.message);
+        }
+      }
+    } else {
+      console.log("⚠️  RewardDistributor not found - skipping RewardAccumulator deployment");
+      console.log("   💡 Deploy LENDX token system first or run setup_reward_system.cjs");
+    }
+  } else {
+    console.log("⚠️  LENDX token system not found - skipping RewardAccumulator deployment");
+    console.log("   💡 Reward system will not work without RewardAccumulator");
+  }
 
   // ========================================
   // 5️⃣ MINT TOKENS TO TEST ACCOUNTS

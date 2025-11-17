@@ -21,6 +21,7 @@ type ProposalActionType =
   | 'change_supply_cap'
   | 'change_borrow_cap'
   | 'change_interest_rate'
+  | 'change_base_rate_params'
   | 'change_reserve_factor'
   | 'pause_asset'
   | 'unpause_asset'
@@ -111,6 +112,19 @@ export default function CreateProposalPage() {
           { name: 'Optimal Utilization (%)', value: '80' },
           { name: 'Slope 1 (%)', value: '5' },
           { name: 'Slope 2 (%)', value: '100' },
+        ]);
+        break;
+      case 'change_base_rate_params':
+        const currentBaseRate = reserveData ? (Number(reserveData.baseRateRayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '0';
+        const currentSlope1 = reserveData ? (Number(reserveData.slope1RayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '0';
+        const currentSlope2 = reserveData ? (Number(reserveData.slope2RayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '0';
+        setParameters([
+          { name: 'Current Base Rate (APR %)', value: currentBaseRate, disabled: true },
+          { name: 'Proposed Base Rate (APR %)', value: currentBaseRate },
+          { name: 'Current Slope 1 (APR %)', value: currentSlope1, disabled: true },
+          { name: 'Proposed Slope 1 (APR %)', value: currentSlope1 },
+          { name: 'Current Slope 2 (APR %)', value: currentSlope2, disabled: true },
+          { name: 'Proposed Slope 2 (APR %)', value: currentSlope2 },
         ]);
         break;
       case 'change_reserve_factor':
@@ -364,6 +378,13 @@ export default function CreateProposalPage() {
                 description="Modify interest rate parameters"
                 selected={proposalType === 'change_interest_rate'}
                 onClick={() => handleProposalTypeChange('change_interest_rate')}
+              />
+              <ProposalTypeButton
+                type="change_base_rate_params"
+                label="Change Base Rate Parameters"
+                description="Modify base rate, slope1, and slope2"
+                selected={proposalType === 'change_base_rate_params'}
+                onClick={() => handleProposalTypeChange('change_base_rate_params')}
               />
               <ProposalTypeButton
                 type="change_reserve_factor"

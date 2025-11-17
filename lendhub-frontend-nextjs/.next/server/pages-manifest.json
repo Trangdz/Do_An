@@ -3,7 +3,5 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/dashboard": "pages/dashboard.js",
-  "/governance": "pages/governance.js",
-  "/markets": "pages/markets.js",
-  "/governance/create": "pages/governance/create.js"
+  "/markets": "pages/markets.js"
 }

@@ -9,17 +9,39 @@ HTTPSPort = 0
 [Log]
 Level = "debug"
 
+#################################
+# Network 1 — Ganache 1337
+#################################
+
 [[EVM]]
 ChainID = 1337
 Enabled = true
+FinalityDepth = 1
 
 [[EVM.Nodes]]
 Name = "ganache"
 WSURL  = "ws://host.docker.internal:7545"
 HTTPURL= "http://host.docker.internal:7545"
 
+
+#################################
+# Network 2 — Ganache 5777
+#################################
+
+[[EVM]]
+ChainID = 5777
+Enabled = true
+FinalityDepth = 1
+
+[[EVM.Nodes]]
+Name = "ganache2"
+WSURL  = "ws://192.168.34.106:8545"
+HTTPURL= "http://192.168.34.106:8545"
+
+
+#################################
+# Features
+#################################
+
 [Feature]
 LogPoller = true
-WSURL = "ws://192.168.34.106:8545"
-HTTPURL = "http://192.168.34.106:8545"
-ChainID = "5777"

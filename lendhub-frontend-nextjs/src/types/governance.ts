@@ -9,6 +9,7 @@ export type ProposalType =
   | 'change_supply_cap'
   | 'change_borrow_cap'
   | 'change_interest_rate'
+  | 'change_base_rate_params'
   | 'change_reserve_factor'
   | 'pause_asset'
   | 'unpause_asset'

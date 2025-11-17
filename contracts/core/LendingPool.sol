@@ -404,7 +404,11 @@ function lend(address asset, uint256 amount) external {
     // 4) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
 
-    // 5) Update reward accumulator with new supply balance
+    // 5) Accrue lại để tính rates mới sau khi utilization thay đổi
+    // (reserveCash đã thay đổi nên utilization và rates cần được tính lại)
+    _accrue(asset);
+
+    // 6) Update reward accumulator with new supply balance
     _updateSupplyReward(msg.sender, asset, sNew);
 
     emit Supplied(msg.sender, asset, delta1e18);
@@ -444,6 +448,9 @@ function withdraw(address asset, uint256 requested) external returns (uint256 am
 
     // cập nhật sổ cái & chuyển token
     r.reserveCash = uint128(uint256(r.reserveCash) - amt);
+
+    // Accrue lại để tính rates mới sau khi utilization thay đổi
+    _accrue(asset);
 
     // denormalize để chuyển đi
     uint256 transferOut = _from1e18(amt, r.decimals);
@@ -508,6 +515,9 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
     // Update reserve
     r.reserveCash = uint128(uint256(r.reserveCash) - borrowAmount1e18);
     r.totalDebtPrincipal = uint128(uint256(r.totalDebtPrincipal) + borrowAmount1e18);
+    
+    // Accrue lại để tính rates mới sau khi utilization thay đổi
+    _accrue(asset);
     
     // Update reward accumulator with new borrow balance
     _updateBorrowReward(msg.sender, asset, newDebtTotal);
@@ -575,6 +585,9 @@ function repay(address asset, uint256 amount, address onBehalfOf) external nonRe
     } else {
         r.totalDebtPrincipal = uint128(currentTotalDebt - repayAmount1e18);
     }
+    
+    // Accrue lại để tính rates mới sau khi utilization thay đổi
+    _accrue(asset);
     
     // Update reward accumulator with new borrow balance
     _updateBorrowReward(onBehalfOf, asset, newDebt);

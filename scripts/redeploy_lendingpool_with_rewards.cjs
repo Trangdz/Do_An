@@ -63,7 +63,21 @@ async function main() {
   if (RewardAccumulatorAddress) {
     const setAccumulatorTx = await lendingPool.setRewardAccumulator(RewardAccumulatorAddress);
     await setAccumulatorTx.wait();
-    console.log("   ✅ RewardAccumulator set");
+    console.log("   ✅ RewardAccumulator set in LendingPool");
+    
+    // Update LendingPool address in RewardAccumulator
+    try {
+      const RewardAccumulator = await hre.ethers.getContractFactory("RewardAccumulator");
+      const rewardAccumulator = RewardAccumulator.attach(RewardAccumulatorAddress);
+      const updatePoolTx = await rewardAccumulator.setLendingPool(newPoolAddress);
+      await updatePoolTx.wait();
+      console.log("   ✅ LendingPool address updated in RewardAccumulator");
+    } catch (error) {
+      console.log("   ⚠️  Error updating RewardAccumulator (may not have setLendingPool function):", error.message);
+    }
+  } else {
+    console.log("   ⚠️  RewardAccumulator not found - reward system will not work");
+    console.log("   💡 Deploy RewardAccumulator first: npx hardhat run scripts/setup_reward_system.cjs --network ganache");
   }
   console.log();
 
@@ -86,6 +100,7 @@ async function main() {
       { symbol: "WETH", address: WETHAddress },
       { symbol: "DAI", address: DAIAddress },
       { symbol: "USDC", address: getAddress("USDCAddress") },
+      { symbol: "LINK", address: getAddress("LINKAddress") },
     ];
 
     for (const asset of assets) {
@@ -118,9 +133,10 @@ async function main() {
   // 5. Initialize reserves (same as deploy_ganache_simple.cjs)
   console.log("5️⃣  Initializing reserves...");
   const assetsToInit = [
-    { address: WETHAddress, symbol: "WETH", ltv: 8000, liqThreshold: 8500, isBorrowable: false },
+    { address: WETHAddress, symbol: "WETH", ltv: 7500, liqThreshold: 8000, isBorrowable: false },
     { address: DAIAddress, symbol: "DAI", ltv: 7500, liqThreshold: 8000, isBorrowable: true },
     { address: getAddress("USDCAddress"), symbol: "USDC", ltv: 7500, liqThreshold: 8000, isBorrowable: true },
+    { address: getAddress("LINKAddress"), symbol: "LINK", ltv: 7500, liqThreshold: 8000, isBorrowable: true },
   ].filter(a => a.address);
 
   for (const asset of assetsToInit) {

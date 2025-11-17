@@ -36,32 +36,64 @@ async function fetchAPR(
     'function reserves(address asset) view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate))'
   ];
 
-  const pool = new ethers.Contract(poolAddress, abi, provider);
-  const r = await pool.reserves(assetAddress);
+  try {
+    const pool = new ethers.Contract(poolAddress, abi, provider);
+    const r = await pool.reserves(assetAddress);
 
-  // rates (per second, decimal)
-  const liquidityRatePerSec = Number(r.liquidityRateRayPerSec) / RAY;
-  const variableBorrowRatePerSec = Number(r.variableBorrowRateRayPerSec) / RAY;
+    // Check if reserve is initialized (lastUpdate == 0 means not initialized)
+    if (!r || r.lastUpdate === 0) {
+      return {
+        supplyAPR: 0,
+        borrowAPR: 0,
+        utilization: 0,
+        available: 0,
+        isLoading: false,
+        error: 'Reserve not initialized',
+        updatedAt: Date.now()
+      };
+    }
 
-  const supplyAPR = liquidityRatePerSec * SECONDS_PER_YEAR * 100; // percent
-  const borrowAPR = variableBorrowRatePerSec * SECONDS_PER_YEAR * 100; // percent
+    // rates (per second, decimal)
+    const liquidityRatePerSec = Number(r.liquidityRateRayPerSec) / RAY;
+    const variableBorrowRatePerSec = Number(r.variableBorrowRateRayPerSec) / RAY;
 
-  // utilization approximated from debt / (cash + debt)
-  const decimals: number = Number(r.decimals ?? 18);
-  const reserveCash = Number(ethers.formatUnits(r.reserveCash, decimals));
-  const totalDebt = Number(ethers.formatUnits(r.totalDebtPrincipal, decimals));
-  const sum = reserveCash + totalDebt;
-  const utilization = sum > 0 ? (totalDebt / sum) * 100 : 0;
+    const supplyAPR = liquidityRatePerSec * SECONDS_PER_YEAR * 100; // percent
+    const borrowAPR = variableBorrowRatePerSec * SECONDS_PER_YEAR * 100; // percent
 
-  return {
-    supplyAPR,
-    borrowAPR,
-    utilization,
-    // Convert to token units
-    available: reserveCash,
-    isLoading: false,
-    updatedAt: Date.now()
-  };
+    // utilization approximated from debt / (cash + debt)
+    const decimals: number = Number(r.decimals ?? 18);
+    const reserveCash = Number(ethers.formatUnits(r.reserveCash, decimals));
+    const totalDebt = Number(ethers.formatUnits(r.totalDebtPrincipal, decimals));
+    const sum = reserveCash + totalDebt;
+    const utilization = sum > 0 ? (totalDebt / sum) * 100 : 0;
+
+    return {
+      supplyAPR,
+      borrowAPR,
+      utilization,
+      // Convert to token units
+      available: reserveCash,
+      isLoading: false,
+      updatedAt: Date.now()
+    };
+  } catch (error: any) {
+    // Handle errors gracefully - return zeros if reserve not initialized
+    const errorMessage = error?.message || 'Unknown error';
+    const isReserveNotInitialized = 
+      errorMessage.includes('Reserve not initialized') ||
+      error?.code === 'CALL_EXCEPTION' ||
+      error?.code === 'BAD_DATA';
+    
+    return {
+      supplyAPR: 0,
+      borrowAPR: 0,
+      utilization: 0,
+      available: 0,
+      isLoading: false,
+      error: isReserveNotInitialized ? undefined : errorMessage,
+      updatedAt: Date.now()
+    };
+  }
 }
 
 export function useSharedAPR(
