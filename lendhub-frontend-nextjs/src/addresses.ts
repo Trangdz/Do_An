@@ -1,6 +1,6 @@
 // Auto-generated addresses
-export const PriceOracleAddress = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
-export const LendingPoolAddress = "0x0165878A594ca255338adfa4d48449f69242Eb8F"; // Updated from deploy
+export const PriceOracleAddress = "0xaC51bF8BC6291E0d250ba67d559CC90f665a4a66"; // MultiPriceAggregator
+export const LendingPoolAddress = "0x34A6f7f8905464865eFf9e95d4e1207645e397b3"; // Updated from deploy
 
 // Chainlink Aggregators
 export const ETH_USD_AGGREGATOR = "0x650886892051B76D6992e3f19Df05D754221dD29";

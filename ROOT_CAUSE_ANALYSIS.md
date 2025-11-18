@@ -1,78 +1,51 @@
-# 🔬 ROOT CAUSE ANALYSIS - Reward System
+# Phân tích nguyên nhân gốc rễ - Transaction Suspended
 
-## Vấn Đề
+## Vấn đề
 
-User đã supply nhiều lần nhưng vẫn không thấy reward accumulate.
+Transactions bị "Suspended" trong Chainlink UI mặc dù:
+- ✅ Transactions ĐÃ được confirm thành công trên blockchain
+- ✅ Contract đã authorize Chainlink addresses
+- ✅ Transactions không có lỗi
 
-## Phân Tích Sâu
+## Nguyên nhân gốc rễ
 
-### ✅ Đã Kiểm Tra và Đúng:
+**Chainlink HeadTracker đang track block SAI:**
 
-1. **Configuration**:
-   - LendingPool.rewardAccumulator → RewardAccumulator ✅
-   - RewardAccumulator.lendingPool → LendingPool ✅
-   - RewardAccumulator.rewardDistributor → RewardDistributor ✅
-   - RewardDistributor.rewardAccumulator → RewardAccumulator ✅
+```
+currentBlockNumber=11363  (Chainlink đang track)
+latestBlockNumber=518     (Ganache thực tế)
+```
 
-2. **Code Logic**:
-   - LendingPool.lend() gọi _updateSupplyReward() ✅
-   - _updateSupplyReward() gọi RewardAccumulator.updateSupplyBalance() ✅
-   - updateSupplyBalance() tính reward và gọi RewardDistributor.accumulateReward() ✅
-   - accumulateReward() accumulate vào rewards mapping ✅
+Chainlink đang track block 11363 (từ chain cũ hoặc database cũ), nhưng Ganache chỉ có block 518. Điều này khiến:
 
-3. **Authorization**:
-   - RewardAccumulator có thể gọi RewardDistributor.accumulateReward() ✅
+1. Chainlink không thể detect confirmations của transactions mới
+2. Transactions bị mark là "unconfirmed" mặc dù đã được confirm
+3. Chainlink UI hiển thị "Suspended" vì không thấy confirmations
 
-### 🔴 Vấn Đề Phát Hiện:
+## Giải pháp triệt để
 
-1. **Gas Limit Quá Thấp**:
-   - Low-level call chỉ có 100000 gas (hoặc không có gas limit)
-   - updateSupplyBalance() cần:
-     - Read state: ~21000
-     - Calculate: ~5000
-     - Call RewardDistributor.accumulateReward(): ~50000
-     - Update state: ~20000
-     - Total: ~96000
-   - Nếu không đủ gas, call sẽ fail
+### Cách 1: Reset HeadTracker (Khuyến nghị)
 
-2. **LendingPool Trên Chain Có Thể Chưa Có Code Mới**:
-   - Nếu LendingPool được deploy trước khi thêm _updateSupplyReward
-   - Function sẽ không tồn tại
-   - Low-level call sẽ fail
+Xóa block tracking cũ và để Chainlink sync lại từ đầu:
 
-3. **Silent Failure**:
-   - Low-level call fail nhưng không revert transaction
-   - Chỉ return false
-   - Nếu không có event RewardUpdateFailed, không biết được
+```sql
+-- Xóa head tracking data
+DELETE FROM evm_head_tracker_heads;
+```
 
-## Giải Pháp
+Sau đó restart Chainlink.
 
-### 1. Tăng Gas Limit
-- Thay đổi từ không có gas limit → `call{gas: 200000}`
-- Đảm bảo đủ gas cho cả updateSupplyBalance và accumulateReward
+### Cách 2: Force sync HeadTracker
 
-### 2. Redeploy LendingPool
-- Deploy lại với code mới có gas limit
-- Đảm bảo có function _updateSupplyReward
+Cập nhật HeadTracker để track block hiện tại của Ganache.
 
-### 3. Thêm Event Logging
-- Emit RewardUpdateFailed khi call fail
-- Giúp debug dễ dàng hơn
+### Cách 3: Reset database hoàn toàn
 
-## Files Cần Sửa
+Nếu vẫn không được, reset toàn bộ database.
 
-1. `contracts/core/LendingPool.sol`:
-   - Thêm gas limit cho low-level call
-   - Thêm event RewardUpdateFailed
+## Tại sao xảy ra?
 
-2. Redeploy LendingPool với code mới
-
-## Test Sau Khi Fix
-
-1. Supply tokens
-2. Check transaction receipt cho RewardsAccumulated event
-3. Check transaction receipt cho RewardUpdateFailed event (nếu có)
-4. Verify claimable reward
-
-
-
+Có thể do:
+- Ganache đã được restart và tạo chain mới
+- Database Chainlink vẫn giữ block tracking từ chain cũ
+- HeadTracker không tự động sync khi chain ID thay đổi

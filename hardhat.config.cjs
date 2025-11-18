@@ -20,7 +20,7 @@ const config = {
       url: "http://127.0.0.1:7545", // Ganache CLI port (match addresses.js)
       chainId: 1337, // Ganache default Chain ID (match addresses.js)
       accounts: {
-        mnemonic: "end dry oppose genre below hotel inquiry actual foil scorpion brush ship", // Match addresses.js
+        mnemonic: "globe equip glow concert garage canvas sword feature stereo prison pony brief", // Match addresses.js
         count: 10, // Generate 10 accounts
         path: "m/44'/60'/0'/0", // Standard HD path
       },

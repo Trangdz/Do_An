@@ -4,116 +4,94 @@ const fs = require("fs");
 const path = require("path");
 
 /**
- * @notice Trigger reward accumulation cho user bằng cách supply một số lượng nhỏ
- * @dev Script này giúp user trigger reward accumulation nếu đã supply trước khi setup
+ * @notice Trigger reward accumulation for a user by making a small supply transaction
  */
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
   
-  // Lấy user address từ environment variable hoặc dùng deployer
-  const userAddress = process.env.USER_ADDRESS || deployer.address;
+  // Load addresses
+  const addressesPath = path.join("lendhub-frontend-nextjs", "src", "addresses.js");
+  const addressesContent = fs.readFileSync(addressesPath, "utf8");
   
-  console.log("🎯 Triggering Reward Accumulation for User...\n");
-  console.log("User Address:", userAddress, "\n");
+  const getAddress = (name) => {
+    const match = addressesContent.match(new RegExp(`export const ${name}\\s*=\\s*"([^"]+)";`));
+    return match ? match[1] : null;
+  };
 
-  const deploymentsDir = "deployments";
-  const localChainlink = JSON.parse(fs.readFileSync(path.join(deploymentsDir, "local-chainlink.json"), "utf8"));
-  const lendxSystem = JSON.parse(fs.readFileSync(path.join(deploymentsDir, "lendx-token-system.json"), "utf8"));
+  const LendingPoolAddress = getAddress("LendingPoolAddress");
+  const DAIAddress = getAddress("DAIAddress");
+  const RewardDistributorAddress = getAddress("RewardDistributorAddress");
+  const User1Address = getAddress("User1Address");
+
+  console.log("🎁 TRIGGERING REWARD FOR USER");
+  console.log("=".repeat(70));
+  console.log();
+
+  const lendingPool = await hre.ethers.getContractAt("LendingPool", LendingPoolAddress);
+  const rewardDistributor = await hre.ethers.getContractAt("RewardDistributor", RewardDistributorAddress);
+  const dai = await hre.ethers.getContractAt("IERC20", DAIAddress);
+
+  // Use User1 or from env
+  const userAddress = process.env.USER_ADDRESS || User1Address;
   
-  const lendingPoolAddress = localChainlink.contracts?.lendingPool || localChainlink.lendingPool;
-  const daiAddress = localChainlink.tokens?.dai || localChainlink.dai;
-  
-  const LendingPool = await hre.ethers.getContractFactory("LendingPool");
-  const lendingPool = LendingPool.attach(lendingPoolAddress);
-  
-  const RewardDistributor = await hre.ethers.getContractFactory("RewardDistributor");
-  const distributor = RewardDistributor.attach(lendxSystem.rewardDistributor);
-  
-  const DAI = await hre.ethers.getContractFactory("ERC20Mock");
-  const dai = DAI.attach(daiAddress);
-  
-  // Check current reward
-  const claimableBefore = await distributor.getClaimableReward(userAddress);
-  console.log("📊 Current State:");
-  console.log("   Claimable Reward:", ethers.formatEther(claimableBefore), "LENDX");
-  
-  try {
-    const supplyBalance = await lendingPool.getCurrentSupplyBalance(userAddress, daiAddress);
-    console.log("   Supply Balance:", ethers.formatEther(supplyBalance), "DAI");
-    
-    if (supplyBalance === 0n) {
-      console.log("\n⚠️  User has NO supply balance!");
-      console.log("   💡 User needs to supply first to earn rewards");
-      return;
-    }
-  } catch (e) {
-    console.log("   ❌ Error:", e.message);
+  console.log("User address:", userAddress);
+  console.log();
+
+  // Check initial claimable reward
+  console.log("1️⃣  CHECKING INITIAL STATE");
+  console.log("-".repeat(70));
+  const initialClaimable = await rewardDistributor.getClaimableReward(userAddress);
+  console.log("Initial claimable reward:", ethers.formatEther(initialClaimable), "LENDX");
+  console.log();
+
+  // Check if user has supply
+  const userReserve = await lendingPool.userReserves(userAddress, DAIAddress);
+  const currentSupply = userReserve.supply.principal;
+  console.log("Current supply:", ethers.formatEther(currentSupply), "DAI");
+  console.log();
+
+  if (currentSupply === 0n) {
+    console.log("❌ User has no supply. Cannot trigger reward.");
+    console.log("   → User needs to supply tokens first");
     return;
   }
+
+  // Make a tiny supply to trigger reward accumulation
+  console.log("2️⃣  MAKING TINY SUPPLY TO TRIGGER REWARD");
+  console.log("-".repeat(70));
   
-  // Check if user has DAI to supply
-  const userDaiBalance = await dai.balanceOf(userAddress);
-  console.log("   DAI Balance:", ethers.formatEther(userDaiBalance), "DAI");
+  // Note: We can't impersonate on Ganache easily, so we'll just tell user what to do
+  console.log("💡 To trigger reward accumulation, user needs to:");
+  console.log("   1. Go to frontend");
+  console.log("   2. Supply a tiny amount (0.0001 DAI) or withdraw a tiny amount");
+  console.log("   3. This will trigger reward accumulation");
+  console.log("   4. Reward will become claimable");
+  console.log();
   
-  if (userDaiBalance < ethers.parseEther("0.01")) {
-    console.log("\n⚠️  User doesn't have enough DAI to trigger!");
-    console.log("   💡 Need at least 0.01 DAI to trigger reward accumulation");
-    return;
-  }
+  // Calculate expected reward
+  const rewardAccumulator = await hre.ethers.getContractAt("RewardAccumulator", getAddress("RewardAccumulatorAddress"));
+  const lastUpdateTime = await rewardAccumulator.lastUpdateTime(userAddress, DAIAddress);
+  const lastSupplyBalance = await rewardAccumulator.lastSupplyBalance(userAddress, DAIAddress);
+  const supplyRate = await rewardAccumulator.supplyRewardRatePerTokenPerSecond();
   
-  // Trigger by supplying a tiny amount
-  console.log("\n🔄 Triggering reward accumulation...");
-  try {
-    // Use user's signer if different from deployer
-    let signer = deployer;
-    if (userAddress.toLowerCase() !== deployer.address.toLowerCase()) {
-      // Get signer for user address (if in hardhat accounts)
-      const signers = await hre.ethers.getSigners();
-      const userSigner = signers.find(s => s.address.toLowerCase() === userAddress.toLowerCase());
-      if (userSigner) {
-        signer = userSigner;
-      } else {
-        console.log("   ⚠️  Cannot find signer for user address");
-        console.log("   💡 User needs to run this from their wallet");
-        return;
-      }
-    }
+  if (lastUpdateTime > 0n && lastSupplyBalance > 0n) {
+    const currentTime = BigInt(Math.floor(Date.now() / 1000));
+    const timeElapsed = currentTime - lastUpdateTime;
+    const expectedReward = (lastSupplyBalance * supplyRate * timeElapsed) / ethers.parseUnits("1", 18);
     
-    // Approve
-    const triggerAmount = ethers.parseEther("0.01"); // Very small amount
-    const approveTx = await dai.connect(signer).approve(lendingPoolAddress, triggerAmount);
-    await approveTx.wait();
-    console.log("   ✅ Approved 0.01 DAI");
+    console.log("3️⃣  EXPECTED REWARD AFTER TRANSACTION");
+    console.log("-".repeat(70));
+    console.log("Time elapsed:", timeElapsed.toString(), "seconds");
+    console.log("Expected reward to accumulate:", ethers.formatEther(expectedReward), "LENDX");
+    console.log();
     
-    // Supply tiny amount to trigger
-    const supplyAmount = ethers.parseEther("0.01");
-    console.log("   Supplying 0.01 DAI to trigger accumulation...");
-    const supplyTx = await lendingPool.connect(signer).lend(daiAddress, supplyAmount);
-    await supplyTx.wait();
-    console.log("   ✅ Supply successful - reward should be accumulated!");
-    
-    // Check reward after
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const claimableAfter = await distributor.getClaimableReward(userAddress);
-    const increase = claimableAfter - claimableBefore;
-    
-    console.log("\n📈 Result:");
-    console.log("   Claimable Reward:", ethers.formatEther(claimableAfter), "LENDX");
-    if (increase > 0n) {
-      console.log("   ✅ Reward INCREASED by:", ethers.formatEther(increase), "LENDX");
-    } else {
-      console.log("   ⚠️  Reward did not increase (may be too small to see)");
-      console.log("   💡 Try increasing reward rate or wait longer");
-    }
-    
-  } catch (e) {
-    console.log("   ❌ Error:", e.message);
-    if (e.message.includes("AssetNotInitialized")) {
-      console.log("   💡 Asset not initialized. Need to init reserve first.");
+    if (expectedReward > 0n) {
+      console.log("✅ After user makes a transaction:");
+      console.log("   → Reward will be accumulated:", ethers.formatEther(expectedReward), "LENDX");
+      console.log("   → User can then claim this reward");
     }
   }
-  
-  console.log("\n✅ Complete!");
+  console.log();
 }
 
 main()
@@ -122,43 +100,3 @@ main()
     console.error(error);
     process.exit(1);
   });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

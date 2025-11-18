@@ -30,8 +30,8 @@ PriceMax = '50 gwei'
 HistoryDepth = 10
 
 [EVM.Transactions]
-MaxInFlight = 16
-MaxQueued = 250
+MaxInFlight = 500
+MaxQueued = 1000
 ReaperInterval = '1h'
 ReaperThreshold = '168h'
 ResendAfterThreshold = '1m'

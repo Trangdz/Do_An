@@ -199,8 +199,14 @@ export function calculateMaxWithdraw(
  * Format number with appropriate decimal places
  */
 export function formatNumber(value: number, decimals: number = 2): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return '0';
+  if (!Number.isFinite(value)) {
+    if (value === Number.POSITIVE_INFINITY) return '∞';
+    if (value === Number.NEGATIVE_INFINITY) return '-∞';
+    return '0';
+  }
   if (value === 0) return '0';
-  if (value < 0.01) return '< 0.01';
+  if (value > 0 && value < 0.01) return '< 0.01';
   
   // For very large numbers, show more precision
   if (value >= 1000000) {

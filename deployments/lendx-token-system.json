@@ -1,31 +1,9 @@
 {
-  "lendxToken": "0x1Ff150e33dEe880Dc799d94f7854F7D33c6413a3",
-  "rewardDistributor": "0x8d15699fA5E1670C3Bc5D2CdD1E9F250461C6662",
-  "tokenVesting": "0x23e1cF65ea8860a53559314D433714C69956079b",
-  "daoTreasury": "0x4eFa7B704B801C32e4733D3cD6443c2F71f0450f",
-  "distribution": {
-    "team": {
-      "amount": "15000000.0",
-      "address": "0x23e1cF65ea8860a53559314D433714C69956079b",
-      "beneficiary": "0x8Db50A18C4f5EcC9caba8962C29f23F775402155",
-      "lockPeriod": "31536000",
-      "vestingPeriod": "63072000"
-    },
-    "userRewards": {
-      "amount": "40000000.0",
-      "address": "0x8d15699fA5E1670C3Bc5D2CdD1E9F250461C6662"
-    },
-    "daoTreasury": {
-      "amount": "25000000.0",
-      "address": "0x4eFa7B704B801C32e4733D3cD6443c2F71f0450f"
-    },
-    "marketing": {
-      "amount": "20000000.0",
-      "address": "0x8Db50A18C4f5EcC9caba8962C29f23F775402155"
-    }
-  },
-  "deployedAt": "2025-11-15T16:46:18.926Z",
-  "deployer": "0x8Db50A18C4f5EcC9caba8962C29f23F775402155",
-  "rewardAccumulator": "0x9Ea27Fd74E7F35eb7C412317D1B24C64dF6125fA",
-  "setupAt": "2025-11-15T16:47:10.907Z"
+  "network": "ganache",
+  "chainId": "1337",
+  "deployer": "0x3A716b4DeeA7dcdAAdd42b90BaA30E0A7B2fd412",
+  "lendxToken": "0x33498Cf14c4F9c079a673E99d1A43D6A0EFe6B8f",
+  "rewardDistributor": "0xA48BDbf65d0A2800f16e493CAb80e8444B9821b6",
+  "rewardAccumulator": "0x57fA393D927f7a4e229B7532F882B49A2F26f8E8",
+  "deployedAt": "2025-11-18T05:09:30.777Z"
 }

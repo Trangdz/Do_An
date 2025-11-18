@@ -9,6 +9,7 @@ import "../libraries/LendingMath.sol";
 import "../models/ReserveUserModels.sol";
 import "./InterestRateModel.sol";
 import "../interfaces/IPriceOracle.sol";
+import "../rewards/IAAVERewardDistributor.sol";
 
 using LendingMath for uint256;
 using ReserveUserModels for ReserveUserModels.ReserveData;
@@ -46,6 +47,9 @@ contract LendingPool is ReentrancyGuard, Pausable {
     
     // Reward accumulator (optional - can be zero address if not set)
     address public rewardAccumulator;
+    
+    // AAVE-style reward distributor (optional - can be zero address if not set)
+    IAAVERewardDistributor public rewardDistributor;
 
     constructor(address irm, address _oracle, address _weth, address _dai) {
         interestRateModel = InterestRateModel(irm);
@@ -59,6 +63,13 @@ contract LendingPool is ReentrancyGuard, Pausable {
      */
     function setRewardAccumulator(address _rewardAccumulator) external onlyOwner {
         rewardAccumulator = _rewardAccumulator;
+    }
+    
+    /**
+     * @notice Set AAVE-style reward distributor address (only owner)
+     */
+    function setRewardDistributor(address _rewardDistributor) external onlyOwner {
+        rewardDistributor = IAAVERewardDistributor(_rewardDistributor);
     }
     
     /**
@@ -117,6 +128,44 @@ contract LendingPool is ReentrancyGuard, Pausable {
                 // Emit event for debugging
                 emit RewardUpdateFailed(user, asset, returnData);
             }
+        }
+    }
+    
+    /**
+     * @notice Update user reward using AAVE-style reward distributor (internal helper)
+     * @dev Called after supply, withdraw, borrow, repay actions
+     * @param user User address
+     * @param asset Asset address
+     */
+    function _updateUserReward(address user, address asset) internal {
+        if (address(rewardDistributor) == address(0)) return;
+        
+        ReserveUserModels.ReserveData storage reserve = reserves[asset];
+        
+        // Get current balances (in 1e18)
+        uint256 supplyBalance = _currentSupply(user, asset);
+        uint256 borrowBalance = _currentDebt(user, asset);
+        
+        // Total supply = reserveCash (available liquidity) + totalDebtPrincipal (borrowed out)
+        // This represents total tokens supplied by all users
+        uint256 totalSupply = uint256(reserve.reserveCash) + uint256(reserve.totalDebtPrincipal);
+        
+        // Total borrow = totalDebtPrincipal (total amount borrowed by all users)
+        uint256 totalBorrow = uint256(reserve.totalDebtPrincipal);
+        
+        // Call handleAction with try-catch to avoid reverting on reward update failure
+        try rewardDistributor.handleAction(
+            user,
+            asset,
+            supplyBalance,
+            borrowBalance,
+            totalSupply,
+            totalBorrow
+        ) {
+            // Success - reward updated
+        } catch (bytes memory returnData) {
+            // Don't revert if reward update fails (non-critical)
+            emit RewardUpdateFailed(user, asset, returnData);
         }
     }
 
@@ -408,8 +457,14 @@ function lend(address asset, uint256 amount) external {
     // (reserveCash đã thay đổi nên utilization và rates cần được tính lại)
     _accrue(asset);
 
-    // 6) Update reward accumulator with new supply balance
+    // 6) Update reward accumulator with new supply balance (legacy)
     _updateSupplyReward(msg.sender, asset, sNew);
+    
+    // 6.5) Force accumulate rewards after update (to make rewards available immediately)
+    _accumulateRewards(msg.sender);
+    
+    // 7) Update AAVE-style reward distributor
+    _updateUserReward(msg.sender, asset);
 
     emit Supplied(msg.sender, asset, delta1e18);
 }
@@ -456,8 +511,14 @@ function withdraw(address asset, uint256 requested) external returns (uint256 am
     uint256 transferOut = _from1e18(amt, r.decimals);
     IERC20(asset).safeTransfer(msg.sender, transferOut);
 
-    // Update reward accumulator with new supply balance
+    // Update reward accumulator with new supply balance (legacy)
     _updateSupplyReward(msg.sender, asset, sNew);
+    
+    // Force accumulate rewards after update
+    _accumulateRewards(msg.sender);
+    
+    // Update AAVE-style reward distributor
+    _updateUserReward(msg.sender, asset);
 
     emit Withdrawn(msg.sender, asset, amt);
     return amt; // 1e18 (chuẩn 1e18, tiện test/hiển thị)
@@ -519,8 +580,14 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
     // Accrue lại để tính rates mới sau khi utilization thay đổi
     _accrue(asset);
     
-    // Update reward accumulator with new borrow balance
+    // Update reward accumulator with new borrow balance (legacy)
     _updateBorrowReward(msg.sender, asset, newDebtTotal);
+    
+    // Force accumulate rewards after update
+    _accumulateRewards(msg.sender);
+    
+    // Update AAVE-style reward distributor
+    _updateUserReward(msg.sender, asset);
     
     emit Borrowed(msg.sender, asset, borrowAmount1e18);
 }
@@ -589,8 +656,14 @@ function repay(address asset, uint256 amount, address onBehalfOf) external nonRe
     // Accrue lại để tính rates mới sau khi utilization thay đổi
     _accrue(asset);
     
-    // Update reward accumulator with new borrow balance
+    // Update reward accumulator with new borrow balance (legacy)
     _updateBorrowReward(onBehalfOf, asset, newDebt);
+    
+    // Force accumulate rewards after update
+    _accumulateRewards(onBehalfOf);
+    
+    // Update AAVE-style reward distributor
+    _updateUserReward(onBehalfOf, asset);
     
     emit Repaid(msg.sender, onBehalfOf, asset, repayAmount1e18);
     return repayAmount1e18;

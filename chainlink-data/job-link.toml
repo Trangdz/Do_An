@@ -3,13 +3,13 @@ schemaVersion = 1
 name = "LINK/USD Price"
 forwardingAllowed = false
 maxTaskDuration = "0s"
-schedule = "@every 30s"
+schedule = "@every 3m"
 observationSource = """
 fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=LINKUSDT" allowUnrestrictedNetworkAccess=true]\n
 parse    [type="jsonparse" path="price" data="$(fetch)"]\n
 multiply [type="multiply" input="$(parse)" times=100000000]\n
 encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"LINK\\\", \\\"price\\\": $(multiply)}"]\n
-submit   [type="ethtx" to="0xec4aee56E6a82a68076753E69308367e5F04Eb97" data="$(encode)" gasLimit="500000"]\n
+submit   [type="ethtx" to="0x351933b31B54091af72396ba7BFC1d3bacf9877a" data="$(encode)" gasLimit="500000"]\n
 fetch->parse->multiply->encode->submit
 """
 

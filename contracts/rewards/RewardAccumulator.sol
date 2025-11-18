@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./RewardDistributor.sol";
 
 /**
@@ -23,8 +24,15 @@ contract RewardAccumulator is Ownable {
     uint256 public supplyRewardRatePerTokenPerSecond; // Reward per token per second for supplying
     uint256 public borrowRewardRatePerTokenPerSecond; // Reward per token per second for borrowing
     
-    // User => asset => last update timestamp
-    mapping(address => mapping(address => uint256)) public lastUpdateTime;
+    // User => asset => last supply update timestamp
+    mapping(address => mapping(address => uint256)) private lastSupplyUpdateTime;
+    
+    function lastUpdateTime(address user, address asset) external view returns (uint256) {
+        return lastSupplyUpdateTime[user][asset];
+    }
+    
+    // User => asset => last borrow update timestamp
+    mapping(address => mapping(address => uint256)) public lastBorrowUpdateTime;
     
     // User => asset => last supply balance (1e18)
     mapping(address => mapping(address => uint256)) public lastSupplyBalance;
@@ -35,10 +43,21 @@ contract RewardAccumulator is Ownable {
     // LendingPool address (authorized to call accumulateRewards)
     address public lendingPool;
     
+    // Anti-spam protection
+    uint256 public minimumTimeElapsed; // Minimum seconds between reward calculations (default: 60 seconds = 1 minute)
+    uint256 public minimumRewardAmount; // Minimum reward amount to accumulate (default: 0.01 LENDX = 1e16)
+    
+    // Dynamic rate adjustment based on pool balance
+    uint256 public baseSupplyRate; // Base supply rate (default: 1e15 = 0.001 LENDX per token per second)
+    uint256 public baseBorrowRate; // Base borrow rate (default: 2e15 = 0.002 LENDX per token per second)
+    uint256 public minPoolBalanceThreshold; // Minimum pool balance to maintain full rate (default: 10M LENDX)
+    bool public dynamicRateEnabled; // Whether dynamic rate adjustment is enabled
+    
     // Events
     event RewardsAccumulated(address indexed user, uint256 amount);
     event RewardRatesUpdated(uint256 supplyRate, uint256 borrowRate);
     event LendingPoolUpdated(address indexed newLendingPool);
+    event AntiSpamParamsUpdated(uint256 minimumTime, uint256 minimumReward);
     
     constructor(address _rewardDistributor, address initialOwner) Ownable(initialOwner) {
         rewardDistributor = RewardDistributor(_rewardDistributor);
@@ -47,8 +66,18 @@ contract RewardAccumulator is Ownable {
         // 0.001 LENDX per second per 1e18 token = 1e15 per second
         // This means 1 token supplied for 1 second = 0.001 LENDX reward
         // Or 1000 tokens for 1 second = 1 LENDX reward
-        supplyRewardRatePerTokenPerSecond = 1e15; // 0.001 LENDX per token per second
-        borrowRewardRatePerTokenPerSecond = 2e15; // 0.002 LENDX per token per second (borrowing earns 2x)
+        baseSupplyRate = 1e15; // 0.001 LENDX per token per second
+        baseBorrowRate = 2e15; // 0.002 LENDX per token per second (borrowing earns 2x)
+        supplyRewardRatePerTokenPerSecond = baseSupplyRate;
+        borrowRewardRatePerTokenPerSecond = baseBorrowRate;
+        
+        // Anti-spam protection defaults
+        minimumTimeElapsed = 60; // 1 minute cooldown between reward calculations
+        minimumRewardAmount = 1e16; // 0.01 LENDX minimum reward to accumulate
+        
+        // Dynamic rate adjustment defaults
+        minPoolBalanceThreshold = 10e24; // 10M LENDX minimum to maintain full rate
+        dynamicRateEnabled = true; // Enable dynamic rate adjustment
     }
     
     /**
@@ -65,9 +94,74 @@ contract RewardAccumulator is Ownable {
      * @param _borrowRate Reward rate per token per second for borrowing (1e18)
      */
     function setRewardRates(uint256 _supplyRate, uint256 _borrowRate) external onlyOwner {
+        baseSupplyRate = _supplyRate;
+        baseBorrowRate = _borrowRate;
         supplyRewardRatePerTokenPerSecond = _supplyRate;
         borrowRewardRatePerTokenPerSecond = _borrowRate;
         emit RewardRatesUpdated(_supplyRate, _borrowRate);
+    }
+    
+    /**
+     * @notice Update dynamic rate parameters (only owner)
+     * @param _minPoolBalanceThreshold Minimum pool balance to maintain full rate (1e18)
+     * @param _enabled Whether dynamic rate adjustment is enabled
+     */
+    function setDynamicRateParams(uint256 _minPoolBalanceThreshold, bool _enabled) external onlyOwner {
+        minPoolBalanceThreshold = _minPoolBalanceThreshold;
+        dynamicRateEnabled = _enabled;
+        _updateRatesBasedOnPool(); // Update rates immediately
+    }
+    
+    /**
+     * @notice Update rates based on current pool balance (internal)
+     * @dev Reduces rates if pool balance is below threshold to ensure sustainability
+     */
+    function _updateRatesBasedOnPool() internal {
+        if (!dynamicRateEnabled) {
+            // Use base rates if dynamic rate is disabled
+            supplyRewardRatePerTokenPerSecond = baseSupplyRate;
+            borrowRewardRatePerTokenPerSecond = baseBorrowRate;
+            return;
+        }
+        
+        // Get current pool balance from RewardDistributor
+        // RewardDistributor holds the LENDX tokens
+        IERC20 lendxToken = IERC20(rewardDistributor.lendxToken());
+        uint256 poolBalance = lendxToken.balanceOf(address(rewardDistributor));
+        
+        if (poolBalance >= minPoolBalanceThreshold) {
+            // Pool is healthy, use full base rates
+            supplyRewardRatePerTokenPerSecond = baseSupplyRate;
+            borrowRewardRatePerTokenPerSecond = baseBorrowRate;
+        } else if (poolBalance == 0) {
+            // Pool is empty, set rates to 0
+            supplyRewardRatePerTokenPerSecond = 0;
+            borrowRewardRatePerTokenPerSecond = 0;
+        } else {
+            // Pool is low, reduce rates proportionally
+            // Rate = baseRate * (poolBalance / minPoolBalanceThreshold)
+            // Minimum rate is 10% of base rate to ensure some rewards still flow
+            uint256 rateMultiplier = (poolBalance * 1e18) / minPoolBalanceThreshold;
+            uint256 minMultiplier = 1e17; // 10% minimum
+            
+            if (rateMultiplier < minMultiplier) {
+                rateMultiplier = minMultiplier;
+            }
+            
+            supplyRewardRatePerTokenPerSecond = (baseSupplyRate * rateMultiplier) / 1e18;
+            borrowRewardRatePerTokenPerSecond = (baseBorrowRate * rateMultiplier) / 1e18;
+        }
+    }
+    
+    /**
+     * @notice Update anti-spam parameters (only owner)
+     * @param _minimumTimeElapsed Minimum seconds between reward calculations (prevents spam)
+     * @param _minimumRewardAmount Minimum reward amount to accumulate (1e18, prevents dust rewards)
+     */
+    function setAntiSpamParams(uint256 _minimumTimeElapsed, uint256 _minimumRewardAmount) external onlyOwner {
+        minimumTimeElapsed = _minimumTimeElapsed;
+        minimumRewardAmount = _minimumRewardAmount;
+        emit AntiSpamParamsUpdated(_minimumTimeElapsed, _minimumRewardAmount);
     }
     
     /**
@@ -129,25 +223,36 @@ contract RewardAccumulator is Ownable {
         require(msg.sender == lendingPool, "RewardAccumulator: only LendingPool");
         
         // Calculate reward for previous balance
-        uint256 lastTime = lastUpdateTime[user][asset];
+        uint256 lastTime = lastSupplyUpdateTime[user][asset];
         uint256 lastSupply = lastSupplyBalance[user][asset];
         
-        // Only calculate reward if we have previous state (not first time)
+        // Update rates based on current pool balance (dynamic adjustment)
+        _updateRatesBasedOnPool();
+        
+        // Calculate reward for previous balance (if exists)
         if (lastTime > 0 && lastSupply > 0) {
             uint256 timeElapsed = block.timestamp - lastTime;
-            if (timeElapsed > 0) {
-                uint256 supplyReward = (lastSupply * supplyRewardRatePerTokenPerSecond * timeElapsed) / 1e18;
-                
+            
+            // Calculate reward even if time is short (but still check minimum for accumulation)
+            uint256 supplyReward = (lastSupply * supplyRewardRatePerTokenPerSecond * timeElapsed) / 1e18;
+            
+            // Only accumulate if:
+            // 1. Enough time has passed (anti-spam), OR
+            // 2. Reward is significant enough (above threshold)
+            // This allows immediate accumulation for significant rewards while preventing spam
+            if (timeElapsed >= minimumTimeElapsed || supplyReward >= minimumRewardAmount) {
                 if (supplyReward > 0) {
                     rewardDistributor.accumulateReward(user, supplyReward);
                     emit RewardsAccumulated(user, supplyReward);
                 }
             }
+            // If conditions not met, we still update state but don't accumulate
+            // Reward will accumulate on next interaction
         }
         
         // Always update state (even for first time)
         // This initializes the tracking for future rewards
-        lastUpdateTime[user][asset] = block.timestamp;
+        lastSupplyUpdateTime[user][asset] = block.timestamp;
         lastSupplyBalance[user][asset] = supplyBalance;
     }
     
@@ -160,8 +265,8 @@ contract RewardAccumulator is Ownable {
      */
     function initializeSupplyBalance(address user, address asset, uint256 supplyBalance) external onlyOwner {
         // Only initialize if not already initialized
-        if (lastUpdateTime[user][asset] == 0) {
-            lastUpdateTime[user][asset] = block.timestamp;
+        if (lastSupplyUpdateTime[user][asset] == 0) {
+            lastSupplyUpdateTime[user][asset] = block.timestamp;
             lastSupplyBalance[user][asset] = supplyBalance;
             emit RewardsAccumulated(user, 0); // Emit event to indicate initialization
         }
@@ -175,8 +280,8 @@ contract RewardAccumulator is Ownable {
      */
     function initializeBorrowBalance(address user, address asset, uint256 borrowBalance) external onlyOwner {
         // Only initialize if not already initialized
-        if (lastUpdateTime[user][asset] == 0) {
-            lastUpdateTime[user][asset] = block.timestamp;
+        if (lastBorrowUpdateTime[user][asset] == 0) {
+            lastBorrowUpdateTime[user][asset] = block.timestamp;
             lastBorrowBalance[user][asset] = borrowBalance;
             emit RewardsAccumulated(user, 0); // Emit event to indicate initialization
         }
@@ -192,21 +297,34 @@ contract RewardAccumulator is Ownable {
         require(msg.sender == lendingPool, "RewardAccumulator: only LendingPool");
         
         // Calculate reward for previous balance
-        uint256 lastTime = lastUpdateTime[user][asset];
+        uint256 lastTime = lastBorrowUpdateTime[user][asset];
         uint256 lastBorrow = lastBorrowBalance[user][asset];
+        
+        // Update rates based on current pool balance (dynamic adjustment)
+        _updateRatesBasedOnPool();
         
         if (lastTime > 0 && lastBorrow > 0) {
             uint256 timeElapsed = block.timestamp - lastTime;
+            
+            // Calculate reward even if time is short (but still check minimum for accumulation)
             uint256 borrowReward = (lastBorrow * borrowRewardRatePerTokenPerSecond * timeElapsed) / 1e18;
             
-            if (borrowReward > 0) {
-                rewardDistributor.accumulateReward(user, borrowReward);
-                emit RewardsAccumulated(user, borrowReward);
+            // Only accumulate if:
+            // 1. Enough time has passed (anti-spam), OR
+            // 2. Reward is significant enough (above threshold)
+            // This allows immediate accumulation for significant rewards while preventing spam
+            if (timeElapsed >= minimumTimeElapsed || borrowReward >= minimumRewardAmount) {
+                if (borrowReward > 0) {
+                    rewardDistributor.accumulateReward(user, borrowReward);
+                    emit RewardsAccumulated(user, borrowReward);
+                }
             }
+            // If conditions not met, we still update state but don't accumulate
+            // Reward will accumulate on next interaction
         }
         
         // Update state
-        lastUpdateTime[user][asset] = block.timestamp;
+        lastBorrowUpdateTime[user][asset] = block.timestamp;
         lastBorrowBalance[user][asset] = borrowBalance;
     }
 }

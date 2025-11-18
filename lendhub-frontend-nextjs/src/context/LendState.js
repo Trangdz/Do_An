@@ -16,6 +16,94 @@ const reportError = (error) => {
   console.error("Error details:", error);
 };
 
+const accountDataPriceAbi = ['function getAssetPrice1e18(address asset) view returns (uint256)'];
+
+const fallbackHelperAbi = [
+  'function getAllAssets() view returns (address[])',
+  'function reserves(address) view returns (tuple(uint128 reserveCash,uint128 totalDebtPrincipal,uint128 liquidityIndex,uint128 variableBorrowIndex,uint64 liquidityRateRayPerSec,uint64 variableBorrowRateRayPerSec,uint16 reserveFactorBps,uint16 ltvBps,uint16 liqThresholdBps,uint16 liqBonusBps,uint16 closeFactorBps,uint8 decimals,bool isBorrowable,uint16 optimalUBps,uint64 baseRateRayPerSec,uint64 slope1RayPerSec,uint64 slope2RayPerSec,uint40 lastUpdate))',
+  'function userReserves(address user, address asset) view returns (tuple(uint128 principal,uint128 index) supply, tuple(uint128 principal,uint128 index) borrow, bool useAsCollateral)',
+  'function getCurrentSupplyBalance(address user, address asset) view returns (uint256)',
+  'function getCurrentDebtBalance(address user, address asset) view returns (uint256)'
+];
+
+const computeAccountDataFallback = async (rpcProvider, wallet) => {
+  const pool = new ethers.Contract(LendingPoolAddress, fallbackHelperAbi, rpcProvider);
+  const priceOracle = new ethers.Contract(CONFIG.PRICE_ORACLE, accountDataPriceAbi, rpcProvider);
+  
+  const allAssets = await pool.getAllAssets().catch(() => []);
+  const tokenMeta = CONFIG.TOKENS.reduce((acc, token) => {
+    if (token.address) {
+      acc[token.address.toLowerCase()] = token;
+    }
+    return acc;
+  }, {});
+
+  const perToken = await Promise.all(allAssets.map(async (assetAddress) => {
+    try {
+      const [userReserve, reserveData] = await Promise.all([
+        pool.userReserves(wallet, assetAddress),
+        pool.reserves(assetAddress)
+      ]);
+      
+      const [supplyBalance, debtBalance] = await Promise.all([
+        pool.getCurrentSupplyBalance(wallet, assetAddress).catch(() => userReserve.supply.principal),
+        pool.getCurrentDebtBalance(wallet, assetAddress).catch(() => userReserve.borrow.principal)
+      ]);
+      
+      const priceRaw = await priceOracle.getAssetPrice1e18(assetAddress);
+      if (!priceRaw || priceRaw === 0n) {
+        console.warn(`⚠️ Price unavailable for asset ${assetAddress}, skipping in fallback`);
+        return null;
+      }
+      
+      const priceUSD = Number(ethers.formatUnits(priceRaw, 18));
+      if (!Number.isFinite(priceUSD) || priceUSD === 0) {
+        return null;
+      }
+      
+      const supplyAmount = Number(ethers.formatUnits(supplyBalance ?? 0n, 18));
+      const debtAmount = Number(ethers.formatUnits(debtBalance ?? 0n, 18));
+      const liqThresholdBps = Number(reserveData?.ltvBps ?? reserveData?.liqThresholdBps ?? 0);
+      const useAsCollateral = Boolean(userReserve?.useAsCollateral);
+      let collateralUSD = 0;
+      if (supplyAmount > 0 && useAsCollateral && liqThresholdBps > 0) {
+        const weighted = (supplyAmount * priceUSD) * (liqThresholdBps / 10000);
+        if (Number.isFinite(weighted)) {
+          collateralUSD = weighted;
+        }
+      }
+      
+      const debtUSD = debtAmount > 0 ? debtAmount * priceUSD : 0;
+      
+      return {
+        collateralUSD,
+        debtUSD
+      };
+    } catch (fallbackErr) {
+      console.warn(`⚠️ Fallback account data failed for asset ${assetAddress}:`, fallbackErr.message || fallbackErr);
+      return null;
+    }
+  }));
+  
+  const totals = perToken.reduce((acc, value) => {
+    if (!value) return acc;
+    return {
+      collateral: acc.collateral + (Number.isFinite(value.collateralUSD) ? value.collateralUSD : 0),
+      debt: acc.debt + (Number.isFinite(value.debtUSD) ? value.debtUSD : 0)
+    };
+  }, { collateral: 0, debt: 0 });
+  
+  const fallbackHF = totals.debt === 0
+    ? Number.POSITIVE_INFINITY
+    : totals.collateral / totals.debt;
+  
+  return {
+    collateralUSD: totals.collateral.toString(),
+    debtUSD: totals.debt.toString(),
+    healthFactor: fallbackHF === Number.POSITIVE_INFINITY ? 'Infinity' : fallbackHF.toString()
+  };
+};
+
 const LendState = (props) => {
   //* Declaring all the states
 
@@ -536,7 +624,6 @@ const LendState = (props) => {
         });
       } catch (contractError) {
         console.error('❌ Contract getAccountData failed:', contractError.message);
-        // Return default values for new users
         col = ethers.parseUnits("0", 18);
         debt = ethers.parseUnits("0", 18);
         hf = ethers.parseUnits("115792089237316195423570985008687907853269984665640564039457.584007913129639935", 18); // Max uint256
@@ -555,19 +642,44 @@ const LendState = (props) => {
           : 'Infinity';
       }
 
-      const accountData = {
+      let accountData = {
         collateralUSD: collateralUSDValue.toString(),
         debtUSD: debtUSDValue.toString(),
         healthFactor: healthFactorValue
       };
 
+      const needsFallback =
+        ((collateralUSDValue === 0 && debtUSDValue === 0) ||
+        !Number.isFinite(parseFloat(healthFactorValue))) &&
+        metamaskDetails.currentAccount;
+
+      if (needsFallback) {
+        console.warn('⚠️ On-chain account data incomplete, computing fallback values...');
+        const fallbackData = await computeAccountDataFallback(rpcProvider, wallet);
+        if (fallbackData) {
+          accountData = fallbackData;
+        }
+      }
+      
       console.log('📊 Account Data (formatted):', accountData);
       
       setAccountData(accountData);
       return accountData;
     } catch (error) {
       console.error('❌ getAccountData error:', error.message);
-      // Return default values on any error
+      // Return fallback values on any error if possible
+      try {
+        const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+        const wallet = user || metamaskDetails.currentAccount || ethers.ZeroAddress;
+        const fallbackData = await computeAccountDataFallback(rpcProvider, wallet);
+        if (fallbackData) {
+          setAccountData(fallbackData);
+          return fallbackData;
+        }
+      } catch (fallbackError) {
+        console.warn('⚠️ Fallback computation failed:', fallbackError.message || fallbackError);
+      }
+
       const accountData = {
         collateralUSD: "0",
         debtUSD: "0", 

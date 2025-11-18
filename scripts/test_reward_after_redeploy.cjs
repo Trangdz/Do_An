@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 /**
- * @notice Test reward system after LendingPool redeployment
+ * @notice Test reward system after redeploy
  */
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
@@ -19,153 +19,164 @@ async function main() {
   };
 
   const LendingPoolAddress = getAddress("LendingPoolAddress");
-  const RewardAccumulatorAddress = getAddress("RewardAccumulatorAddress");
-  const RewardDistributorAddress = getAddress("RewardDistributorAddress");
   const DAIAddress = getAddress("DAIAddress");
-  const userAddress = getAddress("User1Address");
+  const RewardDistributorAddress = getAddress("RewardDistributorAddress");
+  const RewardAccumulatorAddress = getAddress("RewardAccumulatorAddress");
+  const User1Address = getAddress("User1Address");
 
   console.log("🧪 TESTING REWARD SYSTEM AFTER REDEPLOY");
   console.log("=".repeat(70));
   console.log();
 
-  const LendingPool = await hre.ethers.getContractFactory("LendingPool");
-  const lendingPool = LendingPool.attach(LendingPoolAddress);
+  if (!LendingPoolAddress || !DAIAddress || !RewardDistributorAddress || !RewardAccumulatorAddress) {
+    console.log("❌ Missing addresses!");
+    console.log("LendingPool:", LendingPoolAddress);
+    console.log("DAI:", DAIAddress);
+    console.log("RewardDistributor:", RewardDistributorAddress);
+    console.log("RewardAccumulator:", RewardAccumulatorAddress);
+    return;
+  }
 
-  const RewardAccumulator = await hre.ethers.getContractFactory("RewardAccumulator");
-  const rewardAccumulator = RewardAccumulator.attach(RewardAccumulatorAddress);
+  const lendingPool = await hre.ethers.getContractAt("LendingPool", LendingPoolAddress);
+  const rewardDistributor = await hre.ethers.getContractAt("RewardDistributor", RewardDistributorAddress);
+  const rewardAccumulator = await hre.ethers.getContractAt("RewardAccumulator", RewardAccumulatorAddress);
+  const dai = await hre.ethers.getContractAt("IERC20", DAIAddress);
 
-  const RewardDistributor = await hre.ethers.getContractFactory("RewardDistributor");
-  const rewardDistributor = RewardDistributor.attach(RewardDistributorAddress);
-
-  // DAI ABI
-  const ERC20_ABI = [
-    "function balanceOf(address) view returns (uint256)",
-    "function allowance(address, address) view returns (uint256)",
-    "function approve(address, uint256) returns (bool)",
-    "function transfer(address, uint256) returns (bool)",
-    "function decimals() view returns (uint8)"
-  ];
-  const dai = new ethers.Contract(DAIAddress, ERC20_ABI, deployer);
-
-  // Step 1: Check configuration
-  console.log("1️⃣  CONFIGURATION CHECK");
+  // Check configuration
+  console.log("1️⃣  CHECKING CONFIGURATION");
   console.log("-".repeat(70));
   const poolAccumulator = await lendingPool.rewardAccumulator();
-  const accumulatorLendingPool = await rewardAccumulator.lendingPool();
-  const accumulatorDistributor = await rewardAccumulator.rewardDistributor();
+  const accumulatorPool = await rewardAccumulator.lendingPool();
   const distributorAccumulator = await rewardDistributor.rewardAccumulator();
   
   console.log("LendingPool.rewardAccumulator:", poolAccumulator);
-  console.log("  Match:", poolAccumulator.toLowerCase() === RewardAccumulatorAddress.toLowerCase());
-  console.log("RewardAccumulator.lendingPool:", accumulatorLendingPool);
-  console.log("  Match:", accumulatorLendingPool.toLowerCase() === LendingPoolAddress.toLowerCase());
-  console.log("RewardAccumulator.rewardDistributor:", accumulatorDistributor);
+  console.log("RewardAccumulator.lendingPool:", accumulatorPool);
   console.log("RewardDistributor.rewardAccumulator:", distributorAccumulator);
   console.log();
-
-  // Step 2: Check if reserve is initialized
-  console.log("2️⃣  CHECKING RESERVE INITIALIZATION");
-  console.log("-".repeat(70));
-  try {
-    const reserve = await lendingPool.reserves(DAIAddress);
-    const lastUpdate = reserve.lastUpdate;
-    console.log("DAI reserve lastUpdate:", lastUpdate.toString());
-    if (lastUpdate === 0n) {
-      console.log("  ❌ Reserve not initialized!");
-      console.log("  💡 Need to initialize reserve first");
-    } else {
-      console.log("  ✅ Reserve initialized");
-    }
-  } catch (error) {
-    console.log("  ❌ Error checking reserve:", error.message);
+  
+  if (poolAccumulator.toLowerCase() !== RewardAccumulatorAddress.toLowerCase()) {
+    console.log("❌ LendingPool.rewardAccumulator is NOT set correctly!");
+    return;
   }
+  if (accumulatorPool.toLowerCase() !== LendingPoolAddress.toLowerCase()) {
+    console.log("❌ RewardAccumulator.lendingPool is NOT set correctly!");
+    return;
+  }
+  console.log("✅ Configuration is correct");
   console.log();
 
-  // Step 3: Check user state
-  console.log("3️⃣  USER STATE");
+  // Check user's current state
+  const userAddress = User1Address;
+  console.log("2️⃣  CHECKING USER STATE");
   console.log("-".repeat(70));
+  const initialClaimable = await rewardDistributor.getClaimableReward(userAddress);
   const userReserve = await lendingPool.userReserves(userAddress, DAIAddress);
-  const supplyPrincipal = userReserve.supply.principal;
+  const currentSupply = userReserve.supply.principal;
   const lastUpdateTime = await rewardAccumulator.lastUpdateTime(userAddress, DAIAddress);
   const lastSupplyBalance = await rewardAccumulator.lastSupplyBalance(userAddress, DAIAddress);
-  const claimableReward = await rewardDistributor.getClaimableReward(userAddress);
   
   console.log("User:", userAddress);
-  console.log("Supply:", ethers.formatEther(supplyPrincipal), "DAI");
+  console.log("Current supply:", ethers.formatEther(currentSupply), "DAI");
   console.log("Last update time:", lastUpdateTime.toString());
   console.log("Last supply balance:", ethers.formatEther(lastSupplyBalance), "DAI");
-  console.log("Claimable reward:", ethers.formatEther(claimableReward), "LENDX");
+  console.log("Initial claimable reward:", ethers.formatEther(initialClaimable), "LENDX");
   console.log();
 
-  // Step 4: Test supply transaction
-  if (supplyPrincipal === 0n) {
-    console.log("4️⃣  USER HAS NO SUPPLY");
-    console.log("-".repeat(70));
-    console.log("  User needs to supply tokens first");
-    console.log("  After supply, reward will be initialized");
-    console.log("  Then on next supply/withdraw, reward will be calculated");
-  } else {
-    console.log("4️⃣  TESTING SUPPLY TRANSACTION");
-    console.log("-".repeat(70));
+  // Check recent transactions for RewardsAccumulated events
+  console.log("3️⃣  CHECKING RECENT TRANSACTIONS FOR REWARDS");
+  console.log("-".repeat(70));
+  const currentBlock = await ethers.provider.getBlockNumber();
+  const rewardAccumulatorInterface = new ethers.Interface([
+    "event RewardsAccumulated(address indexed user, uint256 amount)"
+  ]);
+  
+  let foundEvents = 0;
+  for (let i = 0; i < 100 && currentBlock - i > 0; i++) {
+    const blockNum = currentBlock - i;
+    const block = await ethers.provider.getBlock(blockNum, true);
     
-    // Check user DAI balance
-    const userDaiBalance = await dai.balanceOf(userAddress);
-    console.log("User DAI balance:", ethers.formatEther(userDaiBalance), "DAI");
-    
-    if (userDaiBalance < ethers.parseEther("0.0001")) {
-      console.log("  ⚠️  User doesn't have enough DAI");
-      console.log("  💡 Transferring 1 DAI to user...");
-      const deployerDaiBalance = await dai.balanceOf(deployer.address);
-      if (deployerDaiBalance > ethers.parseEther("1")) {
-        const transferTx = await dai.transfer(userAddress, ethers.parseEther("1"));
-        await transferTx.wait();
-        console.log("  ✅ Transferred 1 DAI");
+    if (block && block.transactions) {
+      for (const txHash of block.transactions) {
+        try {
+          const receipt = await ethers.provider.getTransactionReceipt(txHash);
+          for (const log of receipt.logs) {
+            try {
+              const parsed = rewardAccumulatorInterface.parseLog(log);
+              if (parsed && parsed.name === "RewardsAccumulated") {
+                foundEvents++;
+                console.log(`✅ Found RewardsAccumulated event in block ${blockNum}`);
+                console.log("   User:", parsed.args.user);
+                console.log("   Amount:", ethers.formatEther(parsed.args.amount), "LENDX");
+              }
+            } catch (e) {
+              // Not a RewardsAccumulated event
+            }
+          }
+        } catch (e) {
+          // Skip errors
+        }
       }
     }
-    
-    // Check allowance
-    const allowance = await dai.allowance(userAddress, LendingPoolAddress);
-    console.log("Allowance:", ethers.formatEther(allowance), "DAI");
-    
-    if (allowance < ethers.parseEther("1")) {
-      console.log("  ⚠️  Need approval");
-      console.log("  💡 User needs to approve in MetaMask");
-    }
-    
+  }
+  
+  if (foundEvents === 0) {
+    console.log("❌ NO RewardsAccumulated events found in last 100 blocks!");
+    console.log("   This means rewards are NOT being accumulated");
     console.log();
-    console.log("  💡 To test:");
-    console.log("     1. User supplies 0.0001 DAI (or any amount)");
-    console.log("     2. Check transaction receipt for RewardsAccumulated event");
-    console.log("     3. Check claimable reward after transaction");
+    console.log("💡 POSSIBLE CAUSES:");
+    console.log("   1. LendingPool does NOT have _accumulateRewards() function");
+    console.log("   2. RewardAccumulator does NOT have the new accumulation logic");
+    console.log("   3. Users need to make a new transaction to trigger rewards");
+    console.log();
+    console.log("🔧 SOLUTION:");
+    console.log("   1. Redeploy LendingPool with latest code");
+    console.log("   2. Redeploy RewardAccumulator with latest code");
+    console.log("   3. Make a new supply/withdraw transaction");
+  } else {
+    console.log(`✅ Found ${foundEvents} RewardsAccumulated event(s)`);
   }
   console.log();
 
-  // Step 5: Summary
-  console.log("=".repeat(70));
-  console.log("📊 SUMMARY");
-  console.log("=".repeat(70));
-  
-  const issues = [];
-  if (poolAccumulator.toLowerCase() !== RewardAccumulatorAddress.toLowerCase()) {
-    issues.push("❌ LendingPool.rewardAccumulator mismatch");
-  }
-  if (accumulatorLendingPool.toLowerCase() !== LendingPoolAddress.toLowerCase()) {
-    issues.push("❌ RewardAccumulator.lendingPool mismatch");
-  }
-  
-  if (issues.length === 0) {
-    console.log("✅ All configurations are correct");
+  // Check anti-spam parameters
+  console.log("4️⃣  CHECKING ANTI-SPAM PARAMETERS");
+  console.log("-".repeat(70));
+  try {
+    const minimumTimeElapsed = await rewardAccumulator.minimumTimeElapsed();
+    const minimumRewardAmount = await rewardAccumulator.minimumRewardAmount();
+    const supplyRate = await rewardAccumulator.supplyRewardRatePerTokenPerSecond();
+    
+    console.log("Minimum time elapsed:", minimumTimeElapsed.toString(), "seconds");
+    console.log("Minimum reward amount:", ethers.formatEther(minimumRewardAmount), "LENDX");
+    console.log("Supply rate:", ethers.formatEther(supplyRate), "LENDX per token per second");
     console.log();
-    console.log("💡 Next steps:");
-    console.log("   1. Make sure reserves are initialized");
-    console.log("   2. User supplies tokens");
-    console.log("   3. Wait a few seconds");
-    console.log("   4. User supplies/withdraws again");
-    console.log("   5. Check claimable reward");
-  } else {
-    console.log("Issues found:");
-    issues.forEach(issue => console.log("  " + issue));
+    
+    // Calculate expected reward if user has supply
+    if (lastUpdateTime > 0n && lastSupplyBalance > 0n) {
+      const currentTime = BigInt(Math.floor(Date.now() / 1000));
+      const timeElapsed = currentTime - lastUpdateTime;
+      const expectedReward = (lastSupplyBalance * supplyRate * timeElapsed) / ethers.parseUnits("1", 18);
+      
+      console.log("5️⃣  EXPECTED REWARD CALCULATION");
+      console.log("-".repeat(70));
+      console.log("Time elapsed:", timeElapsed.toString(), "seconds");
+      console.log("Expected reward:", ethers.formatEther(expectedReward), "LENDX");
+      console.log();
+      
+      if (expectedReward > 0n) {
+        console.log("💡 User should have reward, but it's not claimable yet.");
+        console.log("   This means rewards are NOT being accumulated automatically.");
+        console.log("   → Need to make a new transaction to trigger accumulation");
+      }
+    }
+  } catch (error) {
+    console.log("❌ Error reading anti-spam parameters:", error.message);
+    console.log("   → RewardAccumulator might not have the new code");
   }
+  console.log();
+
+  console.log("=".repeat(70));
+  console.log("✅ TEST COMPLETE");
+  console.log("=".repeat(70));
 }
 
 main()
@@ -174,6 +185,3 @@ main()
     console.error(error);
     process.exit(1);
   });
-
-
-

@@ -13,7 +13,7 @@ import { BorrowModal } from '@/components/BorrowModal';
 import { DashboardDepositRow } from '@/components/DashboardDepositRow';
 import { DashboardBorrowRow } from '@/components/DashboardBorrowRow';
 import { LENDXRewardCard } from '@/components/LENDXRewardCard';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useToast } from '@/components/ui/Toast';
 
 export default function DashboardPage() {
@@ -39,10 +39,57 @@ export default function DashboardPage() {
   const provider = metamaskDetails.provider;
   const signer = metamaskDetails.signer;
 
-  const collateralValue = parseFloat(accountData.collateralUSD || '0');
-  const debtValue = parseFloat(accountData.debtUSD || '0');
-  const healthFactor = parseFloat(accountData.healthFactor || '0');
-  const isHealthy = healthFactor >= 1;
+  const rawCollateralValue = Number(accountData.collateralUSD ?? '0');
+  const rawDebtValue = Number(accountData.debtUSD ?? '0');
+
+  const fallbackCollateralValue = useMemo(() => {
+    if (!supplyAssets?.length) return 0;
+    return supplyAssets.reduce((total: number, asset: any) => {
+      if (!asset?.isCollateral) return total;
+      const value = Number(asset?.collateralUSD ?? asset?.balanceUSD ?? 0);
+      return total + (Number.isFinite(value) ? value : 0);
+    }, 0);
+  }, [supplyAssets]);
+
+  const fallbackDebtValue = useMemo(() => {
+    if (!yourBorrows?.length) return 0;
+    return yourBorrows.reduce((total: number, borrow: any) => {
+      const value = Number(borrow?.balanceUSD ?? 0);
+      return total + (Number.isFinite(value) ? value : 0);
+    }, 0);
+  }, [yourBorrows]);
+
+  const collateralValue = Number.isFinite(rawCollateralValue) && rawCollateralValue > 0
+    ? rawCollateralValue
+    : fallbackCollateralValue;
+
+  const debtValue = Number.isFinite(rawDebtValue) && rawDebtValue > 0
+    ? rawDebtValue
+    : fallbackDebtValue;
+
+  const healthFactor = useMemo(() => {
+    const rawHealthFactor = Number(accountData.healthFactor ?? '0');
+    const canUseRawHealth =
+      Number.isFinite(rawHealthFactor) &&
+      Number.isFinite(rawCollateralValue) && rawCollateralValue > 0 &&
+      Number.isFinite(rawDebtValue) && rawDebtValue > 0;
+
+    if (canUseRawHealth) {
+      return rawHealthFactor;
+    }
+
+    if (debtValue === 0) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    if (collateralValue === 0) {
+      return 0;
+    }
+
+    return collateralValue / debtValue;
+  }, [accountData.healthFactor, collateralValue, debtValue, rawCollateralValue, rawDebtValue]);
+
+  const isHealthy = healthFactor === Number.POSITIVE_INFINITY || healthFactor >= 1;
 
   // Debounce refresh to avoid circuit breaker
   const [isRefreshing, setIsRefreshing] = useState(false);

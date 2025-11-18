@@ -7,41 +7,24 @@ HTTPPort = 6688
 HTTPSPort = 0
 
 [Log]
-Level = "debug"
-
-#################################
-# Network 1 — Ganache 1337
-#################################
+Level = "debug"   # giá trị cuối ghi đè, nên lấy debug
 
 [[EVM]]
 ChainID = 1337
 Enabled = true
-FinalityDepth = 1
 
 [[EVM.Nodes]]
-Name = "ganache"
+Name   = "ganache"
 WSURL  = "ws://host.docker.internal:7545"
-HTTPURL= "http://host.docker.internal:7545"
+HTTPURL = "http://host.docker.internal:7545"
 
+[EVM.Transactions]
+MaxInFlight = 500
+MaxQueued = 1000
+ReaperInterval = '1h'
+ReaperThreshold = '168h'
+ResendAfterThreshold = '1m'
 
-#################################
-# Network 2 — Ganache 5777
-#################################
-
-[[EVM]]
-ChainID = 5777
-Enabled = true
-FinalityDepth = 1
-
-[[EVM.Nodes]]
-Name = "ganache2"
-WSURL  = "ws://192.168.34.106:8545"
-HTTPURL= "http://192.168.34.106:8545"
-
-
-#################################
-# Features
-#################################
-
+# Nếu app KHÔNG cho phép WSURL, HTTPURL, ChainID trong Feature → phải xóa
 [Feature]
 LogPoller = true
