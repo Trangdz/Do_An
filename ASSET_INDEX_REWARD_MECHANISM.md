@@ -445,3 +445,5 @@ Cơ chế **AssetIndex** là một cách tiếp cận **rất tốt** để phâ
 
 **Quan trọng nhất:** Đảm bảo cập nhật UserIndex đúng lúc để tránh double-count hoặc miss reward!
 
+
+

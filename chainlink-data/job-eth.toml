@@ -9,7 +9,7 @@ fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/pr
 parse    [type="jsonparse" path="price" data="$(fetch)"]\n
 multiply [type="multiply" input="$(parse)" times=100000000]\n
 encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"ETH\\\", \\\"price\\\": $(multiply)}"]\n
-submit   [type="ethtx" to="0x351933b31B54091af72396ba7BFC1d3bacf9877a" data="$(encode)" gasLimit="500000"]\n
+submit   [type="ethtx" to="0xF7Cf68Af058D59cDF5f606bC1bBA3a024b0eB5b4" data="$(encode)" gasLimit="500000"]\n
 fetch->parse->multiply->encode->submit
 """
 

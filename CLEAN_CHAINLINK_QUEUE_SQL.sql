@@ -13,3 +13,5 @@ DELETE FROM eth_txes WHERE state IN ('unstarted', 'in_progress');
 -- Show remaining transactions count
 SELECT state, COUNT(*) as count FROM eth_txes GROUP BY state;
 
+
+

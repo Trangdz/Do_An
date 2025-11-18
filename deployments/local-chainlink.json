@@ -2,16 +2,16 @@
   "network": "1337",
   "deployer": "0x3A716b4DeeA7dcdAAdd42b90BaA30E0A7B2fd412",
   "contracts": {
-    "lendingPool": "0x498A30416f0De3886f1aB2C3d692FBb4767c70fe",
-    "interestRateModel": "0xdc57105D2297607cBFfC979fD0173c467BF149ce",
-    "priceOracle": "0x351933b31B54091af72396ba7BFC1d3bacf9877a",
-    "multiPriceAggregator": "0x351933b31B54091af72396ba7BFC1d3bacf9877a"
+    "lendingPool": "0x672D84abce250bd7792471357F6290dc8FD02b1c",
+    "interestRateModel": "0xf4dA20c0C0670CfAe77A645f1bDA50070dB45AA5",
+    "priceOracle": "0xF7Cf68Af058D59cDF5f606bC1bBA3a024b0eB5b4",
+    "multiPriceAggregator": "0xF7Cf68Af058D59cDF5f606bC1bBA3a024b0eB5b4"
   },
   "tokens": {
-    "weth": "0xC067BEb0961A3F718D297D10F78A31Ece4e30A0E",
-    "usdc": "0x0619beb03a80F41d2e6ea32De758379A40FD6C1c",
-    "dai": "0x0EA3bB992781cF9d2047809A2EC2790BF7d86231",
-    "link": "0x72f61ad88F25d977aDD94c1029489F4839c69d1a"
+    "weth": "0x74F2337444264B1F24579b2AD46e065F782559AB",
+    "usdc": "0x09EeB7812b9B79BDCBc792b6d9a90f01E7ba4Ce0",
+    "dai": "0x326327386A74AC08b3B299fE64F24eaF120396e2",
+    "link": "0xD7Ae715C74D1FdE943C067A6371d0bfe2cc3DFdc"
   },
-  "timestamp": "2025-11-18T05:09:34.230Z"
+  "timestamp": "2025-11-18T08:28:14.219Z"
 }

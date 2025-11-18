@@ -211,3 +211,5 @@ Có thể check pool status:
 - Rate sẽ tự động giảm
 - Cần tăng emission rate hoặc bổ sung thủ công
 
+
+

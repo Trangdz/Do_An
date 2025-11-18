@@ -334,7 +334,7 @@ export function LendModal({
             </div>
             
             {/* Show info about allowance */}
-            {parseFloat(allowance) === 0 && parseFloat(balance) > 0 && (
+            {/* {parseFloat(allowance) === 0 && parseFloat(balance) > 0 && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-start space-x-2">
                   <span className="text-blue-500 mt-0.5">ℹ️</span>
@@ -351,7 +351,7 @@ export function LendModal({
                   </div>
                 </div>
               </div>
-            )}
+            )} */}
             
             {parseFloat(allowance) > 0 && (
               <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">

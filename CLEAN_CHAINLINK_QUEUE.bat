@@ -48,3 +48,5 @@ echo Check logs: docker-compose logs -f chainlink
 echo.
 pause
 
+
+

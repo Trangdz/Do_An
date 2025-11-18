@@ -1,9 +1,8 @@
 {
+  "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/_app": "pages/_app.js",
+  "/deposit": "pages/deposit.js",
   "/dashboard": "pages/dashboard.js",
-  "/markets": "pages/markets.js",
-  "/borrow": "pages/borrow.js",
-  "/deposit": "pages/deposit.js"
+  "/deposit/[symbol]": "pages/deposit/[symbol].js"
 }

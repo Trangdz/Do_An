@@ -191,3 +191,5 @@ console.log("Reward after withdraw:", ethers.formatEther(reward3));
 
 **Tóm lại:** Reward được tính cho thời gian **đã trôi qua**, không phải cho thời gian tương lai. Đây là logic đúng và công bằng.
 
+
+

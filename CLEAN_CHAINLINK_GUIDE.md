@@ -76,3 +76,5 @@ docker-compose logs chainlink | findstr "Transaction throttling"
 - **Cách 3** (Reset complete) chỉ dùng khi muốn bắt đầu lại từ đầu
 - Sau khi clean, transactions mới sẽ được tạo và xử lý bình thường
 
+
+

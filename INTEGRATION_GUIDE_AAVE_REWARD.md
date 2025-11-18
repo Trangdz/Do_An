@@ -375,3 +375,5 @@ userReserve.supplyBalance += amount;
 
 **Sau khi hoàn thành các bước trên, reward system sẽ tự động phân phối LENDX tokens cho users khi họ supply/borrow!**
 
+
+

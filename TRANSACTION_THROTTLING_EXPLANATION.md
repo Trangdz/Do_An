@@ -88,3 +88,5 @@ Nếu transactions vẫn được xử lý (không bị stuck mãi), bạn khôn
 
 Nếu muốn xử lý nhanh hơn, có thể tăng `MaxInFlight`, nhưng phải cẩn thận với cấu hình Ganache.
 
+
+
