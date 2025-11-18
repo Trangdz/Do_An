@@ -70,10 +70,16 @@ export default function DepositDetailPage() {
   const [displayBalance, setDisplayBalance] = useState<number>(0);
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState<boolean>(true);
   
+  // Track if real-time is running to prevent resets
+  const isRealtimeRunningRef = useRef<boolean>(false);
+  // Track current displayBalance to avoid stale closure
+  const displayBalanceRef = useRef<number>(0);
+  
   // Sync displayBalance with supplyAsset when it's available (initial load)
   // This ensures we have a starting balance even if realtime hasn't started yet
+  // BUT: Don't override if real-time is already running
   useEffect(() => {
-    if (supplyAsset && principalWadRef.current === BigInt(0) && !isLoadingSnapshot) {
+    if (supplyAsset && principalWadRef.current === BigInt(0) && !isLoadingSnapshot && !isRealtimeRunningRef.current) {
       const chainBalance = parseFloat(supplyAsset.supplyBalance || supplyAsset.supplyPrincipal || '0');
       if (chainBalance > 0 && displayBalance === 0) {
         console.log('🔄 Syncing displayBalance with supplyAsset (initial load):', {
@@ -82,6 +88,7 @@ export default function DepositDetailPage() {
           supplyPrincipal: supplyAsset.supplyPrincipal
         });
         setDisplayBalance(chainBalance);
+        displayBalanceRef.current = chainBalance;
       }
     }
   }, [supplyAsset, isLoadingSnapshot, displayBalance]);
@@ -160,6 +167,7 @@ export default function DepositDetailPage() {
         rateRayPerSecRef.current = BigInt(0);
         lastUpdateMsRef.current = Date.now();
         setDisplayBalance(0);
+        displayBalanceRef.current = 0;
         setIsLoadingSnapshot(false);
         // Clear localStorage
         if (typeof window !== 'undefined') {
@@ -208,6 +216,21 @@ export default function DepositDetailPage() {
       // Get current APR for logging (don't use in dependency)
       const currentAPR = aprData?.supplyAPR || 0;
       
+      // IMPORTANT: Only update displayBalance if real-time is NOT running
+      // OR if balance from chain is significantly higher (new deposit/withdraw detected)
+      // This prevents resetting real-time progress when auto-refreshing
+      const isRealtimeActive = isRealtimeRunningRef.current;
+      // Use ref to get current value (avoid stale closure)
+      const currentDisplayBalance = displayBalanceRef.current || 0;
+      
+      // Only update if:
+      // 1. Real-time is not running, OR
+      // 2. Chain balance is significantly different (new transaction), OR
+      // 3. Current balance is 0 (initial state)
+      const balanceDiff = Math.abs(actualBalance - currentDisplayBalance);
+      const isSignificantChange = balanceDiff > Math.max(principalNum * 0.01, 0.1); // 1% or 0.1 tokens
+      const shouldUpdateDisplayBalance = !isRealtimeActive || isSignificantChange || currentDisplayBalance === 0;
+      
       console.log('✅ Calculated balance from chain:', {
         principal: principalNum,
         snapshotIndexRay: validSnapshotIndex.toString(),
@@ -217,13 +240,28 @@ export default function DepositDetailPage() {
         indicesEqual: snapshotIndexRay === liquidityIndexRay,
         rateRayPerSec: liquidityRateRayPerSec.toString(),
         supplyAPR: currentAPR,
-        willStartRealtime: liquidityRateRayPerSec > BigInt(0) || currentAPR > 0
+        willStartRealtime: liquidityRateRayPerSec > BigInt(0) || currentAPR > 0,
+        currentDisplayBalance,
+        isRealtimeActive,
+        balanceDiff,
+        isSignificantChange,
+        shouldUpdateDisplayBalance
       });
-      setDisplayBalance(actualBalance);
-      setIsLoadingSnapshot(false);
       
-      // Force a re-render to trigger realtime update effect
-      console.log('✅ Set displayBalance to:', actualBalance, 'Interest:', interestEarned);
+      if (shouldUpdateDisplayBalance) {
+        setDisplayBalance(actualBalance);
+        displayBalanceRef.current = actualBalance;
+        console.log('✅ Updated displayBalance from chain:', actualBalance, 'Interest:', interestEarned);
+      } else {
+        console.log('⏸️ Keeping real-time displayBalance (real-time active):', {
+          realtime: currentDisplayBalance,
+          chain: actualBalance,
+          difference: balanceDiff,
+          reason: 'Real-time is running, preserving progress'
+        });
+      }
+      
+      setIsLoadingSnapshot(false);
       
       return { actualBalance };
     } catch (error) {
@@ -273,6 +311,7 @@ export default function DepositDetailPage() {
       if (principalWadRef.current === BigInt(0)) {
         console.log('📦 Principal is 0, setting display to 0');
         setDisplayBalance(0);
+        displayBalanceRef.current = 0;
         setIsLoadingSnapshot(false);
         return;
       }
@@ -313,13 +352,21 @@ export default function DepositDetailPage() {
           rateRayPerSec: rateRayPerSecRef.current.toString()
         });
         
-        setDisplayBalance(actualBalance);
+        // Only update if real-time is not running yet
+        if (!isRealtimeRunningRef.current) {
+          setDisplayBalance(actualBalance);
+          displayBalanceRef.current = actualBalance;
+        }
         setIsLoadingSnapshot(false);
       } else {
         // No time elapsed or no rate, use current balance
         const actualWad = (principalWadRef.current * oldIndexRayRef.current) / snapshotIndexRayRef.current;
         const actualBalance = Number(ethers.formatUnits(actualWad, 18));
-        setDisplayBalance(actualBalance);
+        // Only update if real-time is not running yet
+        if (!isRealtimeRunningRef.current) {
+          setDisplayBalance(actualBalance);
+          displayBalanceRef.current = actualBalance;
+        }
         setIsLoadingSnapshot(false);
       }
     } else {
@@ -353,10 +400,12 @@ export default function DepositDetailPage() {
                 asset?.symbol === 'ETH' ? 'ETH not supported' : 'Unknown'
       });
       // Still set displayBalance if available (from current index, no real-time update)
-      if (principalWadRef.current > BigInt(0) && snapshotIndexRayRef.current > BigInt(0)) {
+      // But only if real-time is not running
+      if (principalWadRef.current > BigInt(0) && snapshotIndexRayRef.current > BigInt(0) && !isRealtimeRunningRef.current) {
         const actualWad = (principalWadRef.current * oldIndexRayRef.current) / snapshotIndexRayRef.current;
         const staticBalance = Number(ethers.formatUnits(actualWad, 18));
         setDisplayBalance(staticBalance);
+        displayBalanceRef.current = staticBalance;
         console.log('📊 Set static balance (no realtime):', staticBalance);
       }
       return;
@@ -409,7 +458,11 @@ export default function DepositDetailPage() {
         principal: principalNum,
         interest: currentBalance - principalNum
       });
-      setDisplayBalance(currentBalance);
+      // Only update if real-time is not running
+      if (!isRealtimeRunningRef.current) {
+        setDisplayBalance(currentBalance);
+        displayBalanceRef.current = currentBalance;
+      }
       return;
     }
     
@@ -421,14 +474,20 @@ export default function DepositDetailPage() {
       lastUpdateMs: new Date(lastUpdateMsRef.current).toLocaleString()
     });
     
+    // Mark real-time as running
+    isRealtimeRunningRef.current = true;
+    
     const updateBalance = () => {
       const nowMs = Date.now();
       const deltaMs = nowMs - lastUpdateMsRef.current;
-      const deltaSec = Math.floor(deltaMs / 1000);
+      let deltaSec = Math.floor(deltaMs / 1000);
       
-      // If deltaSec is negative (lastUpdateMs in future) or 0, reset lastUpdateMs and use minimal delta
-      if (deltaSec <= 0) {
-        console.warn('⚠️ Invalid deltaSec in updateBalance, resetting lastUpdateMs:', {
+      // Handle edge cases:
+      // 1. If deltaSec is negative (lastUpdateMs in future), reset
+      // 2. If deltaSec is 0 but deltaMs is close to 1000ms (> 500ms), use 1 second
+      // 3. If deltaSec is 0 and deltaMs is small (< 500ms), skip this update
+      if (deltaSec < 0) {
+        console.warn('⚠️ Negative deltaSec in updateBalance, resetting lastUpdateMs:', {
           deltaSec,
           deltaMs,
           lastUpdateMs: new Date(lastUpdateMsRef.current).toLocaleString(),
@@ -436,32 +495,13 @@ export default function DepositDetailPage() {
         });
         // Reset lastUpdateMs to now and use 1 second as delta for initial calculation
         lastUpdateMsRef.current = nowMs - 1000; // Set to 1 second ago to allow calculation
-        const effectiveDeltaSec = 1;
-        
-        // Calculate with 1 second
-        const oldIndexBeforeUpdate = oldIndexRayRef.current;
-        const incr = (oldIndexRayRef.current * rateRayPerSec * BigInt(effectiveDeltaSec)) / RAY;
-        const newIndexRay = oldIndexRayRef.current + incr;
-        const actualWad = (principalWadRef.current * newIndexRay) / snapshotIndexRayRef.current;
-        const newBalance = Number(ethers.formatUnits(actualWad, 18));
-        const principalNum = Number(ethers.formatUnits(principalWadRef.current, 18));
-        const interest = newBalance - principalNum;
-        
-        oldIndexRayRef.current = newIndexRay;
-        lastUpdateMsRef.current = nowMs;
-        
-        console.log('💰 Realtime update (reset):', {
-          effectiveDeltaSec,
-          oldIndex: oldIndexBeforeUpdate.toString(),
-          newIndex: newIndexRay.toString(),
-          increment: incr.toString(),
-          balance: newBalance.toFixed(8),
-          principal: principalNum.toFixed(8),
-          interest: interest.toFixed(8)
-        });
-        
-        setDisplayBalance(newBalance);
+        deltaSec = 1;
+      } else if (deltaSec === 0 && deltaMs < 500) {
+        // Too soon, skip this update (setInterval may fire early)
         return;
+      } else if (deltaSec === 0 && deltaMs >= 500) {
+        // Close enough to 1 second, use 1 second
+        deltaSec = 1;
       }
       
       // Store old values for logging
@@ -495,6 +535,7 @@ export default function DepositDetailPage() {
       }
       
       setDisplayBalance(newBalance);
+      displayBalanceRef.current = newBalance; // Update ref
     };
     
     // Initial update
@@ -531,6 +572,7 @@ export default function DepositDetailPage() {
     }, 30000);
     
     return () => {
+      isRealtimeRunningRef.current = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -561,6 +603,7 @@ export default function DepositDetailPage() {
       rateRayPerSecRef.current = BigInt(0);
       lastUpdateMsRef.current = Date.now();
       setDisplayBalance(0);
+      displayBalanceRef.current = 0;
       // Clear localStorage
       if (typeof window !== 'undefined') {
         localStorage.removeItem(storageKey);
