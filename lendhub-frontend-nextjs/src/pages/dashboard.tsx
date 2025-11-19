@@ -213,6 +213,11 @@ export default function DashboardPage() {
         liquidationThreshold: asset.liquidationThreshold || 8000,
         availableLiquidity: asset.availableLiquidity || '0',
       };
+    })
+    // Filter out deposits with effectively zero balance (< 0.000001) to hide dust amounts
+    .filter((deposit: any) => {
+      const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
+      return deposit.supplyBalance >= MIN_BALANCE_THRESHOLD; // Only show deposits with meaningful balance
     });
 
   // Get assets to borrow (market mode) with available liquidity

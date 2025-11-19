@@ -177,9 +177,17 @@ export default function DepositDetailPage() {
       ]);
       
       const principalWad = userReserve.supply.principal as bigint;
-      if (principalWad === BigInt(0)) {
-        // Balance is 0, reset all refs and display
-        console.log('📊 Balance is 0, resetting display');
+      // Check if balance is effectively 0 (accounting for rounding errors)
+      const principalNumCheck = Number(ethers.formatUnits(principalWad, 18));
+      const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
+      
+      if (principalWad === BigInt(0) || principalNumCheck < MIN_BALANCE_THRESHOLD) {
+        // Balance is 0 or effectively 0, reset all refs and display
+        console.log('📊 Balance is 0 or effectively 0, resetting display and stopping realtime:', {
+          principalWad: principalWad.toString(),
+          principalNum: principalNumCheck.toFixed(18),
+          threshold: MIN_BALANCE_THRESHOLD
+        });
         principalWadRef.current = BigInt(0);
         originalPrincipalWadRef.current = BigInt(0);
         snapshotIndexRayRef.current = RAY;
@@ -188,10 +196,18 @@ export default function DepositDetailPage() {
         lastUpdateMsRef.current = Date.now();
         setDisplayBalance(0);
         displayBalanceRef.current = 0;
+        // Stop realtime interval if running
+        isRealtimeRunningRef.current = false;
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          console.log('🛑 Stopped realtime interval (balance is 0)');
+        }
         setIsLoadingSnapshot(false);
         // Clear localStorage
         if (typeof window !== 'undefined') {
           localStorage.removeItem(storageKey);
+          console.log('🗑️ Cleared localStorage (balance is 0)');
         }
         return null;
       }
@@ -497,9 +513,17 @@ export default function DepositDetailPage() {
         note: 'originalPrincipalWad is used for interest calculation'
       });
       
-      // If principal is 0, reset display to 0 and stop real-time
-      if (principalWadRef.current === BigInt(0)) {
-        console.log('📦 Principal is 0, setting display to 0 and stopping real-time');
+      // If principal is 0 or effectively 0, reset display to 0 and stop real-time
+      const restoredPrincipalNum = Number(ethers.formatUnits(principalWadRef.current, 18));
+      const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
+      
+      if (principalWadRef.current === BigInt(0) || restoredPrincipalNum < MIN_BALANCE_THRESHOLD) {
+        console.log('📦 Principal is 0 or effectively 0, setting display to 0 and stopping real-time:', {
+          principalWad: principalWadRef.current.toString(),
+          principalNum: restoredPrincipalNum.toFixed(18),
+          threshold: MIN_BALANCE_THRESHOLD
+        });
+        principalWadRef.current = BigInt(0);
         originalPrincipalWadRef.current = BigInt(0);
         setDisplayBalance(0);
         displayBalanceRef.current = 0;
@@ -507,6 +531,10 @@ export default function DepositDetailPage() {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
+        }
+        // Clear localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(storageKey);
         }
         setIsLoadingSnapshot(false);
         return;
@@ -589,9 +617,13 @@ export default function DepositDetailPage() {
   useEffect(() => {
     // Check if we should skip realtime update
     // IMPORTANT: snapshotIndexRay = RAY is VALID if it's from chain (new deposit where indices are equal)
-    // We only skip if principal is 0 OR snapshotIndex is invalid (0)
+    // We only skip if principal is 0 OR effectively 0 (< 0.000001) OR snapshotIndex is invalid (0)
+    const principalNumCheck = Number(ethers.formatUnits(principalWadRef.current, 18));
+    const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
+    const isEffectivelyZero = principalWadRef.current === BigInt(0) || principalNumCheck < MIN_BALANCE_THRESHOLD;
+    
     const shouldSkip = isLoadingSnapshot || 
-                      principalWadRef.current === BigInt(0) || 
+                      isEffectivelyZero || 
                       snapshotIndexRayRef.current === BigInt(0) || 
                       asset?.symbol === 'ETH';
     
@@ -599,16 +631,25 @@ export default function DepositDetailPage() {
       console.log('⏸️ Skipping realtime update:', {
         isLoadingSnapshot,
         principalWad: principalWadRef.current.toString(),
+        principalNum: principalNumCheck.toFixed(18),
+        isEffectivelyZero,
         snapshotIndexRay: snapshotIndexRayRef.current.toString(),
         oldIndexRay: oldIndexRayRef.current.toString(),
         rateRayPerSec: rateRayPerSecRef.current.toString(),
         symbol: asset?.symbol,
         snapshotEqualsRAY: snapshotIndexRayRef.current === RAY,
         reason: isLoadingSnapshot ? 'Loading snapshot' : 
-                principalWadRef.current === BigInt(0) ? 'Principal is 0' :
+                isEffectivelyZero ? `Principal is effectively 0 (< ${MIN_BALANCE_THRESHOLD})` :
                 snapshotIndexRayRef.current === BigInt(0) ? 'Snapshot index is 0' :
                 asset?.symbol === 'ETH' ? 'ETH not supported' : 'Unknown'
       });
+      
+      // If balance is effectively zero, reset display to 0
+      if (isEffectivelyZero && displayBalance > MIN_BALANCE_THRESHOLD) {
+        setDisplayBalance(0);
+        displayBalanceRef.current = 0;
+        console.log('🔄 Reset displayBalance to 0 (balance is effectively zero)');
+      }
       // Still set displayBalance if available (from current index, no real-time update)
       // But only if real-time is not running (check both flag and interval)
       const isRealtimeActive = isRealtimeRunningRef.current && intervalRef.current !== null;
@@ -845,7 +886,8 @@ export default function DepositDetailPage() {
     const principalChanged = Math.abs(currentPrincipal - previousPrincipalRef.current) > 0.001;
     
     // If principal is 0 or very close to 0 AND it actually changed (not just refresh), reset display
-    if (currentPrincipal < 0.001 && displayBalance > 0.001 && principalChanged) {
+    const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
+    if (currentPrincipal < MIN_BALANCE_THRESHOLD && displayBalance > MIN_BALANCE_THRESHOLD && principalChanged) {
       console.log('🔄 Principal is near 0 AND changed, resetting display:', {
         currentPrincipal,
         previousPrincipal: previousPrincipalRef.current,
@@ -1064,6 +1106,34 @@ export default function DepositDetailPage() {
       const tx = await withdraw(signer, asset.address, finalBN);
       showToast({ type: 'success', title: 'Withdraw submitted', message: `Tx: ${tx.hash.slice(0, 10)}...` });
       setDepositAmount('');
+      
+      // Check if withdrawing all balance (MAX) - use more lenient tolerance for dust amounts
+      const MIN_BALANCE_THRESHOLD_WITHDRAW = 0.000001; // Consider balance < 0.000001 as effectively 0
+      const isWithdrawingAll = Math.abs(amountNum - userSupplyNum) < 0.0001 || // Within 0.0001 tolerance
+                               (userSupplyNum - amountNum < MIN_BALANCE_THRESHOLD_WITHDRAW && amountNum > 0); // Or remaining balance is dust
+      
+      if (isWithdrawingAll) {
+        // Withdrawing all - reset immediately for better UX
+        console.log('💰 Withdrawing all balance, resetting immediately');
+        principalWadRef.current = BigInt(0);
+        originalPrincipalWadRef.current = BigInt(0);
+        snapshotIndexRayRef.current = RAY;
+        oldIndexRayRef.current = RAY;
+        rateRayPerSecRef.current = BigInt(0);
+        lastUpdateMsRef.current = Date.now();
+        setDisplayBalance(0);
+        displayBalanceRef.current = 0;
+        isRealtimeRunningRef.current = false;
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        // Clear localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(storageKey);
+        }
+      }
+      
       refresh();
       
       // Force refresh APR after withdraw to show updated rates
@@ -1214,9 +1284,24 @@ export default function DepositDetailPage() {
   // Use displayBalance from realtime calculation
   // Priority: displayBalance (from realtime) > supplyAsset.supplyBalance (from chain) > suppliedPrincipal
   // If displayBalance is 0 but we have principal, it means realtime hasn't started yet, use chain balance
-  const suppliedBalance = displayBalance > 0 
+  const MIN_BALANCE_THRESHOLD_UI = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0 in UI
+  let suppliedBalance = displayBalance > 0 
     ? displayBalance 
     : (supplyAsset ? parseFloat(supplyAsset.supplyBalance || supplyAsset.supplyPrincipal || '0') : suppliedPrincipal || 0);
+  
+  // Force reset to 0 if balance is effectively zero (dust amount)
+  if (suppliedBalance > 0 && suppliedBalance < MIN_BALANCE_THRESHOLD_UI) {
+    console.log('🔄 Force resetting suppliedBalance to 0 (dust amount):', {
+      suppliedBalance: suppliedBalance.toFixed(18),
+      threshold: MIN_BALANCE_THRESHOLD_UI
+    });
+    suppliedBalance = 0;
+    // Also reset displayBalance if it's the source
+    if (displayBalance > 0 && displayBalance < MIN_BALANCE_THRESHOLD_UI) {
+      setDisplayBalance(0);
+      displayBalanceRef.current = 0;
+    }
+  }
   
   // Debug log
   console.log('💰 Balance calculation:', {

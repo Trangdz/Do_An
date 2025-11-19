@@ -30,8 +30,13 @@ export default function DepositPage() {
   }, [userAssets]);
 
   // Build list of ONLY assets that user has supplied (positive supply balance)
+  // Filter out assets with effectively zero balance (< 0.000001) to hide dust amounts
+  const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
   const suppliedAssetsOnly = (supplyAssets || [])
-    .filter((s: any) => parseFloat(s.supplyBalance || s.supplyPrincipal || '0') > 0)
+    .filter((s: any) => {
+      const balance = parseFloat(s.supplyBalance || s.supplyPrincipal || '0');
+      return balance >= MIN_BALANCE_THRESHOLD; // Only show assets with meaningful balance
+    })
     .map((s: any) => {
       const ua = (userAssets || []).find((a: any) => a.address?.toLowerCase() === s.address?.toLowerCase());
       return {
