@@ -7,6 +7,7 @@ import { OnChainRealtimeBalance } from './OnChainRealtimeBalance';
 import { formatPercentage, formatNumber, formatCurrency, formatBalance } from '../lib/math';
 import { Button } from './ui/Button';
 import { ethers } from 'ethers';
+import { getReadOnlyContract } from '@/lib/readProvider';
 
 interface TokenCardProps {
   token: any;
@@ -124,7 +125,7 @@ export function TokenCard({
         const abi = [
           'function userReserves(address user, address asset) view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
         ];
-        const pool = new ethers.Contract(poolAddress, abi, provider);
+        const pool = getReadOnlyContract(poolAddress, abi, provider);
         const userAddress = await signer.getAddress();
         const userReserve = await pool.userReserves(userAddress, token.address);
         setIsCollateral(userReserve.useAsCollateral);

@@ -13,6 +13,7 @@ import { formatCurrency, formatPercentage, formatNumber } from '@/lib/math';
 import { useSharedAPR } from '@/hooks/useSharedAPR';
 import { ethers } from 'ethers';
 import Image from 'next/image';
+import { getReadOnlyContract } from '@/lib/readProvider';
 
 export default function BorrowDetailPage() {
   const router = useRouter();
@@ -131,7 +132,7 @@ export default function BorrowDetailPage() {
         'function reserves(address asset) view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate))'
       ];
       
-      const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, provider);
+      const pool = getReadOnlyContract(CONFIG.LENDING_POOL, abi, provider);
       
       const [userReserve, reserve] = await Promise.all([
         pool.userReserves(userAddress, assetAddress),
@@ -776,7 +777,7 @@ export default function BorrowDetailPage() {
         const abi = [
           'function reserves(address asset) view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate))'
         ];
-        const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, provider);
+        const pool = getReadOnlyContract(CONFIG.LENDING_POOL, abi, provider);
         const reserve = await pool.reserves(asset.address);
         
         // CRITICAL: The lending pool contract stores reserveCash with 18 decimals (WAD format)

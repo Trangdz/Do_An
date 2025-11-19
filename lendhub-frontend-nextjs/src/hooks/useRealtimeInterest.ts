@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { getReadOnlyContract } from '@/lib/readProvider';
 import { 
   calculateInterestAccrued,
   calculateInterestForPeriod,
@@ -101,7 +102,7 @@ export function useRealtimeInterest(
           'function reserves(address asset) view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate))'
         ];
 
-        const pool = new ethers.Contract(poolAddress, abi, provider);
+        const pool = getReadOnlyContract(poolAddress, abi, provider);
         
         // Get user reserves with error handling
         let userReserve;

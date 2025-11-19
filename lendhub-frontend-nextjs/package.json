@@ -10,6 +10,7 @@
     "test:build": "npm run build",
     "test:dev": "npm run dev",
     "test:all": "node test-all-features.js",
+    "test:deposit-interest": "node scripts/test-deposit-interest.js",
     "deploy:vercel": "vercel",
     "deploy:netlify": "netlify deploy --prod --dir=out"
   },

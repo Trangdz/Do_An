@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { ERC20_ABI, POOL_ABI } from '../config/abis';
 import { CONFIG } from '../config/contracts';
 import { formatUnits, parseUnits } from 'ethers';
+import { getReadProvider } from './readProvider';
 
 // Toast notification types
 export interface ToastConfig {
@@ -107,18 +108,19 @@ export async function approveIfNeeded(
     throw new Error('Cannot approve native ETH. Select an ERC20 token.');
   }
 
+  const readProvider = getReadProvider(signer.provider as ethers.Provider);
   const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+  const readOnlyTokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, readProvider);
   const userAddress = await signer.getAddress();
-
+  
   // Check current allowance with defensive guards: non-contract / BAD_DATA → treat as 0
   let currentAllowance: bigint = BigInt(0);
   try {
-    const provider = signer.provider as ethers.Provider;
-    const code = provider && await provider.getCode(tokenAddress);
+    const code = await readProvider.getCode(tokenAddress);
     if (!code || code === '0x') {
       console.warn('[approveIfNeeded] tokenAddress has no code, treating allowance as 0');
     } else {
-      currentAllowance = await tokenContract.allowance(userAddress, spender);
+      currentAllowance = await readOnlyTokenContract.allowance(userAddress, spender);
     }
   } catch (e: any) {
     const msg = String(e?.message || e);
@@ -162,6 +164,7 @@ export async function lend(
   toastCallback?: ToastCallback
 ): Promise<TxResult> {
   const provider = signer.provider as ethers.Provider;
+  const readProvider = getReadProvider(provider);
   if (!provider) throw new Error('No provider');
 
   // Ensure wallet is connected to expected network (Ganache by default)
@@ -175,7 +178,7 @@ export async function lend(
 
   // Use configured RPC to validate contract bytecode instead of wallet provider.
   // This avoids false negatives when BrowserProvider caches results or when signer provider throws.
-  const rpcProvider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+  const rpcProvider = readProvider;
 
   // Disallow native ETH here. To supply ETH, wrap to WETH first using wrapEth().
   if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
@@ -204,8 +207,8 @@ export async function lend(
   // Get token decimals to validate amount (needed for logging and error messages)
   let tokenDecimals = 18;
   try {
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer.provider);
-    tokenDecimals = await tokenContract.decimals();
+    const tokenReadContract = new ethers.Contract(tokenAddress, ERC20_ABI, readProvider);
+    tokenDecimals = await tokenReadContract.decimals();
   } catch (e) {
     console.warn('⚠️ Could not fetch token decimals, using 18 as default');
   }
@@ -529,7 +532,7 @@ export async function withdraw(
     // Also trigger another refresh after a short delay to catch any delayed updates
     setTimeout(async () => {
       try {
-        await triggerAPRRefresh(provider, CONFIG.LENDING_POOL, tokenAddress);
+    await triggerAPRRefresh(provider, CONFIG.LENDING_POOL, tokenAddress);
       } catch (e) {
         // Ignore errors in delayed refresh
       }
@@ -961,9 +964,9 @@ export async function getTokenAllowance(
     }
     console.log(`✅ [getTokenAllowance] Contract code exists (${code.length} bytes)`);
     
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
     console.log(`📊 [getTokenAllowance] Calling allowance(${userAddress}, ${spender})`);
-    const allowance = await tokenContract.allowance(userAddress, spender);
+  const allowance = await tokenContract.allowance(userAddress, spender);
     const formatted = formatUnits(allowance, decimals);
     console.log(`✅ [getTokenAllowance] Allowance: ${formatted} (decimals: ${decimals})`);
     return formatted;
@@ -990,8 +993,19 @@ export async function getTokenAllowance(
 /**
  * Parse token amount to BigInt
  */
+function sanitizeAmountString(amount: string, decimals: number): string {
+  if (!amount) return amount;
+  let normalized = amount.trim();
+  if (!normalized.includes('.')) return normalized;
+  const [whole, fraction = ''] = normalized.split('.');
+  if (fraction.length <= decimals) return normalized;
+  const trimmedFraction = fraction.slice(0, decimals);
+  return trimmedFraction.length > 0 ? `${whole}.${trimmedFraction}` : whole;
+}
+
 export function parseTokenAmount(amount: string, decimals: number): bigint {
-  return parseUnits(amount, decimals);
+  const sanitized = sanitizeAmountString(amount, decimals);
+  return parseUnits(sanitized, decimals);
 }
 
 /**

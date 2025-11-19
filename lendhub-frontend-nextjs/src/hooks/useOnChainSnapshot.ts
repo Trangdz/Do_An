@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
+import { getReadOnlyContract, getReadProvider } from '@/lib/readProvider';
 import {
   OnChainSnapshot,
   saveSnapshotToLocalStorage,
@@ -39,7 +40,7 @@ interface UseOnChainSnapshotReturn {
  * Fetch on-chain data and create snapshot
  */
 async function fetchOnChainSnapshot(
-  provider: ethers.Provider,
+  provider: ethers.Provider | null,
   poolAddress: string,
   userAddress: string,
   assetAddress: string,
@@ -50,7 +51,8 @@ async function fetchOnChainSnapshot(
     'function reserves(address asset) view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate))'
   ];
 
-  const pool = new ethers.Contract(poolAddress, abi, provider);
+  const readProvider = getReadProvider(provider);
+  const pool = getReadOnlyContract(poolAddress, abi, readProvider);
   
   // Fetch user reserve data
   const userReserve = await pool.userReserves(userAddress, assetAddress);
@@ -74,7 +76,7 @@ async function fetchOnChainSnapshot(
   const lastUpdateTimestamp = Number(reserve.lastUpdate);
   
   // Get block number for tracking
-  const blockNumber = await provider.getBlockNumber();
+  const blockNumber = await readProvider.getBlockNumber();
   
   // Early return when user has no position
   if (principal === BigInt(0)) {
@@ -142,7 +144,7 @@ export function useOnChainSnapshot({
   
   // Fetch from blockchain
   const refresh = useCallback(async () => {
-    if (!provider || !poolAddress || !userAddress || !assetAddress) {
+    if (!poolAddress || !userAddress || !assetAddress) {
       setIsLoading(false);
       return;
     }

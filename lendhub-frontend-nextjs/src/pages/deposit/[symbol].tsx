@@ -68,6 +68,8 @@ export default function DepositDetailPage() {
   // State for realtime calculation
   const [displayBalance, setDisplayBalance] = useState<number>(0);
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState<boolean>(true);
+  // State to track original principal for UI display (triggers re-render when changed)
+  const [originalPrincipalDisplay, setOriginalPrincipalDisplay] = useState<number>(0);
   
   // Track if real-time is running to prevent resets
   // IMPORTANT: Once set to true, never reset to false unless principal is 0
@@ -108,7 +110,8 @@ export default function DepositDetailPage() {
   }, [supplyAsset, isLoadingSnapshot]); // Removed displayBalance from dependencies
   
   // Refs for Aave formula calculation (BigInt precision)
-  const principalWadRef = useRef<bigint>(BigInt(0)); // principal in WAD (1e18)
+  const principalWadRef = useRef<bigint>(BigInt(0)); // principal in WAD (1e18) - current principal from chain
+  const originalPrincipalWadRef = useRef<bigint>(BigInt(0)); // original principal when first deposited (for interest calculation)
   const snapshotIndexRayRef = useRef<bigint>(RAY); // index when user deposited (RAY)
   const oldIndexRayRef = useRef<bigint>(RAY); // liquidityIndex (RAY) at last update
   const rateRayPerSecRef = useRef<bigint>(BigInt(0)); // per-second rate in RAY
@@ -137,6 +140,7 @@ export default function DepositDetailPage() {
     try {
       const data = {
         principalWad: principalWad.toString(),
+        originalPrincipalWad: originalPrincipalWadRef.current.toString(), // Save original principal
         snapshotIndexRay: snapshotIndexRay.toString(),
         oldIndexRay: oldIndexRay.toString(),
         rateRayPerSec: rateRayPerSec.toString(),
@@ -176,6 +180,7 @@ export default function DepositDetailPage() {
         // Balance is 0, reset all refs and display
         console.log('📊 Balance is 0, resetting display');
         principalWadRef.current = BigInt(0);
+        originalPrincipalWadRef.current = BigInt(0);
         snapshotIndexRayRef.current = RAY;
         oldIndexRayRef.current = RAY;
         rateRayPerSecRef.current = BigInt(0);
@@ -230,6 +235,54 @@ export default function DepositDetailPage() {
       principalWadRef.current = principalWad;
       snapshotIndexRayRef.current = validSnapshotIndex;
       rateRayPerSecRef.current = liquidityRateRayPerSec; // Update rate for future calculations
+      
+      // CRITICAL: Update originalPrincipalWadRef only if:
+      // 1. It's currently 0 (first time) - ALWAYS set on first fetch
+      // 2. Principal increased significantly (new deposit detected) - only if > 1% increase
+      // IMPORTANT: originalPrincipalWadRef should be the BASE principal (without interest)
+      // This is used to calculate interest earned = currentBalance - originalPrincipal
+      const currentOriginal = originalPrincipalWadRef.current;
+      
+      // Always set if it's 0 (first time fetching from chain)
+      if (currentOriginal === BigInt(0)) {
+        originalPrincipalWadRef.current = principalWad;
+        const principalNum = Number(ethers.formatUnits(principalWad, 18));
+        setOriginalPrincipalDisplay(principalNum); // Trigger re-render
+        console.log('✅ Set originalPrincipalWadRef (first time):', {
+          principal: principalNum.toFixed(8) + ' DAI',
+          principalBigInt: principalWad.toString(),
+          note: 'This is the base principal used for interest calculation'
+        });
+      } else {
+        // Check if principal increased significantly (new deposit)
+        const principalDiff = principalWad > currentOriginal ? principalWad - currentOriginal : currentOriginal - principalWad;
+        const significantIncrease = principalDiff > (currentOriginal / BigInt(100)); // 1% increase threshold
+        
+        if (significantIncrease && principalWad > currentOriginal) {
+          // New deposit detected - update original principal
+          originalPrincipalWadRef.current = principalWad;
+          const principalNum = Number(ethers.formatUnits(principalWad, 18));
+          const originalNum = Number(ethers.formatUnits(currentOriginal, 18));
+          setOriginalPrincipalDisplay(principalNum); // Trigger re-render
+          console.log('✅ Updated originalPrincipalWadRef (new deposit):', {
+            old: originalNum.toFixed(8) + ' DAI',
+            new: principalNum.toFixed(8) + ' DAI',
+            increase: Number(ethers.formatUnits(principalDiff, 18)).toFixed(8) + ' DAI',
+            note: 'New deposit detected, updating base principal'
+          });
+        } else {
+          // No significant change - keep original principal (don't update)
+          // This ensures interest calculation is based on the original deposit amount
+          const principalNum = Number(ethers.formatUnits(principalWad, 18));
+          const originalNum = Number(ethers.formatUnits(currentOriginal, 18));
+          console.log('⏸️ Keeping originalPrincipalWadRef (no new deposit):', {
+            original: originalNum.toFixed(8) + ' DAI',
+            currentChain: principalNum.toFixed(8) + ' DAI',
+            diff: Number(ethers.formatUnits(principalDiff, 18)).toFixed(8) + ' DAI',
+            note: 'Principal unchanged, keeping original for interest calculation'
+          });
+        }
+      }
       
       // CRITICAL: Only update oldIndexRayRef and lastUpdateMsRef if real-time is NOT running
       // If real-time is running, these refs are being actively used and updating them will reset progress
@@ -359,6 +412,14 @@ export default function DepositDetailPage() {
     if (storedSnapshot && (storedSnapshot.principalWad || storedSnapshot.scaledBalance)) {
       // Restore from localStorage
       principalWadRef.current = storedSnapshot.principalWad ? BigInt(storedSnapshot.principalWad) : BigInt(0);
+      // Restore originalPrincipalWadRef - use stored value or current principal if not stored
+      originalPrincipalWadRef.current = storedSnapshot.originalPrincipalWad 
+        ? BigInt(storedSnapshot.originalPrincipalWad) 
+        : (principalWadRef.current > BigInt(0) ? principalWadRef.current : BigInt(0));
+      // Update state to trigger re-render
+      if (originalPrincipalWadRef.current > BigInt(0)) {
+        setOriginalPrincipalDisplay(Number(ethers.formatUnits(originalPrincipalWadRef.current, 18)));
+      }
       snapshotIndexRayRef.current = storedSnapshot.snapshotIndexRay ? BigInt(storedSnapshot.snapshotIndexRay) : RAY;
       oldIndexRayRef.current = storedSnapshot.oldIndexRay ? BigInt(storedSnapshot.oldIndexRay) : RAY;
       rateRayPerSecRef.current = storedSnapshot.rateRayPerSec ? BigInt(storedSnapshot.rateRayPerSec) : BigInt(0);
@@ -380,15 +441,21 @@ export default function DepositDetailPage() {
       
       console.log('📦 Restored snapshot from localStorage:', {
         principalWad: principalWadRef.current.toString(),
+        originalPrincipalWad: originalPrincipalWadRef.current.toString(),
+        principalNum: Number(ethers.formatUnits(principalWadRef.current, 18)).toFixed(8) + ' DAI',
+        originalPrincipalNum: Number(ethers.formatUnits(originalPrincipalWadRef.current, 18)).toFixed(8) + ' DAI',
         snapshotIndexRay: snapshotIndexRayRef.current.toString(),
         oldIndexRay: oldIndexRayRef.current.toString(),
         rateRayPerSec: rateRayPerSecRef.current.toString(),
-        lastUpdateMs: new Date(lastUpdateMsRef.current).toLocaleString()
+        lastUpdateMs: new Date(lastUpdateMsRef.current).toLocaleString(),
+        note: 'originalPrincipalWad is used for interest calculation'
       });
       
       // If principal is 0, reset display to 0 and stop real-time
       if (principalWadRef.current === BigInt(0)) {
         console.log('📦 Principal is 0, setting display to 0 and stopping real-time');
+        originalPrincipalWadRef.current = BigInt(0);
+        setOriginalPrincipalDisplay(0); // Trigger re-render
         setDisplayBalance(0);
         displayBalanceRef.current = 0;
         isRealtimeRunningRef.current = false; // Reset flag when principal is 0
@@ -741,14 +808,16 @@ export default function DepositDetailPage() {
         principalDisplay,
         principalChanged
       });
-      principalWadRef.current = BigInt(0);
-      snapshotIndexRayRef.current = RAY;
-      oldIndexRayRef.current = RAY;
-      rateRayPerSecRef.current = BigInt(0);
-      lastUpdateMsRef.current = Date.now();
-      setDisplayBalance(0);
-      displayBalanceRef.current = 0;
-      previousPrincipalRef.current = currentPrincipal;
+        principalWadRef.current = BigInt(0);
+        originalPrincipalWadRef.current = BigInt(0);
+        setOriginalPrincipalDisplay(0); // Trigger re-render
+        snapshotIndexRayRef.current = RAY;
+        oldIndexRayRef.current = RAY;
+        rateRayPerSecRef.current = BigInt(0);
+        lastUpdateMsRef.current = Date.now();
+        setDisplayBalance(0);
+        displayBalanceRef.current = 0;
+        previousPrincipalRef.current = currentPrincipal;
       // Clear localStorage
       if (typeof window !== 'undefined') {
         localStorage.removeItem(storageKey);
@@ -1076,10 +1145,16 @@ export default function DepositDetailPage() {
   const walletBalance = parseFloat(asset.balance || '0');
   const walletBalanceUSD = typeof asset.balanceUSD === 'number' ? asset.balanceUSD : parseFloat(String(asset.balanceUSD || 0));
   
-  // Get principal from supply asset (scaledBalance = principal)
-  const suppliedPrincipal = principalWadRef.current > BigInt(0)
-    ? Number(ethers.formatUnits(principalWadRef.current, 18))
-    : (supplyAsset ? parseFloat(supplyAsset.supplyPrincipal || '0') : 0);
+  // Get original principal (the amount user originally deposited, without interest)
+  // This should never change unless user makes a new deposit
+  // IMPORTANT: Always use originalPrincipalWadRef if available, never fallback to supplyAsset
+  // because supplyAsset.supplyPrincipal may include interest or be inaccurate
+  const originalPrincipal = originalPrincipalWadRef.current > BigInt(0)
+    ? Number(ethers.formatUnits(originalPrincipalWadRef.current, 18))
+    : (principalWadRef.current > BigInt(0)
+      ? Number(ethers.formatUnits(principalWadRef.current, 18))
+      : 0); // Don't fallback to supplyAsset - it may be inaccurate
+  const suppliedPrincipal = originalPrincipal;
   
   // Use displayBalance from realtime calculation
   // Priority: displayBalance (from realtime) > supplyAsset.supplyBalance (from chain) > suppliedPrincipal
@@ -1093,8 +1168,10 @@ export default function DepositDetailPage() {
     console.log('💰 Balance calculation:', {
       displayBalance,
       suppliedPrincipal,
+      originalPrincipal,
       suppliedBalance,
       principalWad: principalWadRef.current.toString(),
+      originalPrincipalWad: originalPrincipalWadRef.current.toString(),
       supplyAssetBalance: supplyAsset?.supplyBalance,
       supplyAssetPrincipal: supplyAsset?.supplyPrincipal,
       usingRealtime: displayBalance > 0,
@@ -1103,8 +1180,22 @@ export default function DepositDetailPage() {
   }
   
   // Calculate interest earned (real-time updates every second)
-  // Interest = actualBalance - scaledBalance (principal)
+  // Interest = currentBalance - originalPrincipal (the amount user originally deposited)
   const interestEarned = Math.max(0, suppliedBalance - suppliedPrincipal);
+  
+  // Debug log for interest calculation (always log in dev mode)
+  console.log('💰 Interest calculation:', {
+    suppliedBalance: suppliedBalance.toFixed(18),
+    suppliedPrincipal: suppliedPrincipal.toFixed(18),
+    interestEarned: interestEarned.toFixed(18),
+    displayBalance: displayBalance.toFixed(18),
+    originalPrincipalWad: originalPrincipalWadRef.current.toString(),
+    principalWad: principalWadRef.current.toString(),
+    originalPrincipalNum: originalPrincipal.toFixed(18),
+    calculation: `${suppliedBalance.toFixed(18)} - ${suppliedPrincipal.toFixed(18)} = ${interestEarned.toFixed(18)}`,
+    note: 'Interest = Balance - Original Principal',
+    warning: originalPrincipalWadRef.current === BigInt(0) ? '⚠️ originalPrincipalWadRef is 0 - interest may be incorrect!' : '✅ originalPrincipalWadRef is set'
+  });
   
   const suppliedBalanceUSD = suppliedBalance * parseFloat(String(asset.priceUSD || '0'));
   const interestEarnedUSD = interestEarned * parseFloat(String(asset.priceUSD || '0'));
