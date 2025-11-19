@@ -175,15 +175,30 @@ export async function getReserveAPRData(
     
     console.log('📈 Utilization:', utilization.toFixed(2) + '%');
     
-    // Format totals using correct decimals from reserve
+    // CRITICAL: The lending pool contract stores reserveCash and totalDebtPrincipal with 18 decimals (WAD format)
+    // This is a standard practice in DeFi protocols - all amounts are normalized to 18 decimals
+    // regardless of the actual token decimals (e.g., USDC has 6 decimals, but reserveCash is stored with 18)
+    // Therefore, we MUST format reserveCash and totalDebtPrincipal with 18 decimals, NOT with reserve.decimals
+    const RESERVE_CASH_DECIMALS = 18; // Contract stores reserveCash with 18 decimals (WAD format)
+    
+    // Format totals using 18 decimals (WAD format) - this is how the contract stores them
     const totalSupplied = ethers.formatUnits(
       totalLiquidity,
-      decimals
+      RESERVE_CASH_DECIMALS
     );
     const totalBorrowed = ethers.formatUnits(
       totalDebtPrincipal,
-      decimals
+      RESERVE_CASH_DECIMALS
     );
+    
+    console.log('💰 Formatted totals (using 18 decimals):', {
+      totalLiquidityRaw: totalLiquidity.toString(),
+      totalDebtPrincipalRaw: totalDebtPrincipal.toString(),
+      totalSupplied,
+      totalBorrowed,
+      reserveDecimals: decimals,
+      note: 'Using 18 decimals (WAD format) for formatting, not reserve.decimals'
+    });
     
     return {
       supplyAPR,

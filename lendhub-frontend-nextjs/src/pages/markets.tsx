@@ -9,9 +9,25 @@ import { useChainlinkPrice } from '@/hooks/useChainlinkPrice';
 import useMultiPriceAggregator from '@/hooks/useMultiPriceAggregator';
 import { formatPercentage } from '@/lib/math';
 import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
+import Image from 'next/image';
+import { useState } from 'react';
 
-// Token icon component
+// Get icon path for token
+function getIconPath(symbol: string): string {
+  const symbolLower = symbol.toLowerCase();
+  const iconMap: { [key: string]: string } = {
+    'eth': '/image/eth.svg',
+    'weth': '/image/weeth.svg',
+    'dai': '/image/dai.svg',
+    'usdc': '/image/usdc.svg',
+    'link': '/image/link.svg',
+  };
+  return iconMap[symbolLower] || '/image/eth.svg';
+}
+
+// Token icon component using actual images
 function TokenIcon({ symbol }: { symbol: string }) {
+  const [imageError, setImageError] = useState(false);
   const colors: Record<string, string> = {
     ETH: 'from-blue-500 to-purple-600',
     WETH: 'from-blue-400 to-purple-500',
@@ -20,9 +36,25 @@ function TokenIcon({ symbol }: { symbol: string }) {
     LINK: 'from-blue-600 to-indigo-700',
   };
   
+  // If image failed to load, show gradient fallback
+  if (imageError) {
+    return (
+      <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${colors[symbol] || 'from-gray-400 to-gray-600'} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
+        {symbol.substring(0, 1)}
+      </div>
+    );
+  }
+  
   return (
-    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${colors[symbol] || 'from-gray-400 to-gray-600'} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
-      {symbol.substring(0, 1)}
+    <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-muted">
+      <Image
+        src={getIconPath(symbol)}
+        alt={symbol}
+        width={40}
+        height={40}
+        className="rounded-full object-cover"
+        onError={() => setImageError(true)}
+      />
     </div>
   );
 }

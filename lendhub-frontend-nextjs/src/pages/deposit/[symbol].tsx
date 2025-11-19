@@ -14,7 +14,6 @@ import { formatCurrency, formatPercentage, formatNumber } from '@/lib/math';
 import { useSharedAPR } from '@/hooks/useSharedAPR';
 import { ethers } from 'ethers';
 import Image from 'next/image';
-import { DepositInterestDebug } from '@/components/DepositInterestDebug';
 
 export default function DepositDetailPage() {
   const router = useRouter();
@@ -202,8 +201,10 @@ export default function DepositDetailPage() {
       const validSnapshotIndex = snapshotIndexRay > BigInt(0) ? snapshotIndexRay : RAY;
       
       // Calculate expected APR from rate for verification
-      const ratePerSecondNum = Number(liquidityRateRayPerSec) / Number(RAY);
-      const expectedAPRFromRate = ratePerSecondNum * SECONDS_PER_YEAR * 100;
+      // liquidityRateRayPerSec is already rate per second in RAY
+      // To get APR: multiply by SECONDS_PER_YEAR and convert to percentage
+      const ratePerSecondNum = Number(liquidityRateRayPerSec) / Number(RAY); // Convert RAY to decimal
+      const expectedAPRFromRate = ratePerSecondNum * SECONDS_PER_YEAR * 100; // Multiply by seconds per year and convert to %
       
       console.log('📊 Fetched chain snapshot:', {
         principalWad: principalWad.toString(),
@@ -529,15 +530,22 @@ export default function DepositDetailPage() {
     });
     
     if (rateRayPerSec === BigInt(0) && supplyAPR > 0) {
-      // Convert APR to rate per second: rate = (APR / 100) / SECONDS_PER_YEAR * 1e27
-      const aprDecimal = supplyAPR / 100;
-      const ratePerSecond = aprDecimal / SECONDS_PER_YEAR;
-      rateRayPerSec = BigInt(Math.floor(ratePerSecond * 1e27));
+      // Convert APR (annual percentage rate) to rate per second
+      // APR is yearly rate, so we divide by SECONDS_PER_YEAR to get per-second rate
+      // Formula: ratePerSecond = (APR / 100) / SECONDS_PER_YEAR
+      // Then convert to RAY (1e27) for BigInt precision
+      const aprDecimal = supplyAPR / 100; // Convert percentage to decimal (e.g., 5% -> 0.05)
+      const ratePerSecond = aprDecimal / SECONDS_PER_YEAR; // Divide by seconds in year to get per-second rate
+      rateRayPerSec = BigInt(Math.floor(ratePerSecond * 1e27)); // Convert to RAY (1e27) for BigInt
+      
       console.log('📊 Using APR fallback for rate:', {
-        supplyAPR,
+        supplyAPR: supplyAPR + '%',
+        aprDecimal,
+        SECONDS_PER_YEAR,
         ratePerSecond,
         rateRayPerSec: rateRayPerSec.toString(),
-        rateRayPerSecNum: Number(rateRayPerSec)
+        rateRayPerSecNum: Number(rateRayPerSec),
+        verification: `Expected APR from rate: ${(ratePerSecond * SECONDS_PER_YEAR * 100).toFixed(4)}%`
       });
     }
     
@@ -629,8 +637,10 @@ export default function DepositDetailPage() {
       // Log every 10 seconds or first update to avoid spam
       if (deltaSec % 10 === 0 || deltaSec === 1 || deltaSec < 10) {
         // Calculate expected APR from rate for verification
-        const ratePerSecondNum = Number(rateRayPerSec) / Number(RAY);
-        const expectedAPR = ratePerSecondNum * SECONDS_PER_YEAR * 100;
+        // rateRayPerSec is rate per second in RAY
+        // To get APR: multiply by SECONDS_PER_YEAR and convert to percentage
+        const ratePerSecondNum = Number(rateRayPerSec) / Number(RAY); // Convert RAY to decimal
+        const expectedAPR = ratePerSecondNum * SECONDS_PER_YEAR * 100; // Multiply by seconds per year and convert to %
         
         console.log('💰 Realtime update:', {
           deltaSec,
@@ -754,12 +764,23 @@ export default function DepositDetailPage() {
     // If principal changed significantly, fetch new snapshot from chain
     const diff = Math.abs(currentPrincipal - principalDisplay);
     if (diff > Math.max(currentPrincipal * 0.02, 0.01)) {
-      console.log('🔄 New transaction detected, fetching chain snapshot:', {
+      console.log('🔄 New deposit transaction detected, fetching chain snapshot and updating localStorage:', {
         old: principalDisplay,
         new: currentPrincipal,
-        diff
+        diff,
+        principalChanged
       });
-      fetchChainSnapshot();
+      // Fetch new snapshot from chain (this will also save to localStorage via saveSnapshot)
+      fetchChainSnapshot().then((result) => {
+        if (result && result.actualBalance !== undefined) {
+          console.log('✅ Successfully updated localStorage after new deposit transaction:', {
+            newBalance: result.actualBalance,
+            newPrincipal: currentPrincipal
+          });
+        }
+      }).catch((error) => {
+        console.error('❌ Failed to update localStorage after new deposit transaction:', error);
+      });
     }
   }, [supplyAsset?.supplyPrincipal, supplyAsset?.supplyBalance, isLoadingSnapshot, fetchChainSnapshot, displayBalance, storageKey]);
   
@@ -788,17 +809,85 @@ export default function DepositDetailPage() {
         const pool = new ethers.Contract(CONFIG.LENDING_POOL, abi, provider);
         const reserve = await pool.reserves(asset.address);
         
-        const decimals = Number(reserve.decimals || 18);
-        const reserveCash = Number(ethers.formatUnits(reserve.reserveCash, decimals));
-        const totalDebt = Number(ethers.formatUnits(reserve.totalDebtPrincipal, decimals));
+        // CRITICAL: The lending pool contract stores reserveCash with 18 decimals (WAD format)
+        // This is a standard practice in DeFi protocols - all amounts are normalized to 18 decimals
+        // regardless of the actual token decimals (e.g., USDC has 6 decimals, but reserveCash is stored with 18)
+        // Therefore, we MUST format reserveCash with 18 decimals, NOT with asset.decimals
+        
+        const reserveCashRaw = reserve.reserveCash;
+        
+        // Handle BigInt: ethers.formatUnits can handle BigInt directly
+        let reserveCashBigInt: bigint;
+        if (typeof reserveCashRaw === 'bigint') {
+          reserveCashBigInt = reserveCashRaw;
+        } else if (typeof reserveCashRaw === 'string') {
+          reserveCashBigInt = BigInt(reserveCashRaw);
+        } else {
+          reserveCashBigInt = BigInt(reserveCashRaw.toString());
+        }
+        
+        // Format with 18 decimals (WAD format) - this is how the contract stores it
+        const RESERVE_CASH_DECIMALS = 18; // Contract stores reserveCash with 18 decimals
+        const reserveCashFormatted = ethers.formatUnits(reserveCashBigInt, RESERVE_CASH_DECIMALS);
+        let reserveCash = parseFloat(reserveCashFormatted);
+        
+        // Get asset decimals for logging purposes only
+        let assetDecimals = Number(asset?.decimals || 18);
+        if (!assetDecimals || assetDecimals <= 0 || assetDecimals > 18) {
+          try {
+            const erc20Abi = ['function decimals() view returns (uint8)'];
+            const tokenContract = new ethers.Contract(asset.address, erc20Abi, provider);
+            const tokenDecimals = await tokenContract.decimals();
+            assetDecimals = Number(tokenDecimals);
+          } catch (e) {
+            // Use 18 as fallback
+            assetDecimals = 18;
+          }
+        }
+        
+        // Validate that reserveCash is reasonable
+        if (reserveCash > 1000000000) {
+          console.error('⚠️ Reserve cash seems too large after formatting with 18 decimals:', {
+            reserveCashRaw: reserveCashRaw.toString(),
+            reserveCashBigInt: reserveCashBigInt.toString(),
+            reserveCashFormatted,
+            reserveCash,
+            assetSymbol: asset?.symbol,
+            assetDecimals,
+            note: 'Contract stores reserveCash with 18 decimals (WAD format)'
+          });
+        }
+        
+        // totalDebtPrincipal is also stored with 18 decimals (WAD format) in the contract
+        const totalDebtRaw = reserve.totalDebtPrincipal;
+        const totalDebtFormatted = ethers.formatUnits(totalDebtRaw.toString(), RESERVE_CASH_DECIMALS);
+        const totalDebt = parseFloat(totalDebtFormatted);
+        
         const totalSupply = reserveCash + totalDebt;
         const utilization = totalSupply > 0 ? (totalDebt / totalSupply) * 100 : 0;
+        
+        console.log('📊 Reserve data fetched:', {
+          reserveCashRaw: reserveCashRaw.toString(),
+          assetDecimals,
+          decimalsUsed: RESERVE_CASH_DECIMALS,
+          reserveCashFormatted,
+          reserveCash,
+          totalDebtRaw: totalDebtRaw.toString(),
+          totalDebtFormatted,
+          totalDebt,
+          totalSupply,
+          utilization,
+          assetSymbol: asset?.symbol,
+          note: 'Contract stores reserveCash with 18 decimals (WAD format), not asset.decimals'
+        });
         
         setReserveData({
           ltvBps: Number(reserve.ltvBps),
           liqThresholdBps: Number(reserve.liqThresholdBps),
           liqBonusBps: Number(reserve.liqBonusBps),
-          reserveCash,
+          reserveCash, // Formatted value with 18 decimals (WAD format)
+          reserveCashRaw: reserveCashRaw.toString(), // Raw BigInt value
+          decimalsUsed: RESERVE_CASH_DECIMALS, // Always 18 (WAD format)
           totalDebt,
           utilization,
           isBorrowable: reserve.isBorrowable
@@ -863,10 +952,35 @@ export default function DepositDetailPage() {
       showToast({ type: 'success', title: 'Withdraw submitted', message: `Tx: ${tx.hash.slice(0, 10)}...` });
       setDepositAmount('');
       refresh();
-      // Force fetch chain snapshot to reset display if balance is 0
-      setTimeout(() => {
-        fetchChainSnapshot();
-      }, 1000);
+      
+      // Wait for transaction to be confirmed, then fetch new snapshot and update localStorage
+      // Try multiple times with increasing delays to ensure transaction is confirmed
+      const updateAfterWithdraw = async (attempt: number = 1) => {
+        const delay = attempt * 2000; // 2s, 4s, 6s...
+        setTimeout(async () => {
+          try {
+            console.log(`🔄 Fetching chain snapshot after withdraw (attempt ${attempt})...`);
+            const result = await fetchChainSnapshot();
+            if (result && result.actualBalance !== undefined) {
+              console.log('✅ Successfully updated localStorage after withdraw transaction:', {
+                newBalance: result.actualBalance,
+                attempt
+              });
+            } else if (attempt < 3) {
+              // Retry up to 3 times if not successful
+              updateAfterWithdraw(attempt + 1);
+            }
+          } catch (error) {
+            console.error(`❌ Failed to update localStorage after withdraw (attempt ${attempt}):`, error);
+            if (attempt < 3) {
+              updateAfterWithdraw(attempt + 1);
+            }
+          }
+        }, delay);
+      };
+      
+      // Start first attempt after 2 seconds
+      updateAfterWithdraw(1);
     } catch (e: any) {
       showToast({ type: 'error', title: 'Withdraw failed', message: e?.message || 'Transaction failed' });
     }
@@ -887,6 +1001,35 @@ export default function DepositDetailPage() {
       message: 'Your tokens have been deposited successfully'
     });
     refresh();
+    
+    // Wait for transaction to be confirmed, then fetch new snapshot and update localStorage
+    // Try multiple times with increasing delays to ensure transaction is confirmed
+    const updateAfterDeposit = async (attempt: number = 1) => {
+      const delay = attempt * 2000; // 2s, 4s, 6s...
+      setTimeout(async () => {
+        try {
+          console.log(`🔄 Fetching chain snapshot after deposit (attempt ${attempt})...`);
+          const result = await fetchChainSnapshot();
+          if (result && result.actualBalance !== undefined) {
+            console.log('✅ Successfully updated localStorage after deposit transaction:', {
+              newBalance: result.actualBalance,
+              attempt
+            });
+          } else if (attempt < 3) {
+            // Retry up to 3 times if not successful
+            updateAfterDeposit(attempt + 1);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to update localStorage after deposit (attempt ${attempt}):`, error);
+          if (attempt < 3) {
+            updateAfterDeposit(attempt + 1);
+          }
+        }
+      }, delay);
+    };
+    
+    // Start first attempt after 2 seconds
+    updateAfterDeposit(1);
   };
 
   const handleWrapEthSuccess = () => {
@@ -947,7 +1090,23 @@ export default function DepositDetailPage() {
   
   const suppliedBalanceUSD = suppliedBalance * parseFloat(String(asset.priceUSD || '0'));
   const interestEarnedUSD = interestEarned * parseFloat(String(asset.priceUSD || '0'));
-  const availableLiquidity = reserveData?.reserveCash || 0;
+  // Use reserveData.reserveCash if available, otherwise fallback to 0
+  // reserveCash should already be formatted with correct decimals in fetchReserveData
+  let availableLiquidity = (reserveData?.reserveCash !== undefined && reserveData?.reserveCash !== null) 
+    ? reserveData.reserveCash 
+    : 0;
+  
+  // Note: reserveCash is already formatted with 18 decimals (WAD format) in fetchReserveData
+  // No need to recalculate here - the value should be correct
+  
+  // Debug log to verify the value
+  console.log('💰 Available liquidity calculation:', {
+    availableLiquidity,
+    reserveCash: reserveData?.reserveCash,
+    assetSymbol: asset?.symbol,
+    assetDecimals: asset?.decimals,
+    willBeFormattedAs: formatNumber(availableLiquidity, 2)
+  });
   const ltv = reserveData ? reserveData.ltvBps / 100 : 0; // Convert basis points to percentage
   const liquidationThreshold = reserveData ? reserveData.liqThresholdBps / 100 : 0;
   const liquidationPenalty = reserveData ? reserveData.liqBonusBps / 100 : 0;
@@ -1015,25 +1174,6 @@ export default function DepositDetailPage() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Debug Component - Only in development */}
-            {process.env.NODE_ENV === 'development' && (
-              <DepositInterestDebug
-                debugInfo={{
-                  displayBalance,
-                  suppliedPrincipal,
-                  suppliedBalance,
-                  interestEarned,
-                  principalWad: principalWadRef.current.toString(),
-                  snapshotIndexRay: snapshotIndexRayRef.current.toString(),
-                  oldIndexRay: oldIndexRayRef.current.toString(),
-                  rateRayPerSec: rateRayPerSecRef.current.toString(),
-                  supplyAPR,
-                  isLoadingSnapshot,
-                  isRealtimeRunning: intervalRef.current !== null
-                }}
-              />
-            )}
 
             {/* Reserve Overview */}
             <Card>

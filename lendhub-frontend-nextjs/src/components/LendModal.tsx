@@ -248,7 +248,70 @@ export function LendModal({
     setIsLoading(true);
 
     try {
-      const amountBN = parseTokenAmount(amount, token.decimals);
+      // Validate amount before parsing to avoid overflow
+      const amountNum = parseFloat(amount);
+      if (!isFinite(amountNum) || amountNum <= 0) {
+        showToast({
+          type: 'error',
+          title: 'Invalid amount',
+          message: 'Please enter a valid amount'
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Check if amount is reasonable (not exceeding a very large limit)
+      // Note: We don't use Number.MAX_SAFE_INTEGER here because it's too small for tokens with many decimals
+      // Instead, we use a reasonable limit (1 billion tokens) which is more than enough for any real use case
+      const MAX_REASONABLE_AMOUNT = 1000000000; // 1 billion tokens
+      if (amountNum > MAX_REASONABLE_AMOUNT) {
+        showToast({
+          type: 'error',
+          title: 'Amount too large',
+          message: `Maximum amount is ${MAX_REASONABLE_AMOUNT.toLocaleString()} ${token.symbol}. Please enter a smaller amount.`
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Additional check: ensure the amount can be safely parsed to BigInt
+      // For tokens with 18 decimals, the maximum safe amount before BigInt parsing issues
+      // is much larger than Number.MAX_SAFE_INTEGER / 10^18
+      // We'll let parseTokenAmount handle the actual parsing and throw if there's an issue
+      
+      // Parse amount with error handling for overflow
+      let amountBN: bigint;
+      try {
+        amountBN = parseTokenAmount(amount, token.decimals);
+      } catch (error: any) {
+        console.error('❌ Error parsing token amount:', error);
+        showToast({
+          type: 'error',
+          title: 'Invalid amount',
+          message: error?.message || 'Failed to parse amount. Please check the value and try again.'
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Additional validation: check if parsed amount is valid
+      if (amountBN === BigInt(0)) {
+        showToast({
+          type: 'error',
+          title: 'Invalid amount',
+          message: 'Amount must be greater than 0'
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Log parsed amount for debugging
+      console.log('📊 Parsed amount:', {
+        input: amount,
+        decimals: token.decimals,
+        parsed: amountBN.toString(),
+        formatted: ethers.formatUnits(amountBN, token.decimals)
+      });
       
       // Create toast callback to show transaction progress
       const toastCallback = (toast: { type: 'success' | 'error' | 'pending'; title: string; message: string; hash?: string }) => {

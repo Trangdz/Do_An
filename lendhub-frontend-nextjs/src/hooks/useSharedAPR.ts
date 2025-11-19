@@ -60,10 +60,13 @@ async function fetchAPR(
     const supplyAPR = liquidityRatePerSec * SECONDS_PER_YEAR * 100; // percent
     const borrowAPR = variableBorrowRatePerSec * SECONDS_PER_YEAR * 100; // percent
 
-    // utilization approximated from debt / (cash + debt)
-    const decimals: number = Number(r.decimals ?? 18);
-    const reserveCash = Number(ethers.formatUnits(r.reserveCash, decimals));
-    const totalDebt = Number(ethers.formatUnits(r.totalDebtPrincipal, decimals));
+    // CRITICAL: The lending pool contract stores reserveCash with 18 decimals (WAD format)
+    // This is a standard practice in DeFi protocols - all amounts are normalized to 18 decimals
+    // regardless of the actual token decimals (e.g., USDC has 6 decimals, but reserveCash is stored with 18)
+    // Therefore, we MUST format reserveCash with 18 decimals, NOT with reserve.decimals
+    const RESERVE_CASH_DECIMALS = 18; // Contract stores reserveCash with 18 decimals (WAD format)
+    const reserveCash = Number(ethers.formatUnits(r.reserveCash, RESERVE_CASH_DECIMALS));
+    const totalDebt = Number(ethers.formatUnits(r.totalDebtPrincipal, RESERVE_CASH_DECIMALS));
     const sum = reserveCash + totalDebt;
     const utilization = sum > 0 ? (totalDebt / sum) * 100 : 0;
 

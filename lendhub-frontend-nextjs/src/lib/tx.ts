@@ -196,22 +196,257 @@ export async function lend(
 
   const poolContract = new ethers.Contract(CONFIG.LENDING_POOL, POOL_ABI, signer);
   
-  // Approve if needed (with toast callback to show approval progress)
-  const approvalResult = await approveIfNeeded(signer, tokenAddress, CONFIG.LENDING_POOL, amount, toastCallback);
+  // Validate amount before proceeding
+  if (amount === BigInt(0)) {
+    throw new Error('Amount must be greater than 0');
+  }
   
-  // If approval happened, wait a bit for state to be updated before proceeding
-  if (approvalResult && approvalResult.isApproval) {
-    console.log('⏳ Approval completed, waiting for state update before supplying...');
-    // Small delay to ensure allowance state is updated on-chain
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  // Get token decimals to validate amount (needed for logging and error messages)
+  let tokenDecimals = 18;
+  try {
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer.provider);
+    tokenDecimals = await tokenContract.decimals();
+  } catch (e) {
+    console.warn('⚠️ Could not fetch token decimals, using 18 as default');
+  }
+  
+  // CRITICAL: Approve tokens before attempting to supply
+  // This ensures we have sufficient allowance, which is a common cause of "unknown custom error"
+  try {
+    console.log('📝 Checking and approving token allowance...');
+    await approveIfNeeded(signer, tokenAddress, CONFIG.LENDING_POOL, amount, toastCallback);
+  } catch (approvalError: any) {
+    // If approval fails, throw a clear error
+    const approvalMsg = approvalError?.message || 'Approval failed';
+    throw new Error(`Token approval failed: ${approvalMsg}. Please try again.`);
+  }
+  
+  // Maximum value for uint128 (reserveCash is uint128 in contract)
+  const MAX_UINT128 = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'); // 2^128 - 1
+  
+  // Fetch and validate reserve data BEFORE attempting transaction
+  let reserveData: any;
+  try {
+    reserveData = await poolContract.reserves(tokenAddress);
+    const reserveCash = BigInt(reserveData.reserveCash.toString());
+    const totalDebtPrincipal = BigInt(reserveData.totalDebtPrincipal.toString());
+    
+    console.log('📊 Reserve data before lend:', {
+      reserveCash: reserveCash.toString(),
+      totalDebtPrincipal: totalDebtPrincipal.toString(),
+      decimals: reserveData.decimals.toString(),
+      isBorrowable: reserveData.isBorrowable,
+      amount: amount.toString(),
+      amountFormatted: formatUnits(amount, tokenDecimals)
+    });
+    
+    // Check 1: Amount must be positive (already checked above, but double-check)
+    if (amount <= BigInt(0)) {
+      throw new Error('Amount must be greater than 0');
+    }
+    
+    // Check 2: Log reserve cash info for debugging (but don't block)
+    // NOTE: Both reserveCash and amount are in 18 decimals (WAD format)
+    // The contract will handle overflow checks - we don't need to pre-validate here
+    // Pre-validation can cause false positives if reserveCash is incorrectly calculated
+    console.log('🔍 Reserve cash info:', {
+      reserveCash: reserveCash.toString(),
+      reserveCashFormatted: formatUnits(reserveCash, 18),
+      amount: amount.toString(),
+      amountFormatted: formatUnits(amount, tokenDecimals),
+      note: 'Contract will handle overflow validation'
+    });
+    
+    // Check 3: Amount should not exceed a reasonable limit (e.g., 1 billion tokens)
+    // This is a sanity check to prevent extremely large amounts
+    const MAX_REASONABLE_AMOUNT = BigInt('1000000000') * BigInt(10) ** BigInt(tokenDecimals); // 1 billion tokens
+    if (amount > MAX_REASONABLE_AMOUNT) {
+      throw new Error(
+        `Amount exceeds maximum allowed limit. Maximum: ${formatUnits(MAX_REASONABLE_AMOUNT, tokenDecimals)} tokens`
+      );
+    }
+    
+    // Check 4: Log total supply info for debugging (but don't block)
+    // NOTE: reserveCash and totalDebtPrincipal are stored with 18 decimals (WAD format) in contract
+    // amount is also in 18 decimals (from parseUnits with tokenDecimals)
+    // The contract will handle overflow checks - we don't need to pre-validate here
+    const currentTotalSupply = reserveCash + totalDebtPrincipal;
+    const newTotalSupply = currentTotalSupply + amount;
+    
+    console.log('🔍 Total supply info:', {
+      reserveCash: reserveCash.toString(),
+      totalDebtPrincipal: totalDebtPrincipal.toString(),
+      currentTotalSupply: currentTotalSupply.toString(),
+      currentTotalSupplyFormatted: formatUnits(currentTotalSupply, 18),
+      amount: amount.toString(),
+      amountFormatted: formatUnits(amount, tokenDecimals),
+      newTotalSupply: newTotalSupply.toString(),
+      note: 'Contract will handle overflow validation'
+    });
+    
+  } catch (e: any) {
+    // If it's already our custom error, re-throw it
+    if (e.message && (e.message.includes('Amount too large') || e.message.includes('Amount must be greater'))) {
+      throw e;
+    }
+    // Otherwise, log and continue (we'll catch it in staticCall)
+    console.warn('⚠️ Could not fully validate reserve data:', e);
   }
   
   // Pre-flight simulate to get explicit revert reason instead of -32603
   try {
     await poolContract.getFunction("lend").staticCall(tokenAddress, amount);
   } catch (err: any) {
-    const msg = String(err?.reason || err?.shortMessage || err?.message || 'Supply failed');
-    throw new Error(msg);
+    // Enhanced error message extraction for various error types
+    let errorMsg = 'Supply failed';
+    
+    // Try to extract error message from different sources
+    if (err?.reason) {
+      errorMsg = err.reason;
+    } else if (err?.shortMessage) {
+      errorMsg = err.shortMessage;
+    } else if (err?.message) {
+      errorMsg = err.message;
+    }
+    
+    // Try to decode custom error from error data
+    if (err?.data && typeof err.data === 'string' && err.data.startsWith('0x')) {
+      try {
+        // Try to decode as Error(string) - most common Solidity error
+        const errorInterface = new ethers.Interface(['error Error(string)']);
+        try {
+          const decoded = errorInterface.parseError(err.data);
+          if (decoded && decoded.args && decoded.args[0]) {
+            errorMsg = decoded.args[0];
+          }
+        } catch (e) {
+          // Not a standard Error(string), try other common error formats
+          // Check for common revert reasons
+          if (err.data.length > 10) {
+            // Try to extract readable string from data
+            const dataHex = err.data.slice(10); // Remove function selector (4 bytes = 8 hex chars + 0x)
+            try {
+              // Error(string) format: first 32 bytes is offset, next 32 bytes is length, then string
+              const offset = parseInt(dataHex.slice(0, 64), 16);
+              const length = parseInt(dataHex.slice(64, 128), 16);
+              if (length > 0 && length < 1000) {
+                const stringHex = dataHex.slice(128, 128 + length * 2);
+                // Decode hex string to UTF-8 without using Buffer (browser-compatible)
+                let decodedString = '';
+                for (let i = 0; i < stringHex.length; i += 2) {
+                  const charCode = parseInt(stringHex.slice(i, i + 2), 16);
+                  if (charCode > 0) {
+                    decodedString += String.fromCharCode(charCode);
+                  }
+                }
+                if (decodedString && decodedString.length > 0) {
+                  errorMsg = decodedString.trim();
+                }
+              }
+            } catch (e2) {
+              // Could not decode, use original message
+            }
+          }
+        }
+      } catch (e) {
+        // Could not decode error data, use original message
+      }
+    }
+    
+    // Check for overflow errors specifically
+    if (errorMsg.includes('OVERFLOW') || errorMsg.includes('overflow') || errorMsg.includes('Panic')) {
+      // For overflow, provide detailed analysis
+      try {
+        if (!reserveData) {
+          reserveData = await poolContract.reserves(tokenAddress);
+        }
+        const reserveCash = BigInt(reserveData.reserveCash.toString());
+        const totalDebtPrincipal = BigInt(reserveData.totalDebtPrincipal.toString());
+        const currentTotalSupply = reserveCash + totalDebtPrincipal;
+        const newReserveCash = reserveCash + amount;
+        const newTotalSupply = currentTotalSupply + amount;
+        
+        // Determine the specific cause of overflow
+        // NOTE: reserveCash, currentTotalSupply, and amount are all in 18 decimals (WAD format)
+        // So we must format maxAllowedAmount with 18 decimals, not tokenDecimals
+        if (newReserveCash > MAX_UINT128) {
+          const maxAllowedAmount = MAX_UINT128 - reserveCash;
+          errorMsg = `Amount causes reserve overflow. Maximum allowed: ${formatUnits(maxAllowedAmount, 18)} tokens. ` +
+                     `Current reserve: ${formatUnits(reserveCash, 18)} tokens.`;
+        } else if (newTotalSupply > MAX_UINT128) {
+          const maxAllowedForTotalSupply = MAX_UINT128 - currentTotalSupply;
+          errorMsg = `Amount causes total supply overflow. Maximum allowed: ${formatUnits(maxAllowedForTotalSupply, 18)} tokens. ` +
+                     `Current total supply: ${formatUnits(currentTotalSupply, 18)} tokens.`;
+        } else {
+          // Overflow might be due to internal calculation in contract (e.g., interest calculation)
+          errorMsg = `Contract overflow error during internal calculation. ` +
+                     `Please try a smaller amount. ` +
+                     `Current reserve: ${formatUnits(reserveCash, 18)}, ` +
+                     `Amount: ${formatUnits(amount, tokenDecimals)}. ` +
+                     `Original error: ${errorMsg}`;
+        }
+      } catch (e) {
+        errorMsg = `Amount too large or causes overflow. Please try a smaller amount. Original error: ${errorMsg}`;
+      }
+    }
+    
+    // For "unknown custom error" or generic revert, try to provide more context
+    if (errorMsg.includes('unknown custom error') || errorMsg.includes('execution reverted') || errorMsg === 'Supply failed') {
+      // Try to get more information from reserve data
+      try {
+        if (!reserveData) {
+          reserveData = await poolContract.reserves(tokenAddress);
+        }
+        const reserveCash = BigInt(reserveData.reserveCash.toString());
+        const totalDebtPrincipal = BigInt(reserveData.totalDebtPrincipal.toString());
+        
+        // Check common reasons for revert:
+        // 1. Insufficient allowance
+        // 2. Insufficient balance
+        // 3. Amount too large
+        // 4. Reserve not initialized
+        
+        // Provide a more helpful error message
+        errorMsg = `Transaction failed. Possible reasons: ` +
+                   `1) Insufficient token allowance - please approve more tokens, ` +
+                   `2) Insufficient wallet balance, ` +
+                   `3) Amount exceeds available liquidity, or ` +
+                   `4) Contract internal error. ` +
+                   `Please check your balance, allowance, and try a smaller amount. ` +
+                   `(Current reserve: ${formatUnits(reserveCash, tokenDecimals)} tokens, ` +
+                   `Amount: ${formatUnits(amount, tokenDecimals)} tokens)`;
+      } catch (e) {
+        // If we can't get reserve data, provide generic message
+        errorMsg = `Transaction failed. Please check: ` +
+                   `1) Your token balance is sufficient, ` +
+                   `2) You have approved enough tokens, ` +
+                   `3) The amount is valid. ` +
+                   `Original error: ${errorMsg}`;
+      }
+    }
+    
+    // Log detailed error for debugging
+    console.error('❌ Lend staticCall failed:', {
+      error: err,
+      reason: err?.reason,
+      shortMessage: err?.shortMessage,
+      message: err?.message,
+      data: err?.data,
+      code: err?.code,
+      tokenAddress,
+      amount: amount.toString(),
+      amountFormatted: formatUnits(amount, tokenDecimals),
+      tokenDecimals,
+      amountInWei: amount.toString(),
+      amountHex: '0x' + amount.toString(16),
+      reserveData: reserveData ? {
+        reserveCash: reserveData.reserveCash?.toString(),
+        totalDebtPrincipal: reserveData.totalDebtPrincipal?.toString()
+      } : 'not available',
+      extractedErrorMsg: errorMsg
+    });
+    
+    throw new Error(errorMsg);
   }
 
   // Send lend transaction

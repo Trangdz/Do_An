@@ -35,3 +35,4 @@ interface IAAVERewardDistributor {
     function getUnclaimedRewardsForAsset(address user, address asset) external view returns (uint256);
 }
 
+

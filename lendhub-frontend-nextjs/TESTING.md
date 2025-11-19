@@ -131,3 +131,4 @@ console.log('Realtime running:', intervalRef.current !== null);
 ✅ No errors in console
 ✅ All unit tests pass
 
+
