@@ -503,11 +503,38 @@ export async function withdraw(
     error: 'Withdraw failed'
   });
 
-  // After successful withdraw, refresh APR/Available snapshot immediately
+  // After successful withdraw, refresh APR/Available snapshot
+  // Wait a bit to ensure contract has updated rates in the new block
   try {
     const provider = signer.provider as ethers.Provider;
     const { triggerAPRRefresh } = await import('../hooks/useSharedAPR');
+    
+    // Wait for next block to ensure rates are updated
+    // On Ganache, blocks are mined immediately, but we still wait a bit for state to settle
+    const currentBlock = await provider.getBlockNumber();
+    
+    // Wait for next block (or at least 1 second) to ensure contract state is updated
+    await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
+    
+    // Check if we're on a new block
+    let newBlock = await provider.getBlockNumber();
+    if (newBlock === currentBlock) {
+      // If still on same block, wait a bit more
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Another 1 second
+    }
+    
+    // Now fetch APR - contract should have updated rates by now
     await triggerAPRRefresh(provider, CONFIG.LENDING_POOL, tokenAddress);
+    
+    // Also trigger another refresh after a short delay to catch any delayed updates
+    setTimeout(async () => {
+      try {
+        await triggerAPRRefresh(provider, CONFIG.LENDING_POOL, tokenAddress);
+      } catch (e) {
+        // Ignore errors in delayed refresh
+      }
+    }, 3000); // 3 seconds later
+    
   } catch (e) {
     console.warn('[withdraw] post-refresh failed:', (e as any)?.message || e);
   }

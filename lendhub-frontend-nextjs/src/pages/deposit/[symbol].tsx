@@ -953,6 +953,24 @@ export default function DepositDetailPage() {
       setDepositAmount('');
       refresh();
       
+      // Force refresh APR after withdraw to show updated rates
+      const refreshAPRAfterWithdraw = async () => {
+        try {
+          const { triggerAPRRefresh } = await import('@/hooks/useSharedAPR');
+          // Wait for transaction to be confirmed and contract to update rates
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
+          await triggerAPRRefresh(provider as ethers.Provider, CONFIG.LENDING_POOL, asset.address);
+          // Refresh again after a bit more to ensure rates are updated
+          setTimeout(async () => {
+            await triggerAPRRefresh(provider as ethers.Provider, CONFIG.LENDING_POOL, asset.address);
+            refresh(); // Also refresh user balances
+          }, 3000); // 3 seconds later
+        } catch (error) {
+          console.warn('[handleWithdrawInline] APR refresh failed:', error);
+        }
+      };
+      refreshAPRAfterWithdraw();
+      
       // Wait for transaction to be confirmed, then fetch new snapshot and update localStorage
       // Try multiple times with increasing delays to ensure transaction is confirmed
       const updateAfterWithdraw = async (attempt: number = 1) => {

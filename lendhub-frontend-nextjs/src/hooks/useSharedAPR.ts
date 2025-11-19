@@ -220,11 +220,60 @@ export async function triggerAPRRefresh(
   try {
     // Use RPC provider directly to avoid MetaMask circuit breaker
     const rpcProvider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
+    
+    // Force fetch from contract (bypass any potential caching)
     const next = await fetchAPR(rpcProvider, poolAddress, assetAddress);
+    
+    // Always update store even if values seem similar (to force UI refresh)
+    const prev = store.get(key);
     store.set(key, next);
-    listeners.get(key)?.forEach(fn => fn());
-  } catch {
-    // ignore
+    
+    // Force notify all listeners to update UI
+    // Create a new object to ensure React detects the change
+    const updatedData = { ...next, updatedAt: Date.now() };
+    store.set(key, updatedData);
+    
+    // Notify all listeners with a small delay to ensure state update
+    setTimeout(() => {
+      listeners.get(key)?.forEach(fn => {
+        try {
+          // Force update by creating new object reference
+          fn();
+        } catch (e) {
+          console.warn('[triggerAPRRefresh] Listener error:', e);
+        }
+      });
+    }, 100); // Small delay to ensure store is updated
+    
+    // Log for debugging
+    if (prev) {
+      const aprChanged = Math.abs(prev.supplyAPR - next.supplyAPR) > 0.0001;
+      const utilChanged = Math.abs(prev.utilization - next.utilization) > 0.01;
+      const reserveCashChanged = Math.abs(prev.available - next.available) > 0.01;
+      
+      console.log('🔄 APR refresh triggered:', {
+        supplyAPR: `${prev.supplyAPR.toFixed(4)}% → ${next.supplyAPR.toFixed(4)}%`,
+        utilization: `${prev.utilization.toFixed(2)}% → ${next.utilization.toFixed(2)}%`,
+        available: `${prev.available.toFixed(2)} → ${next.available.toFixed(2)}`,
+        changed: { apr: aprChanged, util: utilChanged, cash: reserveCashChanged },
+        timestamp: new Date().toISOString()
+      });
+      
+      if (aprChanged || utilChanged || reserveCashChanged) {
+        console.log('✅ APR/Utilization changed after transaction!');
+      } else {
+        console.warn('⚠️ APR/Utilization did NOT change - check contract state');
+      }
+    } else {
+      console.log('🔄 APR refresh (first time):', {
+        supplyAPR: next.supplyAPR.toFixed(4) + '%',
+        utilization: next.utilization.toFixed(2) + '%',
+        available: next.available.toFixed(2)
+      });
+    }
+  } catch (e) {
+    console.warn('[triggerAPRRefresh] Error:', e);
+    // Don't throw - allow UI to continue with cached values
   }
 }
 
