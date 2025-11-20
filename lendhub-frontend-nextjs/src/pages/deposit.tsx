@@ -4,6 +4,7 @@ import useLendContext from '@/context/useLendContext';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { DepositRow } from '@/components/DepositRow';
+import { CONFIG } from '@/config/contracts';
 
 export default function DepositPage() {
   const { userAssets, supplyAssets, metamaskDetails, refresh } = useLendContext();
@@ -29,7 +30,8 @@ export default function DepositPage() {
     });
   }, [userAssets]);
 
-  // Build list of ONLY assets that user has supplied (positive supply balance)
+  // Build list of ONLY assets that user has supplied AND still have balance > 0
+  // This is "Your deposits" page - only show assets that have been supplied and not fully withdrawn
   // Filter out assets with effectively zero balance (< 0.000001) to hide dust amounts
   const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
   const suppliedAssetsOnly = (supplyAssets || [])
@@ -47,7 +49,7 @@ export default function DepositPage() {
       };
     });
 
-  // Filter stablecoins
+  // Filter stablecoins if needed
   const stablecoins = ['USDC', 'DAI', 'USDT', 'TUSD', 'SUSD', 'BUSD'];
   const filteredAssets = (filter === 'stable' 
     ? suppliedAssetsOnly.filter((a: any) => stablecoins.includes(a.symbol))

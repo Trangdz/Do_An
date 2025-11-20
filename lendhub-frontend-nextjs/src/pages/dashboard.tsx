@@ -176,45 +176,45 @@ export default function DashboardPage() {
         priceUSD: '0',
       }));
 
-  // Get deposits with supply data - show ALL assets, even with 0 balance
-  const deposits = allAssets
-    .map((asset: any) => {
-      // Find matching supply in supplyAssets
-      const supply = supplyAssets.find((s: any) => 
-        s.address && asset.address && 
-        s.address.toLowerCase() === asset.address.toLowerCase()
-      );
-      
-      // Get wallet balance (from userAssets) - this is what was deployed/initial balance
-      // Same logic as SimpleDashboard: userBalance from wallet, userSupply from pool
-      const userBalance = parseFloat(asset.balance || '0');
-      const userBalanceUSD = parseFloat(asset.balanceUSD || '0') || (userBalance * parseFloat(asset.priceUSD || '0'));
-      
-      // Get supply balance in pool (with interest if available), default to 0
-      const supplyBalance = supply 
-        ? parseFloat(supply.supplyBalance || supply.supplyPrincipal || '0')
-        : 0;
-      
-      const supplyBalanceUSD = supply ? (supply.balanceUSD || 0) : 0;
-      
-      return {
-        address: asset.address,
-        symbol: asset.symbol || asset.name?.substring(0, 4).toUpperCase() || 'Unknown',
-        name: asset.name || asset.symbol || 'Unknown',
-        decimals: asset.decimals || 18,
-        // Show wallet balance (deployed amount) as "Current balance" - like SimpleDashboard
-        walletBalance: userBalance,
-        walletBalanceUSD: userBalanceUSD,
-        // Supply balance in pool (for reference)
-        supplyBalance: supplyBalance,
-        supplyBalanceUSD: supplyBalanceUSD,
-        price: asset.price || parseFloat(asset.priceUSD || '0'),
-        priceUSD: asset.priceUSD || '0',
-        liquidationThreshold: asset.liquidationThreshold || 8000,
-        availableLiquidity: asset.availableLiquidity || '0',
-      };
-    })
-    // Filter out deposits with effectively zero balance (< 0.000001) to hide dust amounts
+  // Get all assets to supply - show ALL assets (ETH, DAI, WETH, USDC, LINK, etc.)
+  // This is for "Assets to supply" section - show all available assets
+  const allAssetsToSupply = allAssets.map((asset: any) => {
+    // Find matching supply in supplyAssets (if user has supplied)
+    const supply = supplyAssets.find((s: any) => 
+      s.address && asset.address && 
+      s.address.toLowerCase() === asset.address.toLowerCase()
+    );
+    
+    // Get wallet balance (from userAssets)
+    const userBalance = parseFloat(asset.balance || '0');
+    const userBalanceUSD = parseFloat(asset.balanceUSD || '0') || (userBalance * parseFloat(asset.priceUSD || '0'));
+    
+    // Get supply balance in pool (with interest if available), default to 0
+    const supplyBalance = supply 
+      ? parseFloat(supply.supplyBalance || supply.supplyPrincipal || '0')
+      : 0;
+    
+    const supplyBalanceUSD = supply ? (supply.balanceUSD || 0) : 0;
+    
+    return {
+      address: asset.address,
+      symbol: asset.symbol || asset.name?.substring(0, 4).toUpperCase() || 'Unknown',
+      name: asset.name || asset.symbol || 'Unknown',
+      decimals: asset.decimals || 18,
+      walletBalance: userBalance,
+      walletBalanceUSD: userBalanceUSD,
+      supplyBalance: supplyBalance,
+      supplyBalanceUSD: supplyBalanceUSD,
+      price: asset.price || parseFloat(asset.priceUSD || '0'),
+      priceUSD: asset.priceUSD || '0',
+      liquidationThreshold: asset.liquidationThreshold || 8000,
+      availableLiquidity: asset.availableLiquidity || '0',
+    };
+  });
+
+  // Get deposits - only assets that have been supplied AND still have balance > 0
+  // This is for "Your deposits" section - only show deposits with meaningful balance
+  const deposits = allAssetsToSupply
     .filter((deposit: any) => {
       const MIN_BALANCE_THRESHOLD = 0.000001; // Consider balance < 0.000001 (1e-6) as effectively 0
       return deposit.supplyBalance >= MIN_BALANCE_THRESHOLD; // Only show deposits with meaningful balance
@@ -395,14 +395,14 @@ export default function DashboardPage() {
                           </div>
                         </td>
                       </tr>
-                    ) : deposits.length === 0 ? (
+                    ) : allAssetsToSupply.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-muted-foreground">
                           No assets available
                         </td>
                       </tr>
                     ) : (
-                      deposits.map((deposit: any) => (
+                      allAssetsToSupply.map((deposit: any) => (
                         <DashboardDepositRow
                           key={deposit.address}
                           deposit={deposit}
