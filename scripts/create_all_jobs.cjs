@@ -24,7 +24,8 @@ const path = require("path");
     { file: "job-weth.toml", name: "WETH" },
     { file: "job-usdc.toml", name: "USDC" },
     { file: "job-dai.toml", name: "DAI" },
-    { file: "job-link.toml", name: "LINK" }
+    { file: "job-link.toml", name: "LINK" },
+    { file: "job-pepe.toml", name: "PEPE" }
   ];
   
   console.log("=== Creating Jobs ===");

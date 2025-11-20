@@ -46,6 +46,15 @@ const tokenList = {
       apy: 0,
       isCollateral: false,
     },
+    {
+      address: "0x0000000000000000000000000000000000000000", // TODO: Update with actual PEPE token address
+      name: "Pepe",
+      symbol: "PEPE",
+      decimal: 18,
+      image: "/image/pepe.svg",
+      apy: 0,
+      isCollateral: false,
+    },
   ],
 };
 

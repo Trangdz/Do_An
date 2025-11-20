@@ -29,7 +29,7 @@ async function main() {
   console.log("Writer (Chainlink node):", writer);
   console.log("\nMonitoring for 2 minutes... (Press Ctrl+C to stop)\n");
 
-  const symbols = ["ETH", "WETH", "USDC", "DAI", "LINK"];
+  const symbols = ["ETH", "WETH", "USDC", "DAI", "LINK", "PEPE"];
   const initialPrices = {};
 
   // Get initial prices

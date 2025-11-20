@@ -60,6 +60,7 @@ async function main() {
       "job-usdc.toml",
       "job-dai.toml",
       "job-link.toml",
+      "job-pepe.toml",
     ];
     for (const jf of jobFiles) {
       const p = path.join(jobsDir, jf);
@@ -158,6 +159,12 @@ async function main() {
   await dai.waitForDeployment();
   const daiAddress = await dai.getAddress();
   console.log("✅ DAI deployed:", daiAddress);
+  
+  // Deploy PEPE (18 decimals) with 100,000,000 initial supply
+  const pepe = await TokenFactory.deploy("Pepe", "PEPE", 18, 100000000);
+  await pepe.waitForDeployment();
+  const pepeAddress = await pepe.getAddress();
+  console.log("✅ PEPE deployed:", pepeAddress);
 
   // ========================================
   // 2️⃣ DEPLOY CORE CONTRACTS
@@ -180,8 +187,8 @@ async function main() {
   
   // Set token address → symbol mapping
   // This allows MultiPriceAggregator to implement IPriceOracle interface
-  const tokens = [wethAddress, daiAddress, usdcAddress, linkAddress];
-  const symbols = ["WETH", "DAI", "USDC", "LINK"];
+  const tokens = [wethAddress, daiAddress, usdcAddress, linkAddress, pepeAddress];
+  const symbols = ["WETH", "DAI", "USDC", "LINK", "PEPE"];
   
   await multiPriceAggregator.setTokenSymbols(tokens, symbols);
   console.log("✅ Token symbols set:");
@@ -189,6 +196,7 @@ async function main() {
   console.log("   DAI: ", daiAddress, "→ DAI");
   console.log("   USDC:", usdcAddress, "→ USDC");
   console.log("   LINK:", linkAddress, "→ LINK");
+  console.log("   PEPE:", pepeAddress, "→ PEPE");
   console.log("\n💡 Prices will be automatically updated by Chainlink jobs");
   console.log("   No manual price setting needed!");
 
@@ -547,6 +555,15 @@ async function main() {
   );
   console.log("✅ LINK reserve initialized (borrowable)");
 
+  // Init PEPE (borrowable)
+  await lendingPool.initReserve(
+    pepeAddress, 18,
+    1000, 7500, 8000, 500, 5000,
+    true, // isBorrowable = true
+    8000, baseRate, slope1, slope2
+  );
+  console.log("✅ PEPE reserve initialized (borrowable)");
+
   // ========================================
   // 4.5️⃣ DEPLOY AAVE REWARD DISTRIBUTOR (if LENDX system exists)
   // ========================================
@@ -784,7 +801,7 @@ async function main() {
         
         // Add tracked assets to RewardAccumulator
         try {
-          const trackedAssets = [wethAddress, daiAddress, usdcAddress, linkAddress].filter(addr => addr);
+          const trackedAssets = [wethAddress, daiAddress, usdcAddress, linkAddress, pepeAddress].filter(addr => addr);
           for (const asset of trackedAssets) {
             try {
               const addAssetTx = await rewardAccumulator.addTrackedAsset(asset);
@@ -932,6 +949,7 @@ async function main() {
     await weth.mint(address, ethers.parseUnits("10000", 18));      // 10,000 WETH
     await usdc.mint(address, ethers.parseUnits("1000000", 6));     // 1,000,000 USDC
     await dai.mint(address, ethers.parseUnits("1000000", 18));     // 1,000,000 DAI
+    await pepe.mint(address, ethers.parseUnits("1000000", 18));    // 1,000,000 PEPE
     
     // LinkToken doesn't have mint(), so transfer from deployer
     await linkToken.transfer(address, ethers.parseUnits("100000", 18)); // 100,000 LINK
@@ -948,16 +966,16 @@ async function main() {
         if (userLendxBalance < LENDX_AMOUNT && deployerLendxBalance >= LENDX_AMOUNT) {
           await lendxTokenContract.transfer(address, LENDX_AMOUNT);
           const role = i === 0 ? "Whale/Governor" : i === 1 ? "Large Holder" : i <= 3 ? "Medium Holder" : i <= 6 ? "Regular User" : "Small Holder";
-          console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK, ${lendxAmountStr} LENDX) [${role}]`);
+          console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK, 1M PEPE, ${lendxAmountStr} LENDX) [${role}]`);
         } else {
           const role = i === 0 ? "Whale/Governor" : i === 1 ? "Large Holder" : i <= 3 ? "Medium Holder" : i <= 6 ? "Regular User" : "Small Holder";
-          console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK, ${ethers.formatEther(userLendxBalance)} LENDX) [${role}]`);
+          console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK, 1M PEPE, ${ethers.formatEther(userLendxBalance)} LENDX) [${role}]`);
         }
       } catch (error) {
-        console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK) - LENDX transfer failed: ${error.message}`);
+        console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK, 1M PEPE) - LENDX transfer failed: ${error.message}`);
       }
     } else {
-      console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK)`);
+      console.log(`✅ User ${i}: ${address.substring(0, 10)}... (10K WETH, 1M USDC, 1M DAI, 100K LINK, 1M PEPE)`);
     }
   }
 
@@ -984,6 +1002,7 @@ async function main() {
         const wethBal = await weth.balanceOf(address);
         const daiBal = await dai.balanceOf(address);
         const usdcBal = await usdc.balanceOf(address);
+        const pepeBal = await pepe.balanceOf(address);
         
         if (wethBal === 0n) {
           await weth.mint(address, ethers.parseUnits("10000", 18));
@@ -998,6 +1017,11 @@ async function main() {
         if (usdcBal === 0n) {
           await usdc.mint(address, ethers.parseUnits("1000000", 6));
           console.log(`  ✅ Minted 1,000,000 USDC to ${address}`);
+        }
+        
+        if (pepeBal === 0n) {
+          await pepe.mint(address, ethers.parseUnits("1000000", 18));
+          console.log(`  ✅ Minted 1,000,000 PEPE to ${address}`);
         }
         
         // Transfer LINK if needed
@@ -1091,6 +1115,7 @@ async function main() {
       usdc: usdcAddress,
       dai: daiAddress,
       link: linkAddress,
+      pepe: pepeAddress,
     },
     timestamp: new Date().toISOString(),
   };
@@ -1246,8 +1271,9 @@ export const WETHAddress = "${wethAddress}";
 export const DAIAddress = "${daiAddress}";
 export const USDCAddress = "${usdcAddress}";
 export const LINKAddress = "${linkAddress}";
+export const PEPEAddress = "${pepeAddress}";
 
-// 10 Demo Users (each has 10K WETH, 1M DAI, 1M USDC, 100K LINK)
+// 10 Demo Users (each has 10K WETH, 1M DAI, 1M USDC, 100K LINK, 1M PEPE)
 ${userAddresses.map((addr, i) => `export const User${i}Address = "${addr}";`).join('\n')}
 ${lendxTokenLines}${governorAddressLine}`;
 
@@ -1309,6 +1335,7 @@ ${lendxTokenLines}${governorAddressLine}`;
   console.log("  DAI:                ", daiAddress);
   console.log("  USDC:               ", usdcAddress);
   console.log("  LINK:               ", linkAddress);
+  console.log("  PEPE:               ", pepeAddress);
   
   console.log("\n💰 TOKEN BALANCES (Each of 10 test accounts):");
   console.log("─".repeat(70));
@@ -1316,6 +1343,7 @@ ${lendxTokenLines}${governorAddressLine}`;
   console.log("  • 1,000,000 DAI");
   console.log("  • 1,000,000 USDC");
   console.log("  • 100,000 LINK");
+  console.log("  • 1,000,000 PEPE");
   if (lendxTokenAddress && lendxTokenAddress !== '0x0000000000000000000000000000000000000000') {
     console.log("  • LENDX (varies by role for demo):");
     console.log("    - User 0: 100,000 LENDX (Whale/Governor)");
@@ -1337,6 +1365,7 @@ ${lendxTokenLines}${governorAddressLine}`;
   console.log("  • DAI:  Borrowable");
   console.log("  • USDC: Borrowable");
   console.log("  • LINK: Borrowable");
+  console.log("  • PEPE: Borrowable");
   console.log("  • LTV:  75% | Liquidation Threshold: 80%");
   
   console.log("\n✅ NEXT STEPS:");

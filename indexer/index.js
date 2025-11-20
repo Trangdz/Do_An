@@ -547,7 +547,8 @@ class LendHubIndexer {
               [deployment.tokens.weth?.toLowerCase()]: 'WETH',
               [deployment.tokens.usdc?.toLowerCase()]: 'USDC',
               [deployment.tokens.dai?.toLowerCase()]: 'DAI',
-              [deployment.tokens.link?.toLowerCase()]: 'LINK'
+              [deployment.tokens.link?.toLowerCase()]: 'LINK',
+              [deployment.tokens.pepe?.toLowerCase()]: 'PEPE'
             };
             knownAssets = tokenSymbols;
           }

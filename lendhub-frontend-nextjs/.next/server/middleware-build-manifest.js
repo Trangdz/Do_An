@@ -7,7 +7,10 @@ globalThis.__BUILD_MANIFEST = {
   ],
   "ampDevFiles": [],
   "lowPriorityFiles": [],
-  "rootMainFiles": [],
+  "rootMainFiles": [
+    "static/chunks/webpack.js",
+    "static/chunks/main-app.js"
+  ],
   "rootMainFilesTree": {},
   "pages": {
     "/_app": [
@@ -25,20 +28,25 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/dashboard.js"
     ],
-    "/deposit": [
+    "/governance": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/deposit.js"
-    ],
-    "/deposit/[symbol]": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/deposit/[symbol].js"
+      "static/chunks/pages/governance.js"
     ],
     "/governance/proposals/[id]": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/governance/proposals/[id].js"
+    ],
+    "/liquidations": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/liquidations.js"
+    ],
+    "/markets": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/markets.js"
     ]
   },
   "ampFirstPages": []

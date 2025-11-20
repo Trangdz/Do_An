@@ -1,11 +1,11 @@
 type = "cron"
 schemaVersion = 1
-name = "USDC/USD Price"
+name = "PEPE/USD Price"
 forwardingAllowed = false
 maxTaskDuration = "0s"
 schedule = "@every 3m"
 observationSource = """
-fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=USDCUSDT" allowUnrestrictedNetworkAccess=true]\n
+fetch    [type="http" method="GET" url="https://api.binance.com/api/v3/ticker/price?symbol=PEPEUSDT" allowUnrestrictedNetworkAccess=true]\n
 parse    [type="jsonparse" path="price" data="$(fetch)"]\n
 multiply [type="multiply" input="$(parse)" times=100000000]\n
 encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"USDC\\\", \\\"price\\\": $(multiply)}"]\n

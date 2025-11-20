@@ -50,7 +50,7 @@ export default function CreateProposalPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Available assets
-  const assets = ['WETH', 'DAI', 'USDC', 'LINK', 'USDT', 'WBTC', 'UNI'];
+  const assets = ['WETH', 'DAI', 'USDC', 'LINK', 'PEPE', 'USDT', 'WBTC', 'UNI'];
 
   // Fetch reserve data for selected asset
   const { reserveData, loading: reserveLoading } = useReserveData(selectedAsset);

@@ -58,6 +58,7 @@ export function DepositRow({ asset, provider, isConnected }: DepositRowProps) {
       'dai': '/image/dai.svg',
       'usdc': '/image/usdc.svg',
       'link': '/image/link.svg',
+      'pepe': '/image/pepe.svg',
     };
     return iconMap[symbolLower] || '/image/eth.svg'; // fallback to ETH icon
   };

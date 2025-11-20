@@ -105,7 +105,7 @@ async function main() {
 
   // Check current prices
   console.log("\n=== Current Prices in Contract ===");
-  const symbols = ["ETH", "WETH", "USDC", "DAI", "LINK"];
+  const symbols = ["ETH", "WETH", "USDC", "DAI", "LINK", "PEPE"];
   for (const symbol of symbols) {
     try {
       const [price, roundId, updatedAt] = await aggregator.getPrice(symbol);

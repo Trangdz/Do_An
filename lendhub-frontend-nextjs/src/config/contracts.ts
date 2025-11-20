@@ -4,7 +4,8 @@ import {
   WETHAddress, 
   DAIAddress, 
   USDCAddress, 
-  LINKAddress 
+  LINKAddress,
+  PEPEAddress 
 } from '../addresses.js';
 
 // Contract configuration from environment variables
@@ -67,6 +68,15 @@ export const CONFIG = {
       isBorrowable: true,
       isCollateral: false,
       aggregatorAddress: '0x5b69cB58C4A20797C6F5C1a9e1b7BE2E0d9b801D', // LINK aggregator
+    },
+    {
+      address: PEPEAddress, // Auto-imported from addresses.js
+      symbol: 'PEPE',
+      name: 'Pepe',
+      decimals: 18,
+      isBorrowable: true,
+      isCollateral: false,
+      aggregatorAddress: '0x0000000000000000000000000000000000000000', // TODO: Update with actual PEPE aggregator address
     },
   ],
 } as const;

@@ -61,6 +61,7 @@ async function main() {
     USDC: 100000000,     // $1.00
     DAI: 100000000,      // $1.00
     LINK: 1500000000,    // $15.00
+    PEPE: 1,             // $0.00000001 (approximate, update with real price from Binance)
   };
 
   console.log("\n📊 Updating prices:");

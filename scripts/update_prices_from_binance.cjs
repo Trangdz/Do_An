@@ -60,6 +60,7 @@ async function main() {
     { symbol: "USDC", binanceSymbol: "USDCUSDT" },
     { symbol: "DAI", binanceSymbol: "USDCUSDT" }, // DAI is pegged to USD, use USDC price as proxy
     { symbol: "LINK", binanceSymbol: "LINKUSDT" },
+    { symbol: "PEPE", binanceSymbol: "PEPEUSDT" },
   ];
 
   console.log("\n📊 Fetching prices from Binance API...");
@@ -67,27 +68,57 @@ async function main() {
 
   for (const feed of priceFeeds) {
     try {
-      // Fetch price from Binance
-      const response = await axios.get(
-        `https://api.binance.com/api/v3/ticker/price?symbol=${feed.binanceSymbol}`
-      );
-      const priceUSD = parseFloat(response.data.price);
+      let priceUSD = 0;
+      
+      // Special handling for PEPE - use a default price if Binance fails
+      if (feed.symbol === "PEPE") {
+        try {
+          const response = await axios.get(
+            `https://api.binance.com/api/v3/ticker/price?symbol=${feed.binanceSymbol}`
+          );
+          priceUSD = parseFloat(response.data.price);
+        } catch (pepeError) {
+          // If PEPEUSDT doesn't exist or fails, use a default price
+          // PEPE is typically around $0.000001 - $0.00001
+          priceUSD = 0.000001; // $0.000001 as default
+          console.log(`\n${feed.symbol}: Binance API failed, using default price $${priceUSD.toFixed(8)}`);
+        }
+      } else {
+        // Fetch price from Binance for other tokens
+        const response = await axios.get(
+          `https://api.binance.com/api/v3/ticker/price?symbol=${feed.binanceSymbol}`
+        );
+        priceUSD = parseFloat(response.data.price);
+      }
       
       // Convert to 8 decimals (Chainlink format)
+      // For very small prices like PEPE, we need to ensure we have enough precision
       const price8dec = Math.round(priceUSD * 1e8);
       
-      console.log(`\n${feed.symbol}: $${priceUSD.toFixed(2)} (from Binance)`);
-      console.log(`  Updating contract...`);
-      
-      const tx = await aggregator.updatePrice(feed.symbol, price8dec);
-      console.log(`  Transaction: ${tx.hash}`);
-      await tx.wait();
-      
-      // Verify the update
-      const [updatedPrice, roundId, updatedAt] = await aggregator.getPrice(feed.symbol);
-      const verifiedPrice = Number(updatedPrice) / 1e8;
-      const age = Math.floor((Date.now() - Number(updatedAt) * 1000) / 1000);
-      console.log(`  ✅ Updated: $${verifiedPrice.toFixed(2)} (Round ${roundId}, ${age}s ago)`);
+      if (price8dec === 0 && priceUSD > 0) {
+        console.log(`\n${feed.symbol}: Price too small for 8 decimals, using minimum value`);
+        // Use minimum value of 1 (0.00000001 USD)
+        const tx = await aggregator.updatePrice(feed.symbol, 1);
+        console.log(`  Transaction: ${tx.hash}`);
+        await tx.wait();
+        const [updatedPrice, roundId, updatedAt] = await aggregator.getPrice(feed.symbol);
+        const verifiedPrice = Number(updatedPrice) / 1e8;
+        const age = Math.floor((Date.now() - Number(updatedAt) * 1000) / 1000);
+        console.log(`  ✅ Updated: $${verifiedPrice.toFixed(8)} (Round ${roundId}, ${age}s ago)`);
+      } else {
+        console.log(`\n${feed.symbol}: $${priceUSD.toFixed(8)} (from Binance${feed.symbol === "PEPE" ? " or default" : ""})`);
+        console.log(`  Updating contract...`);
+        
+        const tx = await aggregator.updatePrice(feed.symbol, price8dec);
+        console.log(`  Transaction: ${tx.hash}`);
+        await tx.wait();
+        
+        // Verify the update
+        const [updatedPrice, roundId, updatedAt] = await aggregator.getPrice(feed.symbol);
+        const verifiedPrice = Number(updatedPrice) / 1e8;
+        const age = Math.floor((Date.now() - Number(updatedAt) * 1000) / 1000);
+        console.log(`  ✅ Updated: $${verifiedPrice.toFixed(8)} (Round ${roundId}, ${age}s ago)`);
+      }
     } catch (error) {
       if (error.response) {
         console.error(`  ❌ Error fetching ${feed.symbol} from Binance: ${error.response.status} ${error.response.statusText}`);

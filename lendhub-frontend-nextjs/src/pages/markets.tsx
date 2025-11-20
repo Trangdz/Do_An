@@ -21,6 +21,7 @@ function getIconPath(symbol: string): string {
     'dai': '/image/dai.svg',
     'usdc': '/image/usdc.svg',
     'link': '/image/link.svg',
+    'pepe': '/image/pepe.svg',
   };
   return iconMap[symbolLower] || '/image/eth.svg';
 }

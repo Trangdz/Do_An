@@ -8,4 +8,5 @@ export const WETHAddress: string;
 export const DAIAddress: string;
 export const USDCAddress: string;
 export const LINKAddress: string;
+export const PEPEAddress: string;
 
