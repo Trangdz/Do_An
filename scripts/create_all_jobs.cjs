@@ -24,7 +24,7 @@ const path = require("path");
     { file: "job-weth.toml", name: "WETH" },
     { file: "job-usdc.toml", name: "USDC" },
     { file: "job-dai.toml", name: "DAI" },
-    { file: "job-link.toml", name: "LINK" }
+    // { file: "job-link.toml", name: "LINK" } // DISABLED - LINK price is manually controlled via update_link_price.cjs
   ];
   
   console.log("=== Creating Jobs ===");
@@ -85,12 +85,13 @@ const JOBS = [
     url: "https://api.binance.com/api/v3/ticker/price?symbol=DAIUSDT",
     path: "price"
   },
-  {
-    symbol: "LINK",
-    name: "LINK/USD Aggregator",
-    url: "https://api.binance.com/api/v3/ticker/price?symbol=LINKUSDT",
-    path: "price"
-  }
+  // LINK is excluded - it should only be updated manually via update_link_price.cjs
+  // {
+  //   symbol: "LINK",
+  //   name: "LINK/USD Aggregator",
+  //   url: "https://api.binance.com/api/v3/ticker/price?symbol=LINKUSDT",
+  //   path: "price"
+  // }
 ];
 
 async function main() {

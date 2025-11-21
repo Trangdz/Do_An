@@ -54,12 +54,13 @@ async function main() {
   }
 
   // Price symbols and their Binance API symbols
+  // NOTE: LINK is excluded - it should only be updated manually via update_link_price.cjs
   const priceFeeds = [
     { symbol: "ETH", binanceSymbol: "ETHUSDT" },
     { symbol: "WETH", binanceSymbol: "ETHUSDT" }, // WETH uses ETH price
     { symbol: "USDC", binanceSymbol: "USDCUSDT" },
     { symbol: "DAI", binanceSymbol: "USDCUSDT" }, // DAI is pegged to USD, use USDC price as proxy
-    { symbol: "LINK", binanceSymbol: "LINKUSDT" },
+    // LINK is excluded - use update_link_price.cjs to update manually
   ];
 
   console.log("\n📊 Fetching prices from Binance API...");
@@ -111,6 +112,8 @@ async function main() {
   console.log("✅ Price update complete!");
   console.log("\n💡 Prices are now fetched from Binance API and stored in contract.");
   console.log("   Frontend will display these real-time prices.");
+  console.log("\n⚠️  NOTE: LINK price is NOT updated by this script.");
+  console.log("   To update LINK price, use: npx hardhat run scripts/update_link_price.cjs --network ganache --price <amount>");
 }
 
 main().catch((error) => {

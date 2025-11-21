@@ -54,12 +54,13 @@ async function main() {
   // Auto-update Chainlink TOML job targets to newly deployed MultiPriceAggregator
   try {
     const jobsDir = path.join(process.cwd(), "chainlink-data");
+    // NOTE: job-link.toml is EXCLUDED - LINK price should only be updated manually via update_link_price.cjs
     const jobFiles = [
       "job-eth.toml",
       "job-weth.toml",
       "job-usdc.toml",
       "job-dai.toml",
-      "job-link.toml",
+      // "job-link.toml", // DISABLED - LINK price is manually controlled via update_link_price.cjs
     ];
     for (const jf of jobFiles) {
       const p = path.join(jobsDir, jf);
@@ -506,13 +507,15 @@ async function main() {
   const slope1 = toRayPerSec(0.002);     // 0.2% slope 1
   const slope2 = toRayPerSec(0.01);      // 1% slope 2
 
+  const DEFAULT_LIQ_BONUS_BPS = 100; // 1% bonus để tránh làm HF giảm mạnh khi thanh lý
+
   // Init WETH (collateral only, not borrowable)
   await lendingPool.initReserve(
     wethAddress, 18,
     1000,  // reserveFactorBps (10%)
     7500,  // ltvBps (75%)
     8000,  // liqThresholdBps (80%)
-    500,   // liqBonusBps (5%)
+    DEFAULT_LIQ_BONUS_BPS,   // liqBonusBps (1%)
     5000,  // closeFactorBps (50%)
     false, // isBorrowable = false
     8000,  // optimalUBps (80%)
@@ -523,7 +526,7 @@ async function main() {
   // Init DAI (borrowable)
   await lendingPool.initReserve(
     daiAddress, 18,
-    1000, 7500, 8000, 500, 5000,
+    1000, 7500, 8000, DEFAULT_LIQ_BONUS_BPS, 5000,
     true, // isBorrowable = true
     8000, baseRate, slope1, slope2
   );
@@ -532,7 +535,7 @@ async function main() {
   // Init USDC (borrowable)
   await lendingPool.initReserve(
     usdcAddress, 6,
-    1000, 7500, 8000, 500, 5000,
+    1000, 7500, 8000, DEFAULT_LIQ_BONUS_BPS, 5000,
     true, // isBorrowable = true
     8000, baseRate, slope1, slope2
   );
@@ -541,7 +544,7 @@ async function main() {
   // Init LINK (borrowable)
   await lendingPool.initReserve(
     linkAddress, 18,
-    1000, 7500, 8000, 500, 5000,
+    1000, 7500, 8000, DEFAULT_LIQ_BONUS_BPS, 5000,
     true, // isBorrowable = true
     8000, baseRate, slope1, slope2
   );

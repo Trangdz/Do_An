@@ -106,3 +106,13 @@ export function isTokenCollateral(address: string): boolean {
   const token = getTokenByAddress(address);
   return token?.isCollateral || false;
 }
+
+/**
+ * Determines which price source to use for a token
+ * - ETH, WETH, DAI, USDC: Use Chainlink per-token aggregator
+ * - LINK: Use MultiPriceAggregator (can be updated via script for liquidation demo)
+ */
+export function shouldUseMultiPriceAggregator(symbol: string): boolean {
+  const useMultiPrice = ['LINK'];
+  return useMultiPrice.includes(symbol.toUpperCase());
+}

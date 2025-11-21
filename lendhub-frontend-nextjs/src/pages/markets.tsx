@@ -1,7 +1,7 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import useLendContext from '@/context/useLendContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { CONFIG } from '@/config/contracts';
+import { CONFIG, shouldUseMultiPriceAggregator } from '@/config/contracts';
 import { PriceOracleAddress, LendingPoolAddress } from '@/addresses';
 import { useRealtimePrices } from '@/hooks/useRealtimePrices';
 import { useReserveAPR } from '@/hooks/useReserveAPR';
@@ -71,28 +71,49 @@ function MarketRow({ token, poolAddress }: any) {
     10000 // Refresh every 10s to update quickly after transactions
   );
   
-  // Prefer MultiPriceAggregator if configured, otherwise fallback to per-token aggregator
+  // Price fetching logic:
+  // - LINK: Always use MultiPriceAggregator (can be updated via script)
+  // - ETH, WETH, DAI, USDC: Use original logic (MultiPriceAggregator if configured, otherwise Chainlink per-token)
+  const isLINK = token.symbol === 'LINK';
   const multiAddr = (CONFIG as any).MULTI_PRICE_AGGREGATOR || '';
+  
+  // Always call both hooks to maintain consistent hook order
+  // For LINK: use MultiPriceAggregator, for others: use if configured (original behavior)
   const { price: multiPrice, isLoading: multiLoading, error: multiError } = useMultiPriceAggregator(
-    multiAddr,
+    isLINK ? multiAddr : (multiAddr || ''), // LINK always uses, others use if configured
     token.symbol,
     60000 // Update every 1 minute (60000ms)
   );
 
-  // Only call per-token Chainlink hook when MultiPriceAggregator is not configured
-  const enablePerToken = !multiAddr;
-  const perToken = enablePerToken
-    ? useChainlinkPrice(token.aggregatorAddress || '', 30000)
-    : { price: 0, isLoading: false, error: null as any };
-  const chainlinkPrice = perToken.price;
-  const priceLoading = perToken.isLoading;
-  const priceError = perToken.error as any;
+  // For LINK: Do NOT call Chainlink hook at all (to prevent any automatic updates)
+  // For other tokens: Call Chainlink hook to maintain hook order consistency
+  const chainlinkData = isLINK 
+    ? { price: 0, isLoading: false, error: null as any } // LINK: ignore Chainlink completely
+    : useChainlinkPrice(token.aggregatorAddress || '', 30000);
   
-  // Use Chainlink price if available, otherwise fallback to 0
-  // If there's an error but it's a NoData error, still show 0 (not an error)
-  const price = multiAddr
-    ? (multiError ? 0 : (multiPrice || 0))
-    : ((priceError && !priceError.includes('NoData')) ? 0 : (chainlinkPrice || 0));
+  // Select price source:
+  // - For LINK: ALWAYS use MultiPriceAggregator ONLY (never Chainlink)
+  // - For ETH/WETH/DAI/USDC: Use original logic (MultiPriceAggregator if configured, otherwise Chainlink)
+  let price: number;
+  let priceLoading: boolean;
+  
+  if (isLINK) {
+    // LINK: ONLY use MultiPriceAggregator (completely ignore Chainlink)
+    // This ensures LINK price is ONLY controlled by update_link_price.cjs script
+    price = multiError ? 0 : (multiPrice || 0);
+    priceLoading = multiLoading;
+  } else {
+    // ETH, WETH, DAI, USDC: Original logic (MultiPriceAggregator if configured, otherwise Chainlink)
+    if (multiAddr) {
+      // If MultiPriceAggregator is configured, use it (original behavior)
+      price = multiError ? 0 : (multiPrice || 0);
+      priceLoading = multiLoading;
+    } else {
+      // If no MultiPriceAggregator, use Chainlink (original behavior)
+      price = (chainlinkData.error && !chainlinkData.error.includes('NoData')) ? 0 : (chainlinkData.price || 0);
+      priceLoading = chainlinkData.isLoading;
+    }
+  }
   
   const formatNumber = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;

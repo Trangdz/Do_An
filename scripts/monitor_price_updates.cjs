@@ -29,6 +29,7 @@ async function main() {
   console.log("Writer (Chainlink node):", writer);
   console.log("\nMonitoring for 2 minutes... (Press Ctrl+C to stop)\n");
 
+  // NOTE: LINK is monitored but should only be updated manually via update_link_price.cjs
   const symbols = ["ETH", "WETH", "USDC", "DAI", "LINK"];
   const initialPrices = {};
 

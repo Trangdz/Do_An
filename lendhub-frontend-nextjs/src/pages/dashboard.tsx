@@ -67,17 +67,17 @@ export default function DashboardPage() {
     ? rawDebtValue
     : fallbackDebtValue;
 
+  // IMPORTANT: Always use on-chain healthFactor from accountData to match liquidation page
+  // Do NOT use fallback calculation (collateralValue / debtValue) as it may use different LTV/threshold values
   const healthFactor = useMemo(() => {
     const rawHealthFactor = Number(accountData.healthFactor ?? '0');
-    const canUseRawHealth =
-      Number.isFinite(rawHealthFactor) &&
-      Number.isFinite(rawCollateralValue) && rawCollateralValue > 0 &&
-      Number.isFinite(rawDebtValue) && rawDebtValue > 0;
 
-    if (canUseRawHealth) {
+    // Always prefer on-chain healthFactor if available and valid
+    if (Number.isFinite(rawHealthFactor) && rawHealthFactor > 0 && rawHealthFactor < 1e9) {
       return rawHealthFactor;
     }
 
+    // Fallback only if on-chain data is invalid
     if (debtValue === 0) {
       return Number.POSITIVE_INFINITY;
     }
@@ -86,8 +86,11 @@ export default function DashboardPage() {
       return 0;
     }
 
-    return collateralValue / debtValue;
-  }, [accountData.healthFactor, collateralValue, debtValue, rawCollateralValue, rawDebtValue]);
+    // Last resort: calculate from collateral/debt (may differ from on-chain due to LTV vs threshold)
+    const calculatedHF = collateralValue / debtValue;
+    console.warn('[Dashboard] Using fallback HF calculation:', calculatedHF, '(on-chain HF unavailable or invalid)');
+    return calculatedHF;
+  }, [accountData.healthFactor, collateralValue, debtValue]);
 
   const isHealthy = healthFactor === Number.POSITIVE_INFINITY || healthFactor >= 1;
 
@@ -180,36 +183,36 @@ export default function DashboardPage() {
   // This is for "Assets to supply" section - show all available assets
   const allAssetsToSupply = allAssets.map((asset: any) => {
     // Find matching supply in supplyAssets (if user has supplied)
-    const supply = supplyAssets.find((s: any) => 
-      s.address && asset.address && 
-      s.address.toLowerCase() === asset.address.toLowerCase()
-    );
-    
+      const supply = supplyAssets.find((s: any) => 
+        s.address && asset.address && 
+        s.address.toLowerCase() === asset.address.toLowerCase()
+      );
+      
     // Get wallet balance (from userAssets)
-    const userBalance = parseFloat(asset.balance || '0');
-    const userBalanceUSD = parseFloat(asset.balanceUSD || '0') || (userBalance * parseFloat(asset.priceUSD || '0'));
-    
-    // Get supply balance in pool (with interest if available), default to 0
-    const supplyBalance = supply 
-      ? parseFloat(supply.supplyBalance || supply.supplyPrincipal || '0')
-      : 0;
-    
-    const supplyBalanceUSD = supply ? (supply.balanceUSD || 0) : 0;
-    
-    return {
-      address: asset.address,
-      symbol: asset.symbol || asset.name?.substring(0, 4).toUpperCase() || 'Unknown',
-      name: asset.name || asset.symbol || 'Unknown',
-      decimals: asset.decimals || 18,
-      walletBalance: userBalance,
-      walletBalanceUSD: userBalanceUSD,
-      supplyBalance: supplyBalance,
-      supplyBalanceUSD: supplyBalanceUSD,
-      price: asset.price || parseFloat(asset.priceUSD || '0'),
-      priceUSD: asset.priceUSD || '0',
-      liquidationThreshold: asset.liquidationThreshold || 8000,
-      availableLiquidity: asset.availableLiquidity || '0',
-    };
+      const userBalance = parseFloat(asset.balance || '0');
+      const userBalanceUSD = parseFloat(asset.balanceUSD || '0') || (userBalance * parseFloat(asset.priceUSD || '0'));
+      
+      // Get supply balance in pool (with interest if available), default to 0
+      const supplyBalance = supply 
+        ? parseFloat(supply.supplyBalance || supply.supplyPrincipal || '0')
+        : 0;
+      
+      const supplyBalanceUSD = supply ? (supply.balanceUSD || 0) : 0;
+      
+      return {
+        address: asset.address,
+        symbol: asset.symbol || asset.name?.substring(0, 4).toUpperCase() || 'Unknown',
+        name: asset.name || asset.symbol || 'Unknown',
+        decimals: asset.decimals || 18,
+        walletBalance: userBalance,
+        walletBalanceUSD: userBalanceUSD,
+        supplyBalance: supplyBalance,
+        supplyBalanceUSD: supplyBalanceUSD,
+        price: asset.price || parseFloat(asset.priceUSD || '0'),
+        priceUSD: asset.priceUSD || '0',
+        liquidationThreshold: asset.liquidationThreshold || 8000,
+        availableLiquidity: asset.availableLiquidity || '0',
+      };
   });
 
   // Get deposits - only assets that have been supplied AND still have balance > 0

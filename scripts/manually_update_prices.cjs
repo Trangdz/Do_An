@@ -55,12 +55,13 @@ async function main() {
 
   // Sample prices (in 8 decimals, e.g., 300000000000 = $3000.00)
   // These are approximate current prices - you can update them
+  // NOTE: LINK is excluded - it should only be updated manually via update_link_price.cjs
   const prices = {
     ETH: 300000000000,   // $3000.00 (3000 * 1e8)
     WETH: 300000000000,  // $3000.00
     USDC: 100000000,     // $1.00
     DAI: 100000000,      // $1.00
-    LINK: 1500000000,    // $15.00
+    // LINK is excluded - use update_link_price.cjs to update manually
   };
 
   console.log("\n📊 Updating prices:");
@@ -99,6 +100,8 @@ async function main() {
   console.log("✅ Price update complete!");
   console.log("\n💡 Note: These are test prices. For production, use Chainlink jobs.");
   console.log("   To check prices, run: npx hardhat run scripts/check_multi_price_aggregator.cjs --network ganache");
+  console.log("\n⚠️  NOTE: LINK price is NOT updated by this script.");
+  console.log("   To update LINK price, use: npx hardhat run scripts/update_link_price.cjs --network ganache --price <amount>");
 }
 
 main().catch((error) => {

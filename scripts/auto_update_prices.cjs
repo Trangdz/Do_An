@@ -41,12 +41,13 @@ async function updatePrices() {
   }
 
   // Price symbols and their Binance API symbols
+  // NOTE: LINK is excluded - it should only be updated manually via update_link_price.cjs
   const priceFeeds = [
     { symbol: "ETH", binanceSymbol: "ETHUSDT" },
     { symbol: "WETH", binanceSymbol: "ETHUSDT" },
     { symbol: "USDC", binanceSymbol: "USDCUSDT" },
     { symbol: "DAI", binanceSymbol: "USDCUSDT" }, // DAI uses USDC price as proxy
-    { symbol: "LINK", binanceSymbol: "LINKUSDT" },
+    // LINK is excluded - use update_link_price.cjs to update manually
   ];
 
   let successCount = 0;

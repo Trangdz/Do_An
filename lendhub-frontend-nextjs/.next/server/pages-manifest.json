@@ -2,9 +2,8 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
+  "/liquidations": "pages/liquidations.js",
+  "/markets": "pages/markets.js",
   "/dashboard": "pages/dashboard.js",
-  "/governance/proposals/[id]": "pages/governance/proposals/[id].js",
-  "/governance/proposals": "pages/governance/proposals.js",
-  "/deposit": "pages/deposit.js",
-  "/deposit/[symbol]": "pages/deposit/[symbol].js"
+  "/borrow": "pages/borrow.js"
 }

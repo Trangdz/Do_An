@@ -63,11 +63,13 @@ const computeAccountDataFallback = async (rpcProvider, wallet) => {
       
       const supplyAmount = Number(ethers.formatUnits(supplyBalance ?? 0n, 18));
       const debtAmount = Number(ethers.formatUnits(debtBalance ?? 0n, 18));
-      const liqThresholdBps = Number(reserveData?.ltvBps ?? reserveData?.liqThresholdBps ?? 0);
+      // CRITICAL: Use ltvBps (Loan-to-Value) for collateral calculation, NOT liqThresholdBps
+      // This matches the on-chain _getAccountData calculation in LendingPool.sol
+      const ltvBps = Number(reserveData?.ltvBps ?? 0);
       const useAsCollateral = Boolean(userReserve?.useAsCollateral);
       let collateralUSD = 0;
-      if (supplyAmount > 0 && useAsCollateral && liqThresholdBps > 0) {
-        const weighted = (supplyAmount * priceUSD) * (liqThresholdBps / 10000);
+      if (supplyAmount > 0 && useAsCollateral && ltvBps > 0) {
+        const weighted = (supplyAmount * priceUSD) * (ltvBps / 10000);
         if (Number.isFinite(weighted)) {
           collateralUSD = weighted;
         }
@@ -637,7 +639,8 @@ const LendState = (props) => {
         healthFactorValue = 'Infinity';
       } else {
         const hfNumber = Number(ethers.formatUnits(hf, 18));
-        healthFactorValue = Number.isFinite(hfNumber) && hfNumber < 1e9
+        // Accept any finite HF value, even if very large (just not Infinity)
+        healthFactorValue = Number.isFinite(hfNumber)
           ? hfNumber.toString()
           : 'Infinity';
       }
@@ -648,9 +651,12 @@ const LendState = (props) => {
         healthFactor: healthFactorValue
       };
 
+      // Only use fallback if on-chain data is completely empty (both collateral and debt are 0)
+      // AND healthFactor is invalid (Infinity or not finite)
+      // This ensures we always use on-chain HF when available (even if 0.39)
       const needsFallback =
-        ((collateralUSDValue === 0 && debtUSDValue === 0) ||
-        !Number.isFinite(parseFloat(healthFactorValue))) &&
+        (collateralUSDValue === 0 && debtUSDValue === 0) &&
+        (healthFactorValue === 'Infinity' || !Number.isFinite(parseFloat(healthFactorValue))) &&
         metamaskDetails.currentAccount;
 
       if (needsFallback) {
@@ -658,7 +664,11 @@ const LendState = (props) => {
         const fallbackData = await computeAccountDataFallback(rpcProvider, wallet);
         if (fallbackData) {
           accountData = fallbackData;
+          console.warn('⚠️ Using fallback HF:', fallbackData.healthFactor, '(may differ from on-chain)');
         }
+      } else {
+        // Log on-chain HF to help debug
+        console.log('✅ Using on-chain HF:', healthFactorValue, 'Collateral:', collateralUSDValue, 'Debt:', debtUSDValue);
       }
       
       console.log('📊 Account Data (formatted):', accountData);
@@ -729,7 +739,7 @@ const LendState = (props) => {
               borrowBalance = userReserve.borrow.principal;
             }
             
-            // Contract returns in 1e18, format correctly
+            // Contract returns in 1e18 (WAD), format with 18 decimals regardless of token decimals
             const supplyFormatted = ethers.formatUnits(supplyBalance, 18);
             const borrowFormatted = ethers.formatUnits(borrowBalance, 18);
             const supplyPrincipalFormatted = ethers.formatUnits(userReserve.supply.principal, 18);
@@ -742,18 +752,21 @@ const LendState = (props) => {
               isCollateral: userReserve.useAsCollateral,
             });
             
-            if (parseFloat(supplyFormatted) > 0) {
+            if (Number.parseFloat(supplyFormatted) > 0) {
               const price = await getPriceUSD(token.address);
               const balanceUSD = Number(supplyFormatted) * Number(price);
-              const collateralUSD = balanceUSD * (liqThresholdBps > 0 ? liqThresholdBps / 10000 : 0);
+              // CRITICAL: Use ltvBps (Loan-to-Value) for collateral calculation, NOT liqThresholdBps
+              // This matches the on-chain _getAccountData calculation in LendingPool.sol
+              // ltvBps is used for borrow capacity, liqThresholdBps is only for liquidation threshold
+              const collateralUSD = balanceUSD * (ltvBps > 0 ? ltvBps / 10000 : 0);
               
               console.log(`✅ Found supply for ${token.symbol}:`, {
                 principal: supplyPrincipalFormatted,
                 withInterest: supplyFormatted,
                 balanceUSD,
                 collateralUSD,
-                liqThresholdBps,
-                ltvBps
+                ltvBps, // Using LTV for collateral (matches on-chain)
+                liqThresholdBps // Only used for liquidation threshold display
               });
               
               return {
@@ -835,7 +848,7 @@ const LendState = (props) => {
               borrowBalance = userReserve.borrow.principal;
             }
             
-            // Contract returns in 1e18, format correctly
+            // Contract returns in 1e18 (WAD), format with 18 decimals
             const borrowFormatted = ethers.formatUnits(borrowBalance, 18);
             const borrowPrincipalFormatted = ethers.formatUnits(userReserve.borrow.principal, 18);
             const supplyPrincipal = ethers.formatUnits(userReserve.supply.principal, 18);
@@ -1147,6 +1160,9 @@ const LendState = (props) => {
   const contextValue = useMemo(() => ({
     // State
     metamaskDetails,
+    provider: metamaskDetails.provider,
+    signer: metamaskDetails.signer,
+    currentAccount: metamaskDetails.currentAccount,
     userAssets,
     supplyAssets,
     assetsToBorrow,

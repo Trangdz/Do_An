@@ -13,6 +13,6 @@ scale    [type="multiply" input="$(parse)" times=100000000]\n
 invert   [type="divide" input="10000000000000000" divisor="$(scale)"]\n
 # invert đã là số nguyên 8 decimals nếu đầu vào có 8 decimals
 encode   [type="ethabiencode" abi="updatePrice(string symbol, int256 price)" data="{\\\"symbol\\\": \\\"DAI\\\", \\\"price\\\": $(invert)}"]\n
-submit   [type="ethtx" to="0xF7Cf68Af058D59cDF5f606bC1bBA3a024b0eB5b4" data="$(encode)" gasLimit="500000"]\n
+submit   [type="ethtx" to="0xF3a6BEeA1E44805dcadEF7bFfd5DD5A7bF66De51" data="$(encode)" gasLimit="500000"]\n
 fetch->parse->scale->invert->encode->submit
 """
