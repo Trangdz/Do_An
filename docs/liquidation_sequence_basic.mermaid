@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant B as Borrower
+    participant LP as LendingPool
+    participant L as Liquidator
+
+    Note over B,L: 1. Thiết lập vị thế
+    B->>LP: Deposit Collateral
+    B->>LP: Borrow Assets
+    LP-->>B: HF = 1.0 (An toàn)
+
+    Note over B,L: 2. Giá thay đổi
+    LP->>LP: Giá tăng → HF < 1
+    LP-->>L: Hiển thị vị thế rủi ro
+
+    Note over B,L: 3. Liquidator thanh lý
+    L->>LP: Trả nợ thay borrower
+    LP->>LP: Tính seize với bonus
+    LP->>L: Chuyển collateral + bonus
+    LP->>B: Giảm debt & collateral
+
+    Note over B,L: 4. Kết quả
+    LP-->>B: Vị thế được cập nhật
+    LP-->>L: Nhận được lợi nhuận
+
+
+
+
+
+
+

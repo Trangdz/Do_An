@@ -1,0 +1,58 @@
+graph LR
+    subgraph "Frontend (UI)"
+        A[Trang Liquidation<br/>liquidations.tsx]
+        B[Modal Thanh Lý<br/>Chọn assets & nhập số tiền]
+        C[Validation<br/>HF, balance, allowance]
+        D[Approve Button<br/>Nếu cần]
+    end
+    
+    subgraph "Smart Contracts"
+        E[LendingPool.sol<br/>liquidationCall]
+        F[Price Oracle<br/>getAssetPrice1e18]
+        G[ERC20 Tokens<br/>USDC, LINK, etc.]
+    end
+    
+    subgraph "Dữ Liệu On-Chain"
+        H[User Reserves<br/>debt & collateral]
+        I[Reserve Data<br/>closeFactor, bonus]
+        J[Account Data<br/>HF, collateral, debt]
+    end
+    
+    A -->|Quét users| E
+    E -->|getAccountData| J
+    J -->|HF < 1| A
+    
+    A -->|Nhấn 'Thanh lý'| B
+    B -->|Chọn assets| E
+    E -->|getCurrentDebtBalance| H
+    E -->|reserves| I
+    
+    B -->|Nhập số tiền| C
+    C -->|Kiểm tra HF| E
+    C -->|Kiểm tra balance| G
+    C -->|Kiểm tra allowance| G
+    
+    C -->|Thiếu allowance| D
+    D -->|approve| G
+    
+    C -->|Đủ điều kiện| E
+    E -->|getAssetPrice| F
+    E -->|safeTransferFrom| G
+    E -->|Cập nhật| H
+    E -->|safeTransfer| G
+    
+    style A fill:#E3F2FD
+    style B fill:#FFF9C4
+    style E fill:#C8E6C9
+    style F fill:#FFE0B2
+    style G fill:#F3E5F5
+    style H fill:#E0F2F1
+    style I fill:#E0F2F1
+    style J fill:#E0F2F1
+
+
+
+
+
+
+

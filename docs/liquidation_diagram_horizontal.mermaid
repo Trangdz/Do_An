@@ -1,0 +1,25 @@
+graph LR
+    subgraph Borrower[" "]
+        A[Borrower<br/>─────<br/>Thế chấp: USDC<br/>Nợ: LINK<br/>HF < 1]
+    end
+    
+    subgraph LendingPool[" "]
+        B[LendingPool<br/>─────<br/>Smart Contract<br/>Quản lý vị thế<br/>Tính toán HF]
+    end
+    
+    subgraph Liquidator[" "]
+        C[Liquidator<br/>─────<br/>Người thanh lý<br/>Có USDC<br/>Nhận bonus]
+    end
+    
+    A -->|1. Deposit Collateral<br/>2. Borrow Assets| B
+    B -->|3. Phát hiện HF < 1| C
+    C -->|4. Trả nợ thay| B
+    B -->|5. Tịch thu Collateral<br/>+ Bonus 5%| C
+    B -->|6. Giảm Debt & Collateral| A
+
+
+
+
+
+
+

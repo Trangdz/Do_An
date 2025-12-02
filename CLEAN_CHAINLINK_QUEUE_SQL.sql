@@ -18,3 +18,9 @@ SELECT state, COUNT(*) as count FROM eth_txes GROUP BY state;
 
 
 
+
+
+
+
+
+

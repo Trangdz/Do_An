@@ -20,7 +20,12 @@
   "lib\\tx.ts -> ../hooks/useSharedAPR": {
     "id": "lib\\tx.ts -> ../hooks/useSharedAPR",
     "files": [
-      "static/chunks/_pages-dir-browser_src_hooks_useSharedAPR_ts.js"
+      "static/chunks/_pages-dir-browser_src_hooks_useSharedAPR_ts.js",
+      "static/chunks/_app-pages-browser_src_hooks_useSharedAPR_ts.js"
     ]
+  },
+  "pages\\deposit\\[symbol].tsx -> @/hooks/useSharedAPR": {
+    "id": "pages\\deposit\\[symbol].tsx -> @/hooks/useSharedAPR",
+    "files": []
   }
 }

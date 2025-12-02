@@ -1,0 +1,43 @@
+gantt
+    title Quy Trình Thanh Lý - Timeline
+    dateFormat X
+    axisFormat %s
+    
+    section Phát Hiện
+    Quét users có HF < 1           :0, 5s
+    Hiển thị danh sách             :5s, 3s
+    
+    section Cấu Hình
+    Liquidator chọn borrower       :8s, 2s
+    Chọn debt & collateral assets  :10s, 3s
+    Nhập số tiền thanh lý          :13s, 2s
+    Tính toán ước tính             :15s, 2s
+    
+    section Validation
+    Kiểm tra HF < 1                :17s, 1s
+    Kiểm tra balance                :18s, 1s
+    Kiểm tra allowance              :19s, 1s
+    
+    section Approve (nếu cần)
+    Gửi approve transaction         :20s, 3s
+    Chờ confirm                     :23s, 5s
+    
+    section Gửi Thanh Lý
+    Gửi liquidationCall             :28s, 2s
+    Contract validate               :30s, 1s
+    Transfer debt asset             :31s, 2s
+    Tính seize amount               :33s, 1s
+    Cập nhật vị thế                 :34s, 1s
+    Transfer collateral             :35s, 2s
+    Emit event                      :37s, 1s
+    
+    section Hoàn Tất
+    Transaction confirmed           :38s, 1s
+    UI cập nhật                     :39s, 1s
+
+
+
+
+
+
+

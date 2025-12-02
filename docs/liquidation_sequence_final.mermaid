@@ -1,0 +1,57 @@
+sequenceDiagram
+    participant L as Liquidator
+    participant UI as Frontend UI
+    participant BC as Blockchain<br/>(LendingPool)
+    participant IDX as Indexer<br/>(Backend)
+    participant DB as MongoDB
+
+    Note over L,DB: 1. Phát hiện vị thế rủi ro
+    L->>UI: Mở trang Liquidation
+    UI->>BC: Quét events Borrowed/Repaid
+    UI->>BC: getAccountData(user)<br/>cho mỗi user
+    BC-->>UI: (collateral, debt, HF)
+    UI->>UI: Lọc HF < 1, sắp xếp
+    UI-->>L: Hiển thị danh sách
+
+    Note over L,DB: 2. Chọn và ước tính
+    L->>UI: Chọn borrower, assets,<br/>nhập số tiền
+    UI->>BC: Lấy giá token & bonus
+    BC-->>UI: Prices, closeFactor, bonus
+    UI->>UI: Tính seize amount
+    UI-->>L: Hiển thị ước tính
+
+    Note over L,DB: 3. Kiểm tra & Approve
+    UI->>BC: Kiểm tra balance & allowance
+    alt Thiếu allowance
+        L->>UI: Nhấn Approve
+        UI->>BC: approve(LendingPool)
+        BC-->>L: Approved
+    end
+
+    Note over L,DB: 4. Gửi thanh lý
+    L->>UI: Nhấn Xác nhận
+    UI->>BC: liquidationCall(...)
+
+    Note over L,DB: 5. Contract xử lý
+    BC->>BC: Kiểm tra HF < 1
+    BC->>L: Yêu cầu transfer debt asset
+    L->>BC: transferFrom(debtAsset)
+    BC->>BC: Tính seize với bonus
+    BC->>BC: Cập nhật vị thế
+    BC->>L: transfer(collateralAsset)
+    BC->>BC: Emit event Liquidated
+
+    Note over L,DB: 6. Backend lưu (bất đồng bộ)
+    BC->>IDX: Event Liquidated
+    IDX->>DB: Lưu transaction
+
+    Note over L,DB: 7. Kết quả
+    BC-->>UI: Transaction success
+    UI-->>L: Hiển thị thành công
+
+
+
+
+
+
+

@@ -1,0 +1,91 @@
+flowchart TD
+    Start([Bắt đầu]) --> ScanUsers[Quét tất cả users có debt]
+    ScanUsers --> CalcHF[Tính Health Factor cho mỗi user]
+    CalcHF --> CheckHF{HF < 1?}
+    CheckHF -->|Không| End1([Không có vị thế rủi ro])
+    CheckHF -->|Có| ShowList[Hiển thị danh sách trong trang Liquidation]
+    
+    ShowList --> LiquidatorClick[Liquidator chọn borrower và nhấn 'Thanh lý']
+    LiquidatorClick --> OpenModal[Mở modal thanh lý]
+    
+    OpenModal --> LoadData[Load thông tin borrower:<br/>- Debt assets<br/>- Collateral assets<br/>- Close factor<br/>- Bonus BPS]
+    
+    LoadData --> SelectAssets[Liquidator chọn:<br/>- Debt Asset<br/>- Collateral Asset]
+    
+    SelectAssets --> InputAmount[Liquidator nhập Repay Amount]
+    
+    InputAmount --> CalcEstimate[Tính toán ước tính:<br/>repayUSD = repay × priceDebt<br/>seizeUSD = repayUSD × 1.05<br/>seizeTokens = seizeUSD / priceColl]
+    
+    CalcEstimate --> ValidateFrontend{Validation Frontend}
+    
+    ValidateFrontend -->|HF >= 1| Error1[Lỗi: HF đã >= 1]
+    ValidateFrontend -->|Thiếu balance| Error2[Lỗi: Không đủ token]
+    ValidateFrontend -->|Thiếu allowance| ShowApprove[Hiển thị nút Approve]
+    ValidateFrontend -->|OK| CheckApprove{Đã approve?}
+    
+    ShowApprove --> ApproveTx[Gửi ERC20.approve]
+    ApproveTx --> ApproveWait[Chờ transaction confirm]
+    ApproveWait --> CheckApprove
+    
+    CheckApprove -->|Chưa| ShowApprove
+    CheckApprove -->|Rồi| SendTx[Gửi liquidationCall transaction]
+    
+    SendTx --> ContractStart[Contract: Bắt đầu liquidationCall]
+    
+    ContractStart --> Accrue[Accrue interest cho<br/>debt và collateral assets]
+    
+    Accrue --> CheckHFContract{HF < 1?}
+    CheckHFContract -->|Không| Revert1[Revert: HF>=1]
+    CheckHFContract -->|Có| CheckDebt{Có debt?}
+    
+    CheckDebt -->|Không| Revert2[Revert: no debt]
+    CheckDebt -->|Có| ApplyCloseFactor[Áp dụng close factor:<br/>maxRepay = debt × closeFactor%]
+    
+    ApplyCloseFactor --> ClampRepay[Clamp repay amount:<br/>repay = min(requested, maxRepay)]
+    
+    ClampRepay --> TransferDebt[Liquidator transfer<br/>debt asset vào Pool]
+    
+    TransferDebt --> GetPrices[Lấy giá từ Oracle:<br/>priceDebt, priceColl]
+    
+    GetPrices --> CalcSeize[Tính seize amount:<br/>repayUSD = repay × priceDebt<br/>seizeUSD = repayUSD × 1.05<br/>seizeTokens = seizeUSD / priceColl]
+    
+    CalcSeize --> CheckCollateral{Có đủ collateral?}
+    CheckCollateral -->|Không| Revert3[Revert: insufficient collateral]
+    CheckCollateral -->|Có| CheckPoolCash{Pool có đủ cash?}
+    
+    CheckPoolCash -->|Không| Revert4[Revert: pool coll cash low]
+    CheckPoolCash -->|Có| UpdateBorrower[Cập nhật vị thế borrower:<br/>debt -= repay<br/>collateral -= seize]
+    
+    UpdateBorrower --> UpdateReserve[Cập nhật reserve:<br/>debtCash += repay<br/>debtTotal -= repay<br/>collCash -= seize]
+    
+    UpdateReserve --> TransferCollateral[Pool transfer collateral<br/>cho liquidator]
+    
+    TransferCollateral --> EmitEvent[Emit event Liquidated]
+    
+    EmitEvent --> Success([Thành công!<br/>Liquidator nhận collateral<br/>Borrower giảm debt])
+    
+    Error1 --> End2([Kết thúc])
+    Error2 --> End2
+    Revert1 --> End2
+    Revert2 --> End2
+    Revert3 --> End2
+    Revert4 --> End2
+    Success --> End2
+    
+    style Start fill:#90EE90
+    style Success fill:#90EE90
+    style Error1 fill:#FFB6C1
+    style Error2 fill:#FFB6C1
+    style Revert1 fill:#FFB6C1
+    style Revert2 fill:#FFB6C1
+    style Revert3 fill:#FFB6C1
+    style Revert4 fill:#FFB6C1
+    style End1 fill:#D3D3D3
+    style End2 fill:#D3D3D3
+
+
+
+
+
+
+

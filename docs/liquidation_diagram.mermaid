@@ -1,0 +1,19 @@
+graph TB
+    subgraph " "
+        A[Borrower<br/>Thế chấp: USDC<br/>Nợ: LINK<br/>HF < 1]
+    end
+    
+    subgraph " "
+        B[LendingPool<br/>Smart Contract<br/>Quản lý vị thế]
+    end
+    
+    subgraph " "
+        C[Liquidator<br/>Người thanh lý<br/>Có USDC]
+    end
+    
+    A -->|1. Deposit Collateral<br/>2. Borrow Assets| B
+    B -->|3. Phát hiện HF < 1<br/>Hiển thị danh sách| C
+    C -->|4. Trả nợ thay borrower| B
+    B -->|5. Tịch thu Collateral<br/>+ Bonus 5%| C
+    B -->|6. Giảm Debt & Collateral| A
+

@@ -1,0 +1,71 @@
+sequenceDiagram
+    participant L as Liquidator
+    participant UI as Frontend UI
+    participant BC as Blockchain<br/>(Smart Contract)
+    participant IDX as Indexer<br/>(Backend)
+    participant DB as MongoDB
+
+    Note over L,DB: Phase 1: Phát hiện và chọn vị thế
+    L->>UI: Mở trang 'Liquidation'
+    UI->>BC: Quét events Borrowed/Repaid<br/>từ block 0
+    UI->>BC: getAccountData(user)<br/>cho mỗi user
+    BC-->>UI: (collateral, debt, HF)
+    UI->>UI: Lọc users có HF < 1<br/>Sắp xếp theo HF thấp nhất
+    UI-->>L: Hiển thị danh sách vị thế<br/>có thể thanh lý
+
+    Note over L,DB: Phase 2: Cấu hình và ước tính
+    L->>UI: Chọn borrower, debtAsset,<br/>collateralAsset, amount
+    UI->>BC: getCurrentDebtBalance<br/>reserves (closeFactor, bonus)
+    UI->>BC: getAssetPrice1e18<br/>(debtAsset, collateralAsset)
+    BC-->>UI: Debt amount, closeFactor,<br/>bonus, prices
+    UI->>UI: Tính seize amount:<br/>repayUSD × (1 + bonus%)
+    UI-->>L: Hiển thị ước tính<br/>collateral nhận được
+
+    Note over L,DB: Phase 3: Validation
+    UI->>BC: Kiểm tra HF < 1
+    UI->>BC: Kiểm tra balance & allowance
+    alt Thiếu allowance
+        L->>UI: Nhấn Approve
+        UI->>BC: approve(LendingPool)
+        BC-->>L: Transaction confirmed
+    end
+
+    Note over L,DB: Phase 4: Gửi giao dịch thanh lý
+    L->>UI: Nhấn 'Xác nhận'
+    UI->>BC: liquidationCall(<br/>debtAsset, collateralAsset,<br/>borrower, amount)
+
+    Note over L,DB: Phase 5: Contract xử lý
+    BC->>BC: Accrue interest
+    BC->>BC: Kiểm tra HF < 1
+    BC->>BC: Áp dụng close factor
+    BC->>L: Yêu cầu transfer debt asset
+    L->>BC: transferFrom(debtAsset)
+    BC->>BC: Tính seize với bonus
+    BC->>BC: Kiểm tra đủ collateral
+    BC->>BC: Cập nhật vị thế borrower
+    BC->>BC: Cập nhật reserve
+    BC->>L: transfer(collateralAsset)
+    BC->>BC: Emit event Liquidated
+
+    Note over L,DB: Phase 6: Backend xử lý event
+    BC->>IDX: Event Liquidated emitted
+    IDX->>IDX: Parse event data
+    IDX->>DB: Lưu transaction vào MongoDB<br/>Cập nhật borrower & liquidator
+    DB-->>IDX: Saved
+
+    Note over L,DB: Phase 7: Kết quả
+    BC-->>UI: Transaction success
+    UI-->>L: Hiển thị 'Thanh lý thành công'<br/>+ transaction hash
+
+    alt Lỗi
+        BC->>BC: revert (HF >= 1 hoặc lỗi)
+        BC-->>UI: Transaction failed
+        UI-->>L: Hiển thị lỗi giao dịch
+    end
+
+
+
+
+
+
+

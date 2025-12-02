@@ -1,0 +1,29 @@
+graph LR
+    subgraph " "
+        A[Borrower<br/>Thế chấp: USDC<br/>Nợ: LINK<br/>HF < 1]
+    end
+    
+    subgraph " "
+        B[LendingPool<br/>Smart Contract<br/>Quản lý vị thế]
+    end
+    
+    subgraph " "
+        C[Liquidator<br/>Người thanh lý<br/>Có USDC]
+    end
+    
+    A -.->|Vị thế rủi ro| B
+    B -->|Hiển thị danh sách| C
+    C -->|Trả nợ thay borrower| B
+    B -->|Tịch thu collateral + bonus| C
+    B -->|Giảm debt và collateral| A
+    
+    style A fill:#fff,stroke:#333,stroke-width:2px
+    style B fill:#fff,stroke:#333,stroke-width:2px
+    style C fill:#fff,stroke:#333,stroke-width:2px
+
+
+
+
+
+
+

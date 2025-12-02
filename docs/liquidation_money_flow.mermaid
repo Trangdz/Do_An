@@ -1,0 +1,52 @@
+graph TD
+    subgraph "TRƯỚC KHI THANH LÝ"
+        A1[Borrower<br/>💰 20,000 USDC collateral<br/>💸 1,500 LINK debt @ $15<br/>📊 HF = 0.67]
+        A2[LendingPool<br/>💵 Giữ 20,000 USDC<br/>📝 Ghi nợ 1,500 LINK]
+        A3[Liquidator<br/>💰 Có 11,000 USDC<br/>⏳ Chờ cơ hội]
+    end
+    
+    subgraph "QUÁ TRÌNH THANH LÝ"
+        B1[Liquidator chuyển<br/>11,000 USDC]
+        B2[→ LendingPool]
+        B3[Pool tính toán:<br/>Repay: 11,000 USDC<br/>Bonus: 5% = 550 USD<br/>Seize: 11,550 USD<br/>= 770 LINK]
+        B4[Pool chuyển<br/>770 LINK]
+        B5[→ Liquidator]
+    end
+    
+    subgraph "SAU KHI THANH LÝ"
+        C1[Borrower<br/>💰 8,450 USDC còn lại<br/>💸 11,500 USDC debt còn lại<br/>📊 HF = 0.30<br/>❌ Mất 11,550 USD]
+        C2[LendingPool<br/>💵 Nhận 11,000 USDC<br/>📝 Giảm nợ 11,000 USDC<br/>💸 Trả 770 LINK]
+        C3[Liquidator<br/>💰 Mất 11,000 USDC<br/>💎 Nhận 770 LINK ≈ $11,550<br/>✅ Lời 550 USD]
+    end
+    
+    A1 -->|Bị thanh lý| B1
+    A2 -->|Nhận tiền| B2
+    A3 -->|Trả tiền| B1
+    
+    B1 --> B2
+    B2 --> B3
+    B3 --> B4
+    B4 --> B5
+    
+    B2 --> C2
+    B5 --> C3
+    B3 -->|Trừ collateral| C1
+    
+    style A1 fill:#FFCDD2
+    style A2 fill:#E3F2FD
+    style A3 fill:#C8E6C9
+    style C1 fill:#FFCDD2
+    style C2 fill:#E3F2FD
+    style C3 fill:#C8E6C9
+    style B1 fill:#FFF9C4
+    style B2 fill:#FFF9C4
+    style B3 fill:#FFF9C4
+    style B4 fill:#FFF9C4
+    style B5 fill:#FFF9C4
+
+
+
+
+
+
+

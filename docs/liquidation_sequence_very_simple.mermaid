@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant L as Liquidator
+    participant UI as Frontend
+    participant SC as Smart Contract
+
+    L->>UI: Mở trang
+    UI->>SC: Lấy danh sách HF < 1
+    SC-->>UI: Danh sách
+    UI-->>L: Hiển thị
+
+    L->>UI: Chọn & nhập số tiền
+    UI-->>L: Ước tính nhận được
+
+    L->>UI: Xác nhận
+    UI->>SC: Thanh lý
+    
+    SC->>L: Nhận collateral + bonus
+    SC-->>UI: Thành công
+    UI-->>L: Kết quả
+
+
+
+
+
+
+

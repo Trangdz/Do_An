@@ -1,0 +1,60 @@
+graph TB
+    subgraph "TRƯỚC KHI THANH LÝ"
+        subgraph "Borrower Position"
+            A1[Collateral: 20,000 USDC<br/>LTV 75% = 15,000 USD]
+            A2[Debt: 1,500 LINK<br/>@ $15 = 22,500 USD]
+            A3[Health Factor<br/>15,000 / 22,500 = 0.67]
+            A1 --> A3
+            A2 --> A3
+        end
+        
+        subgraph "Liquidator"
+            B1[Balance: 11,000 USDC<br/>Allowance: 0]
+        end
+        
+        subgraph "LendingPool"
+            C1[Reserve USDC: 20,000<br/>Reserve LINK: 1,500<br/>Total Debt: 22,500]
+        end
+    end
+    
+    subgraph "QUÁ TRÌNH"
+        D[Liquidator trả 11,000 USDC<br/>Pool tính seize:<br/>11,000 × 1.05 = 11,550 USD<br/>= 770 LINK]
+    end
+    
+    subgraph "SAU KHI THANH LÝ"
+        subgraph "Borrower Position"
+            E1[Collateral: 8,450 USDC<br/>LTV 75% = 6,337.5 USD]
+            E2[Debt: 11,500 USDC<br/>= 11,500 USD]
+            E3[Health Factor<br/>6,337.5 / 11,500 = 0.55]
+            E1 --> E3
+            E2 --> E3
+        end
+        
+        subgraph "Liquidator"
+            F1[Balance: 0 USDC<br/>Balance: 770 LINK<br/>≈ $11,550<br/>Lời: $550]
+        end
+        
+        subgraph "LendingPool"
+            G1[Reserve USDC: 31,000<br/>Reserve LINK: 730<br/>Total Debt: 11,500]
+        end
+    end
+    
+    A3 -->|HF < 1| D
+    B1 -->|Trả tiền| D
+    C1 -->|Xử lý| D
+    
+    D -->|Kết quả| E3
+    D -->|Nhận| F1
+    D -->|Cập nhật| G1
+    
+    style A3 fill:#FFCDD2
+    style E3 fill:#FFCDD2
+    style F1 fill:#C8E6C9
+    style D fill:#FFF9C4
+
+
+
+
+
+
+

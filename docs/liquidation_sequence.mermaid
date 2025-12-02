@@ -1,0 +1,105 @@
+sequenceDiagram
+    participant L as Liquidator
+    participant UI as Frontend UI
+    participant LP as LendingPool Contract
+    participant O as Price Oracle
+    participant DT as Debt Token (ERC20)
+    participant CT as Collateral Token (ERC20)
+    participant B as Borrower
+
+    Note over L,B: 1. Phát hiện vị thế rủi ro
+    UI->>LP: getAccountData(borrower)
+    LP-->>UI: (collateral, debt, HF)
+    UI->>UI: Check HF < 1
+    UI-->>L: Hiển thị danh sách liquidatable
+
+    Note over L,B: 2. Liquidator chọn và cấu hình
+    L->>UI: Chọn borrower, debt asset, collateral asset
+    L->>UI: Nhập repay amount
+    UI->>LP: getCurrentDebtBalance(borrower, debtAsset)
+    LP-->>UI: debtAmount
+    UI->>LP: reserves(debtAsset)
+    LP-->>UI: closeFactorBps
+    UI->>UI: Tính maxRepay = debt × closeFactor%
+    UI->>O: getAssetPrice1e18(debtAsset)
+    O-->>UI: priceDebt
+    UI->>O: getAssetPrice1e18(collateralAsset)
+    O-->>UI: priceColl
+    UI->>UI: Tính seizeUSD = repayUSD × (1 + bonus%)
+    UI->>UI: Tính seizeTokens = seizeUSD / priceColl
+    UI-->>L: Hiển thị ước tính seize amount
+
+    Note over L,B: 3. Validation và Approve
+    UI->>LP: getAccountData(borrower)
+    LP-->>UI: HF (kiểm tra < 1)
+    UI->>DT: balanceOf(liquidator)
+    DT-->>UI: balance
+    UI->>DT: allowance(liquidator, LendingPool)
+    DT-->>UI: allowance
+    
+    alt Allowance không đủ
+        UI-->>L: Hiển thị nút "Approve"
+        L->>UI: Nhấn "Approve"
+        UI->>DT: approve(LendingPool, MaxUint256)
+        DT-->>UI: Transaction hash
+        UI->>UI: Chờ confirm
+        DT-->>UI: Transaction confirmed
+    end
+
+    Note over L,B: 4. Gửi giao dịch thanh lý
+    L->>UI: Nhấn "Xác nhận"
+    UI->>LP: liquidationCall(debtAsset, collateralAsset, borrower, repayAmount)
+    
+    Note over LP: 5. Contract validation
+    LP->>LP: _accrue(debtAsset)
+    LP->>LP: _accrue(collateralAsset)
+    LP->>LP: _getAccountData(borrower)
+    LP->>LP: Check HF < 1
+    LP->>LP: _currentDebt(borrower, debtAsset)
+    LP->>LP: Apply close factor
+    LP->>LP: Clamp repay amount
+    
+    Note over LP,DT: 6. Transfer debt asset
+    LP->>DT: safeTransferFrom(liquidator, pool, repayAmount)
+    DT->>DT: Transfer tokens
+    DT-->>LP: Success
+    
+    Note over LP,O: 7. Tính toán seize
+    LP->>O: getAssetPrice1e18(debtAsset)
+    O-->>LP: priceDebt
+    LP->>O: getAssetPrice1e18(collateralAsset)
+    O-->>LP: priceColl
+    LP->>LP: Tính repayUSD = repay × priceDebt
+    LP->>LP: Tính seizeUSD = repayUSD × (1 + bonus%)
+    LP->>LP: Tính seizeTokens = seizeUSD / priceColl
+    LP->>LP: Check userCollNow >= seizeTokens
+    LP->>LP: Check poolCash >= seizeTokens
+    
+    Note over LP,B: 8. Cập nhật vị thế borrower
+    LP->>LP: debtNew = debtNow - repay
+    LP->>LP: collNew = collNow - seize
+    LP->>LP: Update userReserves[borrower]
+    
+    Note over LP: 9. Cập nhật reserve
+    LP->>LP: debtReserve.cash += repay
+    LP->>LP: debtReserve.totalDebt -= repay
+    LP->>LP: collReserve.cash -= seize
+    
+    Note over LP,CT: 10. Transfer collateral
+    LP->>CT: safeTransfer(liquidator, seizeTokens)
+    CT->>CT: Transfer tokens
+    CT-->>LP: Success
+    CT-->>L: Liquidator nhận collateral
+    
+    Note over LP: 11. Emit event
+    LP->>LP: Emit Liquidated(liquidator, borrower, ...)
+    
+    LP-->>UI: Transaction success
+    UI-->>L: Hiển thị thành công
+
+
+
+
+
+
+

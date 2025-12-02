@@ -26,20 +26,25 @@
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/borrow": [
+    "/borrow/[symbol]": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/borrow.js"
+      "static/chunks/pages/borrow/[symbol].js"
     ],
     "/dashboard": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/dashboard.js"
     ],
-    "/liquidations": [
+    "/deposit": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/liquidations.js"
+      "static/chunks/pages/deposit.js"
+    ],
+    "/deposit/[symbol]": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/deposit/[symbol].js"
     ]
   },
   "ampFirstPages": []

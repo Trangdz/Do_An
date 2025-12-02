@@ -1,0 +1,59 @@
+stateDiagram-v2
+    [*] --> Healthy: Supply collateral<br/>& Borrow
+    
+    state Healthy {
+        HF >= 1.0
+        Collateral × LTV >= Debt
+    }
+    
+    Healthy --> AtRisk: Giá collateral giảm<br/>hoặc giá debt tăng
+    
+    state AtRisk {
+        HF < 1.5 và >= 1.0
+        Cảnh báo nhưng chưa liquidatable
+    }
+    
+    AtRisk --> Liquidatable: HF < 1.0
+    
+    state Liquidatable {
+        HF < 1.0
+        Có thể bị thanh lý
+    }
+    
+    Liquidatable --> BeingLiquidated: Liquidator gọi<br/>liquidationCall
+    
+    state BeingLiquidated {
+        Đang xử lý thanh lý
+        Debt giảm
+        Collateral giảm (nhiều hơn)
+    }
+    
+    BeingLiquidated --> StillLiquidatable: Sau thanh lý<br/>HF vẫn < 1
+    
+    BeingLiquidated --> Healthy: Sau thanh lý<br/>HF >= 1<br/>(hoặc borrower tự repay)
+    
+    StillLiquidatable --> BeingLiquidated: Liquidator thanh lý tiếp
+    
+    StillLiquidatable --> Healthy: Borrower tự repay<br/>hoặc thêm collateral
+    
+    Liquidatable --> Healthy: Borrower tự repay<br/>hoặc thêm collateral
+    
+    Healthy --> [*]: Repay hết nợ<br/>& Withdraw collateral
+    
+    note right of Healthy
+        HF = (Collateral × LTV) / Debt
+        HF >= 1: An toàn
+    end note
+    
+    note right of Liquidatable
+        HF < 1: Có thể bị thanh lý
+        Liquidator trả nợ thay
+        Nhận collateral + bonus
+    end note
+
+
+
+
+
+
+

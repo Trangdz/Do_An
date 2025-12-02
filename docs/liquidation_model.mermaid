@@ -1,0 +1,14 @@
+graph LR
+    A[Liquidator] -->|1. Phát hiện| B[Frontend UI]
+    B -->|2. Chọn & cấu hình| C[LendingPool Contract]
+    C -->|3. Kiểm tra| D[Price Oracle]
+    C -->|4. Transfer| E[Token Contracts]
+    C -->|5. Cập nhật| F[User Reserves]
+    C -->|6. Transfer| A
+
+
+
+
+
+
+

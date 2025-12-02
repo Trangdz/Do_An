@@ -1,0 +1,43 @@
+graph LR
+    subgraph "Governance Module"
+        GOV[LendHubGovernor<br/>Quản trị DAO]
+        LENDX[LENDXToken<br/>Token quản trị]
+    end
+    
+    subgraph "Core Module"
+        LP[LendingPool<br/>Quản lý cho vay/vay]
+        IRM[InterestRateModel<br/>Tính lãi suất]
+    end
+    
+    subgraph "Oracle Module"
+        MPA[MultiPriceAggregator<br/>Tổng hợp giá]
+    end
+    
+    subgraph "Reward Module"
+        RA[RewardAccumulator<br/>Tính phần thưởng]
+        RD[RewardDistributor<br/>Phân phối LENDX]
+    end
+    
+    subgraph "Supporting"
+        LM[LendingMath<br/>Thư viện toán]
+        RUM[ReserveUserModels<br/>Cấu trúc dữ liệu]
+    end
+    
+    GOV -->|Bỏ phiếu| LENDX
+    GOV -->|Thực thi proposal<br/>updateLTV<br/>updateLiquidationThreshold| LP
+    LP -->|Tính lãi| IRM
+    LP -->|Lấy giá| MPA
+    LP -->|Tích lũy| RA
+    RA -->|Phân phối| RD
+    LP -.->|Sử dụng| LM
+    LP -.->|Sử dụng| RUM
+    RA -.->|Sử dụng| RUM
+    
+    style LP fill:#E3F2FD
+    style IRM fill:#FFF9C4
+    style MPA fill:#C8E6C9
+    style RA fill:#FFE0B2
+    style RD fill:#FFE0B2
+    style GOV fill:#F3E5F5
+    style LENDX fill:#F3E5F5
+

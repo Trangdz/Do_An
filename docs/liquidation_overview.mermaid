@@ -1,0 +1,23 @@
+graph TD
+    A[Borrower có HF < 1] --> B[Liquidator phát hiện]
+    B --> C[Liquidator chọn borrower]
+    C --> D[Chọn Debt Asset và Collateral Asset]
+    D --> E[Nhập số tiền muốn trả]
+    E --> F[Kiểm tra điều kiện]
+    F -->|Thiếu allowance| G[Approve token]
+    F -->|Đủ điều kiện| H[Gửi giao dịch thanh lý]
+    G --> H
+    H --> I[Contract kiểm tra HF < 1]
+    I --> J[Liquidator chuyển debt asset vào Pool]
+    J --> K[Tính seize amount với bonus]
+    K --> L[Kiểm tra đủ collateral]
+    L --> M[Cập nhật vị thế borrower]
+    M --> N[Pool chuyển collateral cho Liquidator]
+    N --> O[Hoàn tất]
+
+
+
+
+
+
+

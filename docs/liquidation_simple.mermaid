@@ -1,0 +1,62 @@
+graph TB
+    subgraph "1. Tình Huống Ban Đầu"
+        A[Borrower<br/>Thế chấp: 20,000 USDC<br/>Vay: 1,500 LINK @ $10]
+        A -->|HF = 1.0| B[Vị thế AN TOÀN]
+    end
+    
+    subgraph "2. Giá Thay Đổi"
+        C[LINK tăng giá<br/>$10 → $15]
+        B -->|Giá tăng| C
+        C -->|HF = 0.67| D[Vị thế RỦI RO<br/>HF < 1]
+    end
+    
+    subgraph "3. Liquidator Phát Hiện"
+        D --> E[Liquidator quét<br/>danh sách HF < 1]
+        E --> F[Chọn borrower<br/>và nhấn 'Thanh lý']
+    end
+    
+    subgraph "4. Cấu Hình Thanh Lý"
+        F --> G[Chọn Debt Asset: LINK<br/>Chọn Collateral: USDC<br/>Nhập số tiền: 11,000 USDC]
+        G --> H[Tính toán:<br/>Repay: 11,000 USDC<br/>Seize: 11,550 USD<br/>≈ 770 LINK]
+    end
+    
+    subgraph "5. Kiểm Tra & Approve"
+        H --> I{Có đủ USDC?}
+        I -->|Không| J[Lỗi: Thiếu balance]
+        I -->|Có| K{Đã approve?}
+        K -->|Chưa| L[Approve USDC<br/>cho LendingPool]
+        K -->|Rồi| M[Gửi giao dịch]
+        L --> M
+    end
+    
+    subgraph "6. Contract Xử Lý"
+        M --> N[Kiểm tra HF < 1<br/>Kiểm tra có debt<br/>Áp dụng close factor]
+        N --> O[Liquidator chuyển<br/>11,000 USDC vào Pool]
+        O --> P[Tính seize amount:<br/>11,000 × 1.05 = 11,550 USD]
+        P --> Q[Kiểm tra đủ collateral]
+        Q -->|Đủ| R[Cập nhật vị thế:<br/>Debt: 22,500 → 11,500<br/>Collateral: 15,000 → 3,450]
+        Q -->|Không đủ| S[Lỗi: insufficient collateral]
+    end
+    
+    subgraph "7. Kết Quả"
+        R --> T[Pool chuyển<br/>770 LINK cho Liquidator]
+        T --> U[Borrower:<br/>- Debt giảm 11,000 USDC<br/>- Mất 11,550 USD collateral<br/>- HF = 0.30]
+        U --> V[Liquidator:<br/>- Mất 11,000 USDC<br/>- Nhận 770 LINK ≈ $11,550<br/>- Lời 550 USD]
+    end
+    
+    style A fill:#E3F2FD
+    style B fill:#C8E6C9
+    style D fill:#FFCDD2
+    style M fill:#FFF9C4
+    style R fill:#C8E6C9
+    style U fill:#FFE0B2
+    style V fill:#C8E6C9
+    style J fill:#FFCDD2
+    style S fill:#FFCDD2
+
+
+
+
+
+
+

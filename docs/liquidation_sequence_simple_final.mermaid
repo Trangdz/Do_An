@@ -1,0 +1,31 @@
+sequenceDiagram
+    participant L as Liquidator
+    participant UI as Frontend
+    participant BC as Smart Contract
+    participant DB as Database
+
+    L->>UI: 1. Mở trang Liquidation
+    UI->>BC: 2. Lấy danh sách HF < 1
+    BC-->>UI: Danh sách borrowers
+    UI-->>L: 3. Hiển thị danh sách
+
+    L->>UI: 4. Chọn borrower & nhập số tiền
+    UI->>BC: 5. Lấy giá & tính seize
+    UI-->>L: 6. Hiển thị ước tính
+
+    L->>UI: 7. Nhấn Xác nhận
+    UI->>BC: 8. liquidationCall(...)
+    
+    BC->>BC: 9. Kiểm tra & xử lý
+    BC->>L: 10. Nhận collateral + bonus
+    BC->>DB: 11. Lưu event
+
+    BC-->>UI: 12. Thành công
+    UI-->>L: 13. Hiển thị kết quả
+
+
+
+
+
+
+

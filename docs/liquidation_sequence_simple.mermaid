@@ -1,0 +1,75 @@
+sequenceDiagram
+    participant B as Borrower
+    participant LP as LendingPool
+    participant UI as Frontend UI
+    participant L as Liquidator
+    participant O as Price Oracle
+    participant T as Token Contracts
+
+    Note over B,T: Bước 1-2: Thiết lập vị thế
+    B->>LP: Deposit Collateral (USDC)
+    B->>LP: Borrow Assets (LINK)
+    LP->>LP: Tính Health Factor
+    LP-->>B: Vị thế an toàn (HF = 1.0)
+
+    Note over B,T: Bước 3: Giá thay đổi, HF < 1
+    O->>LP: Giá LINK tăng
+    LP->>LP: Tính lại HF
+    LP->>UI: HF < 1 (Rủi ro)
+    UI->>UI: Hiển thị danh sách liquidatable
+    UI-->>L: Danh sách borrowers có HF < 1
+
+    Note over B,T: Bước 4: Liquidator chọn và cấu hình
+    L->>UI: Chọn borrower
+    L->>UI: Chọn Debt Asset (LINK)
+    L->>UI: Chọn Collateral Asset (USDC)
+    L->>UI: Nhập số tiền thanh lý
+    UI->>LP: Kiểm tra HF < 1
+    UI->>LP: Lấy thông tin debt & collateral
+    UI->>O: Lấy giá tokens
+    UI->>UI: Tính seize amount với bonus
+    UI-->>L: Hiển thị ước tính
+
+    Note over B,T: Bước 5: Validation & Approve
+    UI->>T: Kiểm tra balance
+    UI->>T: Kiểm tra allowance
+    alt Thiếu allowance
+        L->>UI: Nhấn Approve
+        UI->>T: approve(LendingPool)
+        T-->>L: Transaction confirmed
+    end
+
+    Note over B,T: Bước 6: Gửi giao dịch thanh lý
+    L->>UI: Nhấn Xác nhận
+    UI->>LP: liquidationCall(debtAsset, collateralAsset, borrower, amount)
+
+    Note over B,T: Bước 7: Contract xử lý
+    LP->>LP: Kiểm tra HF < 1
+    LP->>LP: Áp dụng close factor
+    LP->>L: Yêu cầu transfer debt asset
+    L->>T: transferFrom(LendingPool, amount)
+    T->>LP: Nhận debt asset
+
+    Note over B,T: Bước 8: Tính toán seize
+    LP->>O: getAssetPrice(debtAsset)
+    LP->>O: getAssetPrice(collateralAsset)
+    LP->>LP: Tính seize = repay × (1 + bonus%)
+
+    Note over B,T: Bước 9: Cập nhật vị thế
+    LP->>LP: Giảm debt của borrower
+    LP->>LP: Giảm collateral của borrower
+    LP->>LP: Cập nhật reserve
+
+    Note over B,T: Bước 10: Transfer collateral
+    LP->>T: transfer(Liquidator, seizeTokens)
+    T->>L: Nhận collateral + bonus
+    LP->>LP: Emit event Liquidated
+    LP-->>UI: Transaction success
+    UI-->>L: Hiển thị thành công
+
+
+
+
+
+
+

@@ -1,0 +1,21 @@
+graph LR
+    A[Borrower<br/>HF < 1<br/>Có nợ và thế chấp]
+    B[LendingPool<br/>Quản lý vị thế]
+    C[Liquidator<br/>Người thanh lý]
+    
+    A -->|1. Vị thế rủi ro| B
+    B -->|2. Phát hiện HF < 1| C
+    C -->|3. Trả nợ thay| B
+    B -->|4. Tịch thu collateral + bonus| C
+    B -->|5. Giảm debt và collateral| A
+    
+    style A fill:#fff
+    style B fill:#fff
+    style C fill:#fff
+
+
+
+
+
+
+

@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant L as Liquidator
+    participant UI as Frontend
+    participant SC as Smart Contract
+
+    L->>UI: 1. Mở trang Liquidation
+    UI->>SC: 2. Lấy danh sách<br/>borrowers có HF < 1
+    SC-->>UI: Danh sách
+    UI-->>L: 3. Hiển thị danh sách
+
+    L->>UI: 4. Chọn borrower<br/>Nhập số tiền
+    UI->>UI: 5. Tính toán ước tính
+    UI-->>L: 6. Hiển thị số collateral<br/>sẽ nhận được
+
+    L->>UI: 7. Nhấn Xác nhận
+    UI->>SC: 8. Gửi giao dịch thanh lý
+    
+    SC->>SC: 9. Kiểm tra điều kiện<br/>Xử lý thanh lý
+    SC->>L: 10. Chuyển collateral + bonus
+    
+    SC-->>UI: 11. Thành công
+    UI-->>L: 12. Hiển thị kết quả
+
+
+
+
+
+
+
