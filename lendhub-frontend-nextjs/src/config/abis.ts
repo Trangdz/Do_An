@@ -6,6 +6,8 @@ export const POOL_ABI = [
   'function getCurrentSupplyBalance(address user, address asset) external view returns (uint256)',
   'function getCurrentDebtBalance(address user, address asset) external view returns (uint256)',
   'function reserves(address asset) external view returns (uint128 reserveCash, uint128 totalDebtPrincipal, uint128 liquidityIndex, uint128 variableBorrowIndex, uint64 liquidityRateRayPerSec, uint64 variableBorrowRateRayPerSec, uint16 reserveFactorBps, uint16 ltvBps, uint16 liqThresholdBps, uint16 liqBonusBps, uint16 closeFactorBps, uint8 decimals, bool isBorrowable, uint16 optimalUBps, uint64 baseRateRayPerSec, uint64 slope1RayPerSec, uint64 slope2RayPerSec, uint40 lastUpdate)',
+  'function supplyCaps(address asset) external view returns (uint128)',
+  'function borrowCaps(address asset) external view returns (uint128)',
   'function userReserves(address user, address asset) external view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)',
   
   // Write functions

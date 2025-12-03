@@ -189,6 +189,12 @@ contract LendHubGovernor is ReentrancyGuard, Ownable {
      * @param proposalId The ID of the proposal to execute
      */
     function executeProposal(uint256 proposalId) external {
+        // Ensure LendingPool is configured, otherwise revert instead of silently doing nothing
+        require(
+            address(lendingPool) != address(0),
+            "LendHubGovernor: lendingPool not set"
+        );
+
         Proposal storage proposal = proposals[proposalId];
         
         require(
@@ -206,14 +212,17 @@ contract LendHubGovernor is ReentrancyGuard, Ownable {
             "LendHubGovernor: proposal already executed"
         );
         
+        // Execute actual proposal actions based on description.
+        // Nếu có lỗi (không tìm được asset, sai format tham số, reserve chưa init, v.v.)
+        // thì transaction sẽ revert và proposal vẫn ở trạng thái chưa executed.
+        _executeProposalActions(proposalId, proposal);
+
+        // Chỉ đánh dấu executed sau khi thực thi hành động thành công
         proposal.executed = true;
         proposal.state = ProposalState.Executed;
         proposal.executionTime = block.timestamp;
         
         emit ProposalExecuted(proposalId);
-        
-        // Execute actual proposal actions based on description
-        _executeProposalActions(proposalId, proposal);
     }
 
     /**
@@ -221,23 +230,80 @@ contract LendHubGovernor is ReentrancyGuard, Ownable {
      * @dev Parses description to extract parameters and calls appropriate LendingPool functions
      */
     function _executeProposalActions(uint256 proposalId, Proposal memory proposal) internal {
-        if (address(lendingPool) == address(0)) {
-            // LendingPool not set, skip execution
-            return;
+        string memory desc = proposal.description;
+        address asset = _extractAsset(desc);
+        bool handled = false;
+        
+        // 1. Change LTV
+        if (_contains(desc, "Proposed LTV")) {
+            uint16 newLTV = _extractProposedLTV(desc);
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            // newLTV là bps, LendingPool sẽ validate range
+            lendingPool.updateLTV(asset, newLTV);
+            handled = true;
+        }
+        // 2. Change Liquidation Threshold
+        else if (_contains(desc, "Proposed Threshold")) {
+            uint16 newThreshold = _extractProposedLiquidationThreshold(desc);
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            lendingPool.updateLiquidationThreshold(asset, newThreshold);
+            handled = true;
+        }
+        // 3. Change Liquidation Bonus
+        else if (_contains(desc, "Proposed Bonus")) {
+            uint16 newBonus = _extractProposedLiquidationBonus(desc);
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            lendingPool.updateLiquidationBonus(asset, newBonus);
+            handled = true;
+        }
+        // 4. Change Reserve Factor
+        else if (_contains(desc, "Proposed Reserve Factor")) {
+            uint16 newFactor = _extractProposedReserveFactor(desc);
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            lendingPool.updateReserveFactor(asset, newFactor);
+            handled = true;
+        }
+        // 5. Change Supply Cap
+        else if (_contains(desc, "Proposed Supply Cap")) {
+            uint128 newCap = _extractProposedSupplyCap(desc);
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            // newCap 1e18; 0 = unlimited vẫn hợp lệ
+            lendingPool.updateSupplyCap(asset, newCap);
+            handled = true;
+        }
+        // 6. Change Borrow Cap
+        else if (_contains(desc, "Proposed Borrow Cap")) {
+            uint128 newCap = _extractProposedBorrowCap(desc);
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            // newCap 1e18; 0 = unlimited vẫn hợp lệ
+            lendingPool.updateBorrowCap(asset, newCap);
+            handled = true;
+        }
+        // 7. Change Interest Rate Model (slope1, slope2, Uopt)
+        else if (_contains(desc, "Proposed Base Rate") || _contains(desc, "Proposed Slope") || _contains(desc, "Optimal Utilization")) {
+            (uint64 baseRate, uint64 slope1, uint64 slope2, uint16 optimalU) = _extractProposedInterestRateParams(desc);
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            require(
+                baseRate > 0 || slope1 > 0 || slope2 > 0,
+                "LendHubGovernor: no interest rate params found"
+            );
+            lendingPool.updateInterestRateModel(asset, baseRate, slope1, slope2, optimalU);
+            handled = true;
+        }
+        // 8. Pause Asset
+        else if (_contains(desc, "Pause Asset")) {
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            lendingPool.pauseAsset(asset);
+            handled = true;
+        }
+        // 9. Unpause Asset
+        else if (_contains(desc, "Unpause Asset")) {
+            require(asset != address(0), "LendHubGovernor: asset not found");
+            lendingPool.unpauseAsset(asset);
+            handled = true;
         }
 
-        string memory desc = proposal.description;
-        
-        // Check if this is a change LTV proposal
-        if (_contains(desc, "Proposed LTV")) {
-            // Extract asset and new LTV from description
-            address asset = _extractAsset(desc);
-            uint16 newLTV = _extractProposedLTV(desc);
-            
-            if (asset != address(0) && newLTV > 0) {
-                lendingPool.updateLTV(asset, newLTV);
-            }
-        }
+        require(handled, "LendHubGovernor: unsupported or invalid proposal description");
     }
 
     /**
@@ -271,23 +337,189 @@ contract LendHubGovernor is ReentrancyGuard, Ownable {
 
     /**
      * @notice Extract asset address from description
-     * @dev Looks for "Asset: WETH" or similar patterns
+     * @dev Looks for "Asset Address: 0x..." or symbol patterns
      */
     function _extractAsset(string memory desc) internal view returns (address) {
-        // Try to extract asset symbol from description
-        if (_contains(desc, "Asset: WETH") || _contains(desc, "asset: WETH")) {
-            return assetAddresses["WETH"];
+        address extracted = _extractAssetAddress(desc);
+        if (extracted != address(0)) {
+            return extracted;
         }
-        if (_contains(desc, "Asset: DAI") || _contains(desc, "asset: DAI")) {
-            return assetAddresses["DAI"];
+
+        string memory symbol = _extractAssetSymbol(desc);
+        if (bytes(symbol).length == 0) {
+            return address(0);
         }
-        if (_contains(desc, "Asset: USDC") || _contains(desc, "asset: USDC")) {
-            return assetAddresses["USDC"];
+
+        return assetAddresses[symbol];
+    }
+
+    /**
+     * @notice Extract asset symbol string from description
+     */
+    function _extractAssetSymbol(string memory desc) internal pure returns (string memory) {
+        bytes memory descBytes = bytes(desc);
+        // Support both "Asset Symbol: XXX" (preferred) and legacy "Asset: XXX"
+        bytes memory patternSymbol = bytes("Asset Symbol: ");
+        bytes memory patternSymbolLower = bytes("asset symbol: ");
+        bytes memory patternLegacy = bytes("Asset: ");
+        bytes memory patternLegacyLower = bytes("asset: ");
+
+        string memory symbol = _extractAssetSymbolWithPattern(descBytes, patternSymbol);
+        if (bytes(symbol).length == 0) {
+            symbol = _extractAssetSymbolWithPattern(descBytes, patternSymbolLower);
         }
-        if (_contains(desc, "Asset: LINK") || _contains(desc, "asset: LINK")) {
-            return assetAddresses["LINK"];
+        if (bytes(symbol).length == 0) {
+            symbol = _extractAssetSymbolWithPattern(descBytes, patternLegacy);
         }
+        if (bytes(symbol).length == 0) {
+            symbol = _extractAssetSymbolWithPattern(descBytes, patternLegacyLower);
+        }
+        return symbol;
+    }
+
+    function _extractAssetSymbolWithPattern(bytes memory descBytes, bytes memory pattern) internal pure returns (string memory) {
+        if (pattern.length == 0 || descBytes.length < pattern.length) {
+            return "";
+        }
+
+        for (uint i = 0; i <= descBytes.length - pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < pattern.length; j++) {
+                if (descBytes[i + j] != pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+
+            if (isMatch) {
+                uint start = i + pattern.length;
+                uint end = start;
+
+                while (end < descBytes.length) {
+                    bytes1 char = descBytes[end];
+                    // stop at newline or carriage return
+                    if (char == 0x0a || char == 0x0d) {
+                        break;
+                    }
+                    end++;
+                }
+
+                if (end > start) {
+                    bytes memory symbolBytes = _extractTrimmed(descBytes, start, end);
+                    for (uint k = 0; k < symbolBytes.length; k++) {
+                        bytes1 ch = symbolBytes[k];
+                        if (ch >= 0x61 && ch <= 0x7A) {
+                            symbolBytes[k] = bytes1(uint8(ch) - 32);
+                        }
+                    }
+                    return string(symbolBytes);
+                }
+            }
+        }
+
+        return "";
+    }
+
+    function _extractAssetAddress(string memory desc) internal pure returns (address) {
+        // Ưu tiên format rõ ràng: "Asset Address: 0x..."
+        return _extractAssetAddressWithPattern(desc, "Asset Address: ");
+    }
+
+    function _extractAssetAddressWithPattern(string memory desc, string memory patternStr) internal pure returns (address) {
+        bytes memory descBytes = bytes(desc);
+        bytes memory pattern = bytes(patternStr);
+
+        if (descBytes.length < pattern.length || pattern.length == 0) {
+            return address(0);
+        }
+
+        for (uint i = 0; i <= descBytes.length - pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < pattern.length; j++) {
+                if (descBytes[i + j] != pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+
+            if (isMatch) {
+                uint start = i + pattern.length;
+                uint end = start;
+                while (end < descBytes.length) {
+                    bytes1 char = descBytes[end];
+                    if (char == 0x0a || char == 0x0d) {
+                        break;
+                    }
+                    end++;
+                }
+
+                if (end > start) {
+                    bytes memory valueBytes = _extractTrimmed(descBytes, start, end);
+                    address parsed = _parseAddress(valueBytes);
+                    if (parsed != address(0)) {
+                        return parsed;
+                    }
+                }
+            }
+        }
+
         return address(0);
+    }
+
+    function _extractTrimmed(bytes memory data, uint start, uint end) internal pure returns (bytes memory) {
+        while (start < end && _isWhitespace(data[start])) {
+            start++;
+        }
+        while (end > start && _isWhitespace(data[end - 1])) {
+            end--;
+        }
+
+        bytes memory result = new bytes(end - start);
+        for (uint i = 0; i < result.length; i++) {
+            result[i] = data[start + i];
+        }
+        return result;
+    }
+
+    function _isWhitespace(bytes1 char) internal pure returns (bool) {
+        return char == 0x20 || char == 0x09;
+    }
+
+    function _parseAddress(bytes memory value) internal pure returns (address) {
+        if (value.length == 0) return address(0);
+
+        uint start = 0;
+        if (value.length >= 2 && value[0] == 0x30 && (value[1] == 0x78 || value[1] == 0x58)) {
+            start = 2;
+        }
+
+        if (value.length - start != 40) {
+            return address(0);
+        }
+
+        uint160 addr = 0;
+        for (uint i = start; i < value.length; i++) {
+            uint8 nibble = _fromHexChar(value[i]);
+            if (nibble > 15) {
+                return address(0);
+            }
+            addr = (addr << 4) | uint160(nibble);
+        }
+        return address(addr);
+    }
+
+    function _fromHexChar(bytes1 char) internal pure returns (uint8) {
+        uint8 c = uint8(char);
+        if (c >= 48 && c <= 57) {
+            return c - 48;
+        }
+        if (c >= 65 && c <= 70) {
+            return c - 55;
+        }
+        if (c >= 97 && c <= 102) {
+            return c - 87;
+        }
+        return 255;
     }
 
     /**
@@ -328,6 +560,357 @@ contract LendHubGovernor is ReentrancyGuard, Ownable {
         }
         
         return 0;
+    }
+
+    /**
+     * @notice Extract proposed liquidation threshold from description
+     * @dev Looks for "Proposed Threshold (%): 85" pattern
+     */
+    function _extractProposedLiquidationThreshold(string memory desc) internal pure returns (uint16) {
+        bytes memory descBytes = bytes(desc);
+        bytes memory pattern = bytes("Proposed Threshold (%): ");
+        
+        for (uint i = 0; i <= descBytes.length - pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < pattern.length; j++) {
+                if (descBytes[i + j] != pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            
+            if (isMatch) {
+                uint start = i + pattern.length;
+                uint end = start;
+                while (end < descBytes.length && (descBytes[end] >= 0x30 && descBytes[end] <= 0x39 || descBytes[end] == 0x2E)) {
+                    end++;
+                }
+                
+                if (end > start) {
+                    uint num = 0;
+                    uint decimals = 0;
+                    bool foundDot = false;
+                    for (uint k = start; k < end; k++) {
+                        if (descBytes[k] == 0x2E) {
+                            foundDot = true;
+                        } else {
+                            num = num * 10 + (uint8(descBytes[k]) - 48);
+                            if (foundDot) decimals++;
+                        }
+                    }
+                    return uint16(num * 100 / (10 ** decimals));
+                }
+            }
+        }
+        
+        return 0;
+    }
+
+    /**
+     * @notice Extract proposed liquidation bonus from description
+     * @dev Looks for "Proposed Bonus (%): 7" pattern
+     */
+    function _extractProposedLiquidationBonus(string memory desc) internal pure returns (uint16) {
+        bytes memory descBytes = bytes(desc);
+        bytes memory pattern = bytes("Proposed Bonus (%): ");
+        
+        for (uint i = 0; i <= descBytes.length - pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < pattern.length; j++) {
+                if (descBytes[i + j] != pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            
+            if (isMatch) {
+                uint start = i + pattern.length;
+                uint end = start;
+                while (end < descBytes.length && (descBytes[end] >= 0x30 && descBytes[end] <= 0x39 || descBytes[end] == 0x2E)) {
+                    end++;
+                }
+                
+                if (end > start) {
+                    uint num = 0;
+                    uint decimals = 0;
+                    bool foundDot = false;
+                    for (uint k = start; k < end; k++) {
+                        if (descBytes[k] == 0x2E) {
+                            foundDot = true;
+                        } else {
+                            num = num * 10 + (uint8(descBytes[k]) - 48);
+                            if (foundDot) decimals++;
+                        }
+                    }
+                    return uint16(num * 100 / (10 ** decimals));
+                }
+            }
+        }
+        
+        return 0;
+    }
+
+    /**
+     * @notice Extract proposed reserve factor from description
+     * @dev Looks for "Proposed Reserve Factor (%): 12" pattern
+     */
+    function _extractProposedReserveFactor(string memory desc) internal pure returns (uint16) {
+        bytes memory descBytes = bytes(desc);
+        bytes memory pattern = bytes("Proposed Reserve Factor (%): ");
+        
+        for (uint i = 0; i <= descBytes.length - pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < pattern.length; j++) {
+                if (descBytes[i + j] != pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            
+            if (isMatch) {
+                uint start = i + pattern.length;
+                uint end = start;
+                while (end < descBytes.length && (descBytes[end] >= 0x30 && descBytes[end] <= 0x39 || descBytes[end] == 0x2E)) {
+                    end++;
+                }
+                
+                if (end > start) {
+                    uint num = 0;
+                    uint decimals = 0;
+                    bool foundDot = false;
+                    for (uint k = start; k < end; k++) {
+                        if (descBytes[k] == 0x2E) {
+                            foundDot = true;
+                        } else {
+                            num = num * 10 + (uint8(descBytes[k]) - 48);
+                            if (foundDot) decimals++;
+                        }
+                    }
+                    return uint16(num * 100 / (10 ** decimals));
+                }
+            }
+        }
+        
+        return 0;
+    }
+
+    /**
+     * @notice Extract proposed supply cap from description
+     * @dev Looks for "Proposed Supply Cap: 100000000" pattern
+     */
+    function _extractProposedSupplyCap(string memory desc) internal pure returns (uint128) {
+        bytes memory descBytes = bytes(desc);
+        bytes memory pattern = bytes("Proposed Supply Cap: ");
+        
+        for (uint i = 0; i <= descBytes.length - pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < pattern.length; j++) {
+                if (descBytes[i + j] != pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            
+            if (isMatch) {
+                uint start = i + pattern.length;
+                uint end = start;
+                while (end < descBytes.length && descBytes[end] >= 0x30 && descBytes[end] <= 0x39) {
+                    end++;
+                }
+                
+                if (end > start) {
+                    uint num = 0;
+                    for (uint k = start; k < end; k++) {
+                        num = num * 10 + (uint8(descBytes[k]) - 48);
+                    }
+                    return uint128(num * 1e18); // Convert to 1e18 format
+                }
+            }
+        }
+        
+        return 0;
+    }
+
+    /**
+     * @notice Extract proposed borrow cap from description
+     * @dev Looks for "Proposed Borrow Cap: 50000000" pattern
+     */
+    function _extractProposedBorrowCap(string memory desc) internal pure returns (uint128) {
+        bytes memory descBytes = bytes(desc);
+        bytes memory pattern = bytes("Proposed Borrow Cap: ");
+        
+        for (uint i = 0; i <= descBytes.length - pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < pattern.length; j++) {
+                if (descBytes[i + j] != pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            
+            if (isMatch) {
+                uint start = i + pattern.length;
+                uint end = start;
+                while (end < descBytes.length && descBytes[end] >= 0x30 && descBytes[end] <= 0x39) {
+                    end++;
+                }
+                
+                if (end > start) {
+                    uint num = 0;
+                    for (uint k = start; k < end; k++) {
+                        num = num * 10 + (uint8(descBytes[k]) - 48);
+                    }
+                    return uint128(num * 1e18); // Convert to 1e18 format
+                }
+            }
+        }
+        
+        return 0;
+    }
+
+    /**
+     * @notice Extract proposed interest rate model parameters from description
+     * @dev Looks for "Proposed Base Rate (APR %): 2", "Proposed Slope 1 (APR %): 5", etc.
+     * @return baseRate Base rate in RAY per second
+     * @return slope1 Slope 1 in RAY per second
+     * @return slope2 Slope 2 in RAY per second
+     * @return optimalU Optimal utilization in basis points
+     */
+    function _extractProposedInterestRateParams(string memory desc) internal pure returns (uint64 baseRate, uint64 slope1, uint64 slope2, uint16 optimalU) {
+        bytes memory descBytes = bytes(desc);
+        
+        // Extract Base Rate (APR % -> RAY per second)
+        bytes memory baseRatePattern = bytes("Proposed Base Rate (APR %): ");
+        for (uint i = 0; i <= descBytes.length - baseRatePattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < baseRatePattern.length; j++) {
+                if (descBytes[i + j] != baseRatePattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (isMatch) {
+                uint start = i + baseRatePattern.length;
+                uint end = start;
+                while (end < descBytes.length && (descBytes[end] >= 0x30 && descBytes[end] <= 0x39 || descBytes[end] == 0x2E)) {
+                    end++;
+                }
+                if (end > start) {
+                    uint num = 0;
+                    uint decimals = 0;
+                    bool foundDot = false;
+                    for (uint k = start; k < end; k++) {
+                        if (descBytes[k] == 0x2E) {
+                            foundDot = true;
+                        } else {
+                            num = num * 10 + (uint8(descBytes[k]) - 48);
+                            if (foundDot) decimals++;
+                        }
+                    }
+                    // Convert APR % to RAY per second: apr * 1e27 / (100 * 31536000)
+                    baseRate = uint64((num * 1e27) / (100 * 31536000 * (10 ** decimals)));
+                }
+            }
+        }
+
+        // Extract Slope 1
+        bytes memory slope1Pattern = bytes("Proposed Slope 1 (APR %): ");
+        for (uint i = 0; i <= descBytes.length - slope1Pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < slope1Pattern.length; j++) {
+                if (descBytes[i + j] != slope1Pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (isMatch) {
+                uint start = i + slope1Pattern.length;
+                uint end = start;
+                while (end < descBytes.length && (descBytes[end] >= 0x30 && descBytes[end] <= 0x39 || descBytes[end] == 0x2E)) {
+                    end++;
+                }
+                if (end > start) {
+                    uint num = 0;
+                    uint decimals = 0;
+                    bool foundDot = false;
+                    for (uint k = start; k < end; k++) {
+                        if (descBytes[k] == 0x2E) {
+                            foundDot = true;
+                        } else {
+                            num = num * 10 + (uint8(descBytes[k]) - 48);
+                            if (foundDot) decimals++;
+                        }
+                    }
+                    slope1 = uint64((num * 1e27) / (100 * 31536000 * (10 ** decimals)));
+                }
+            }
+        }
+
+        // Extract Slope 2
+        bytes memory slope2Pattern = bytes("Proposed Slope 2 (APR %): ");
+        for (uint i = 0; i <= descBytes.length - slope2Pattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < slope2Pattern.length; j++) {
+                if (descBytes[i + j] != slope2Pattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (isMatch) {
+                uint start = i + slope2Pattern.length;
+                uint end = start;
+                while (end < descBytes.length && (descBytes[end] >= 0x30 && descBytes[end] <= 0x39 || descBytes[end] == 0x2E)) {
+                    end++;
+                }
+                if (end > start) {
+                    uint num = 0;
+                    uint decimals = 0;
+                    bool foundDot = false;
+                    for (uint k = start; k < end; k++) {
+                        if (descBytes[k] == 0x2E) {
+                            foundDot = true;
+                        } else {
+                            num = num * 10 + (uint8(descBytes[k]) - 48);
+                            if (foundDot) decimals++;
+                        }
+                    }
+                    slope2 = uint64((num * 1e27) / (100 * 31536000 * (10 ** decimals)));
+                }
+            }
+        }
+
+        // Extract Optimal Utilization
+        bytes memory optimalPattern = bytes("Optimal Utilization (%): ");
+        for (uint i = 0; i <= descBytes.length - optimalPattern.length; i++) {
+            bool isMatch = true;
+            for (uint j = 0; j < optimalPattern.length; j++) {
+                if (descBytes[i + j] != optimalPattern[j]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (isMatch) {
+                uint start = i + optimalPattern.length;
+                uint end = start;
+                while (end < descBytes.length && descBytes[end] >= 0x30 && descBytes[end] <= 0x39) {
+                    end++;
+                }
+                if (end > start) {
+                    uint num = 0;
+                    for (uint k = start; k < end; k++) {
+                        num = num * 10 + (uint8(descBytes[k]) - 48);
+                    }
+                    optimalU = uint16(num * 100);
+                }
+            }
+        }
+        
+        // Default optimal utilization to 80% if not found
+        if (optimalU == 0) {
+            optimalU = 8000; // 80%
+        }
+        
+        return (baseRate, slope1, slope2, optimalU);
     }
     
     /**

@@ -40,7 +40,16 @@ contract LendingPool is ReentrancyGuard, Pausable {
     mapping(address => ReserveUserModels.ReserveData) public reserves;
 
     // user => asset => UserReserveData
- mapping(address => mapping(address => ReserveUserModels.UserReserveData)) public userReserves;
+    mapping(address => mapping(address => ReserveUserModels.UserReserveData)) public userReserves;
+    
+    // Supply and borrow caps (0 = unlimited)
+    // - supplyCaps[asset]: max total supplied liquidity (cash + outstanding debt) in 1e18
+    // - borrowCaps[asset]: max total outstanding debt for this asset in 1e18
+    mapping(address => uint128) public supplyCaps;
+    mapping(address => uint128) public borrowCaps;
+    
+    // Paused assets
+    mapping(address => bool) public pausedAssets;
 
     InterestRateModel public immutable interestRateModel;
     IPriceOracle public immutable oracle;
@@ -278,6 +287,19 @@ function _currentDebt(address user, address asset) internal view returns (uint25
     return LendingMath.valueByIndex(u.borrow.principal, r.variableBorrowIndex, u.borrow.index); // 1e18
 }
 
+/**
+ * @notice Safe get asset price - returns 0 if price not available instead of reverting
+ * @param asset The asset address
+ * @return price Price in 1e18 format, or 0 if not available
+ */
+function _safeGetPrice(address asset) internal view returns (uint256 price) {
+    try oracle.getAssetPrice1e18(asset) returns (uint256 p) {
+        return p;
+    } catch {
+        return 0; // Return 0 if price not available
+    }
+}
+
 function _getAccountData(address user) internal view returns (
     uint256 collateralValue1e18,
     uint256 debtValue1e18,
@@ -292,9 +314,9 @@ function _getAccountData(address user) internal view returns (
         // Skip if reserve not initialized
         if (r.lastUpdate == 0) continue;
         
-        // Get asset price
-        uint256 price = oracle.getAssetPrice1e18(asset);
-        if (price == 0) continue; // Skip if price not available
+        // Get asset price - skip if price not available
+        uint256 price = _safeGetPrice(asset);
+        if (price == 0) continue; // Skip if price is zero or not available
         
         // Calculate collateral value (weighted by LTV)
         // ONLY if user has enabled this asset as collateral
@@ -349,7 +371,8 @@ function _maxWithdrawAllowed(address user, address asset) internal view returns 
     }
     
     // Get current supply balance and price
-    uint256 price = oracle.getAssetPrice1e18(asset);
+    uint256 price = _safeGetPrice(asset);
+    if (price == 0) return supply; // If price not available, allow full withdraw
     uint256 supplyValueUSD = (supply * price) / 1e18;
     
     ReserveUserModels.ReserveData storage r = reserves[asset];
@@ -398,7 +421,8 @@ function canWithdrawCollateral(address user, address asset, uint256 amount /* as
     // Current weighted collateral of this asset
     uint256 supply = _currentSupply(user, asset);
     if (amt1e18 > supply) return (false, 0);
-    uint256 price = oracle.getAssetPrice1e18(asset);
+    uint256 price = _safeGetPrice(asset);
+    if (price == 0) return (true, type(uint256).max); // If price not available, allow
     uint256 beforeWeighted = ((supply * price) / 1e18) * uint256(r.ltvBps) / 10000;
     uint256 afterWeighted = (((supply - amt1e18) * price) / 1e18) * uint256(r.ltvBps) / 10000;
     uint256 collAfter = totalColl - beforeWeighted + afterWeighted;
@@ -414,7 +438,8 @@ function canDisableCollateral(address user, address asset) external view returns
 
     ReserveUserModels.ReserveData storage r = reserves[asset];
     uint256 supply = _currentSupply(user, asset);
-    uint256 price = oracle.getAssetPrice1e18(asset);
+    uint256 price = _safeGetPrice(asset);
+    if (price == 0) return (true, type(uint256).max); // If price not available, allow
     uint256 weighted = ((supply * price) / 1e18) * uint256(r.ltvBps) / 10000;
     uint256 collAfter = totalColl > weighted ? totalColl - weighted : 0;
     if (collAfter == 0) return (false, 0);
@@ -425,6 +450,7 @@ function canDisableCollateral(address user, address asset) external view returns
 
 
 function lend(address asset, uint256 amount) external {
+    require(!pausedAssets[asset], "Asset is paused");
     if (amount == 0) revert InvalidAmount();
     _requireInited(asset);
 
@@ -450,10 +476,17 @@ function lend(address asset, uint256 amount) external {
     // Do NOT auto-enable collateral on supply.
     // Collateral must be toggled explicitly by user via setUserUseReserveAsCollateral.
 
-    // 4) Cập nhật sổ cái
+    // 4) Check supply cap
+    if (supplyCaps[asset] > 0) {
+        uint256 totalSupplyBefore = uint256(r.reserveCash) + uint256(r.totalDebtPrincipal);
+        uint256 totalSupplyAfter = totalSupplyBefore + delta1e18;
+        require(totalSupplyAfter <= supplyCaps[asset], "Supply cap exceeded");
+    }
+
+    // 5) Cập nhật sổ cái
     r.reserveCash = uint128(uint256(r.reserveCash) + delta1e18);
 
-    // 5) Accrue lại để tính rates mới sau khi utilization thay đổi
+    // 6) Accrue lại để tính rates mới sau khi utilization thay đổi
     // (reserveCash đã thay đổi nên utilization và rates cần được tính lại)
     _accrue(asset);
 
@@ -472,6 +505,7 @@ function lend(address asset, uint256 amount) external {
 
 
 function withdraw(address asset, uint256 requested) external returns (uint256 amount1e18) {
+    require(!pausedAssets[asset], "Asset is paused");
     _requireInited(asset);
     _accrue(asset);
 
@@ -525,6 +559,7 @@ function withdraw(address asset, uint256 requested) external returns (uint256 am
 }
 
 function borrow(address asset, uint256 amount) external nonReentrant whenNotPaused {
+    require(!pausedAssets[asset], "Asset is paused");
     if (amount == 0) revert InvalidAmount();
     _requireInited(asset);
     
@@ -564,6 +599,13 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
         require(hasCollateral, "No collateral enabled");
     }
     
+    // Check borrow cap (total outstanding debt)
+    if (borrowCaps[asset] > 0) {
+        uint256 currentTotalDebt = uint256(r.totalDebtPrincipal);
+        uint256 newTotalDebt = currentTotalDebt + borrowAmount1e18;
+        require(newTotalDebt <= borrowCaps[asset], "Borrow cap exceeded");
+    }
+    
     // Check liquidity
     require(r.reserveCash >= borrowAmount1e18, "Insufficient liquidity");
     
@@ -593,6 +635,7 @@ function borrow(address asset, uint256 amount) external nonReentrant whenNotPaus
 }
 
 function repay(address asset, uint256 amount, address onBehalfOf) external nonReentrant whenNotPaused returns (uint256) {
+    require(!pausedAssets[asset], "Asset is paused");
     _requireInited(asset);
     _accrue(asset);
     
@@ -786,7 +829,113 @@ function initReserve(
         require(newLiqThresholdBps <= 10000, "Liquidation threshold cannot exceed 100%");
         ReserveUserModels.ReserveData storage r = reserves[asset];
         require(r.lastUpdate > 0, "Reserve not initialized");
+        require(newLiqThresholdBps > r.ltvBps, "Threshold must be > LTV");
         r.liqThresholdBps = newLiqThresholdBps;
+    }
+
+    /**
+     * @notice Update liquidation bonus for an asset (only owner/governor)
+     * @param asset The asset address
+     * @param newLiqBonusBps The new liquidation bonus in basis points
+     */
+    function updateLiquidationBonus(address asset, uint16 newLiqBonusBps) external onlyOwnerOrGovernor {
+        require(newLiqBonusBps <= 2000, "Liquidation bonus cannot exceed 20%");
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        r.liqBonusBps = newLiqBonusBps;
+    }
+
+    /**
+     * @notice Update reserve factor for an asset (only owner/governor)
+     * @param asset The asset address
+     * @param newReserveFactorBps The new reserve factor in basis points
+     */
+    function updateReserveFactor(address asset, uint16 newReserveFactorBps) external onlyOwnerOrGovernor {
+        require(newReserveFactorBps <= 10000, "Reserve factor cannot exceed 100%");
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        r.reserveFactorBps = newReserveFactorBps;
+    }
+
+    /**
+     * @notice Update supply cap for an asset (only owner/governor)
+     * @param asset The asset address
+     * @param newSupplyCap The new supply cap (in 1e18 format, 0 = unlimited)
+     */
+    function updateSupplyCap(address asset, uint128 newSupplyCap) external onlyOwnerOrGovernor {
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        supplyCaps[asset] = newSupplyCap;
+    }
+
+    /**
+     * @notice Update borrow cap for an asset (only owner/governor)
+     * @dev Cap applies to the total outstanding debt of the reserve (in 1e18)
+     * @param asset The asset address
+     * @param newBorrowCap The new total borrow cap (in 1e18 format, 0 = unlimited)
+     */
+    function updateBorrowCap(address asset, uint128 newBorrowCap) external onlyOwnerOrGovernor {
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        borrowCaps[asset] = newBorrowCap;
+    }
+
+    /**
+     * @notice Update interest rate model parameters for an asset (only owner/governor)
+     * @param asset The asset address
+     * @param baseRate Base rate in RAY per second
+     * @param slope1 Slope 1 in RAY per second
+     * @param slope2 Slope 2 in RAY per second
+     * @param optimalU Optimal utilization in basis points
+     */
+    function updateInterestRateModel(
+        address asset,
+        uint64 baseRate,
+        uint64 slope1,
+        uint64 slope2,
+        uint16 optimalU
+    ) external onlyOwnerOrGovernor {
+        require(baseRate < slope1, "Base rate must be < Slope 1");
+        require(slope1 < slope2, "Slope 1 must be < Slope 2");
+        require(optimalU <= 10000, "Optimal utilization cannot exceed 100%");
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        
+        r.baseRateRayPerSec = baseRate;
+        r.slope1RayPerSec = slope1;
+        r.slope2RayPerSec = slope2;
+        r.optimalUBps = optimalU;
+    }
+
+    /**
+     * @notice Pause an asset (only owner/governor)
+     * @param asset The asset address to pause
+     */
+    function pauseAsset(address asset) external onlyOwnerOrGovernor {
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        require(!pausedAssets[asset], "Asset already paused");
+        pausedAssets[asset] = true;
+    }
+
+    /**
+     * @notice Unpause an asset (only owner/governor)
+     * @param asset The asset address to unpause
+     */
+    function unpauseAsset(address asset) external onlyOwnerOrGovernor {
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        require(r.lastUpdate > 0, "Reserve not initialized");
+        require(pausedAssets[asset], "Asset not paused");
+        pausedAssets[asset] = false;
+    }
+
+    /**
+     * @notice Check if an asset is paused
+     * @param asset The asset address
+     * @return True if asset is paused
+     */
+    function isAssetPaused(address asset) external view returns (bool) {
+        return pausedAssets[asset];
     }
 
     function setReserveBorrowable(address asset, bool isBorrowable) external onlyOwner {
@@ -881,6 +1030,8 @@ function liquidationCall(
     address user,
     uint256 repayRequested // in debtAsset's native decimals
 ) external nonReentrant whenNotPaused {
+    require(!pausedAssets[debtAsset], "Debt asset is paused");
+    require(!pausedAssets[collateralAsset], "Collateral asset is paused");
     // 0) Accrue cả hai asset để số liệu mới nhất
     _requireInited(debtAsset);
     _requireInited(collateralAsset);
@@ -1034,7 +1185,8 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
             
             if (uData.useAsCollateral && uData.supply.principal > 0) {
                 uint256 supply = _currentSupply(user, assetAddr);
-                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                uint256 price = _safeGetPrice(assetAddr);
+                if (price == 0) continue; // Skip if price not available
                 uint256 collateralValue = (supply * price * rData.ltvBps) / (1e18 * 10000);
                 totalCollateral += collateralValue;
             }
@@ -1047,7 +1199,8 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
             
             if (uData.borrow.principal > 0) {
                 uint256 userDebt = _currentDebt(user, assetAddr);
-                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                uint256 price = _safeGetPrice(assetAddr);
+                if (price == 0) continue; // Skip if price not available
                 totalDebt += (userDebt * price) / 1e18;
             }
         }
@@ -1061,8 +1214,8 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
         uint256 availableCollateral = totalCollateral - totalDebt;
         
         // Get price of asset to borrow
-        uint256 borrowAssetPrice = oracle.getAssetPrice1e18(asset);
-        if (borrowAssetPrice == 0) return 0;
+        uint256 borrowAssetPrice = _safeGetPrice(asset);
+        if (borrowAssetPrice == 0) return 0; // If price not available, cannot calculate borrow amount
         
         // Check if asset is borrowable
         ReserveUserModels.ReserveData storage borrowAssetData = reserves[asset];
@@ -1096,7 +1249,8 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
             
             if (uData.useAsCollateral && uData.supply.principal > 0) {
                 uint256 supply = _currentSupply(user, assetAddr);
-                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                uint256 price = _safeGetPrice(assetAddr);
+                if (price == 0) continue; // Skip if price not available
                 uint256 collateralValue = (supply * price * rData.ltvBps) / (1e18 * 10000);
                 totalCollateral += collateralValue;
             }
@@ -1109,7 +1263,8 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
             
             if (uData.borrow.principal > 0) {
                 uint256 userDebt = _currentDebt(user, assetAddr);
-                uint256 price = oracle.getAssetPrice1e18(assetAddr);
+                uint256 price = _safeGetPrice(assetAddr);
+                if (price == 0) continue; // Skip if price not available
                 totalDebt += (userDebt * price) / 1e18;
             }
         }
@@ -1160,7 +1315,13 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
                 (uint256 collateralBefore, uint256 debt, ) = _getAccountData(msg.sender);
                 
                 // Calculate collateral without this asset
-                uint256 price = oracle.getAssetPrice1e18(asset);
+                uint256 price = _safeGetPrice(asset);
+                if (price == 0) {
+                    // If price not available, allow disabling (can't calculate impact)
+                    u.useAsCollateral = false;
+                    emit CollateralDisabled(msg.sender, asset);
+                    continue;
+                }
                 uint256 supplyValueUSD = (supply * price) / 1e18;
                 uint256 weightedCollateral = (supplyValueUSD * uint256(r.ltvBps)) / 10000;
                 uint256 collateralAfter = collateralBefore - weightedCollateral;
@@ -1193,7 +1354,8 @@ event CollateralSet(address indexed user, address indexed asset, bool useAsColla
         if (!u.useAsCollateral) return 0;
         
         uint256 supply = _currentSupply(user, asset);
-        uint256 price = oracle.getAssetPrice1e18(asset);
+        uint256 price = _safeGetPrice(asset);
+        if (price == 0) return 0; // If price not available, return 0 risk
         uint256 assetCollValue = (supply * price * r.ltvBps) / (1e18 * 10000);
         
         // Calculate collateral without this asset

@@ -3,15 +3,15 @@
 // Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
-export const LendingPoolAddress = "0x874B0a415C4aFabF348FB635471fdEaC9254aE69";
-export const InterestRateModelAddress = "0x323390D81641a0aF4504aBeCD795e87AbAA34083";
-export const PriceOracleAddress = "0x54d23d14Cc284bA22DBFdD6a98Ac36291D389962"; // MultiPriceAggregator serves as PriceOracle
-export const PricemultiAddr = "0x54d23d14Cc284bA22DBFdD6a98Ac36291D389962";
+export const LendingPoolAddress = "0x49002A79850916B5972FCaE55a02690A4c6814c1";
+export const InterestRateModelAddress = "0xe5eb90B2390FF6a2B92A56A31c1154f2A83AD231";
+export const PriceOracleAddress = "0x8746387E0f46244C6020aB83597dB8ae46aC7b70"; // MultiPriceAggregator serves as PriceOracle
+export const PricemultiAddr = "0x8746387E0f46244C6020aB83597dB8ae46aC7b70";
 export const LendingHelperAddress = "0x0000000000000000000000000000000000000000";
-export const WETHAddress = "0x99fb6f7cCB28D01E58a3CC27777C7f5946D9983f";
-export const DAIAddress = "0x6296fE8a4aFf808A9750147339721928c8F9F522";
-export const USDCAddress = "0x4BE5f211a32FBeDDE57d75C374ECf73A60DD1A46";
-export const LINKAddress = "0xFAc8b2b84Fe9Ad6BC46A766Eec9f1951e7D7a33F";
+export const WETHAddress = "0x96C35C1977EFD153D3fadfeE03BCccC963Cc9598";
+export const DAIAddress = "0x0cc334a1e5ce0a78EF7864407EEE1ca29F37F33C";
+export const USDCAddress = "0x4C13840D9BbA1Ba5805044054fFBf176B2939909";
+export const LINKAddress = "0xF3962bf7a13b5e57a718CAeb7fE981990d1cc1Af";
 
 // 10 Demo Users (each has 10K WETH, 1M DAI, 1M USDC, 100K LINK)
 export const User0Address = "0x3A716b4DeeA7dcdAAdd42b90BaA30E0A7B2fd412";
@@ -29,4 +29,4 @@ export const RewardDistributorAddress = "0xA48BDbf65d0A2800f16e493CAb80e8444B982
 export const RewardAccumulatorAddress = "0x1998202895712d6d16477D04D41A030F1d19A5B9";
 export const AAVERewardDistributorAddress = "0x033BbD947F7AcB690D5d96dfa56090782B190D5f";
 
-export const GovernorAddress = "0xa6C2C5C2370c54A32C40f0E07aA4b3836efA274e";
+export const GovernorAddress = "0xee1C05e1f6726107CC9Fa328551c4aA2CC1E1e99";

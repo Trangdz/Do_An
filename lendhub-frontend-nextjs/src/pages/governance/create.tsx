@@ -11,22 +11,19 @@ import { ProposalType, ProposalParameter } from '@/types/governance';
 import { useGovernance } from '@/hooks/useGovernance';
 import useLendContext from '@/context/useLendContext';
 import { useReserveData } from '@/hooks/useReserveData';
+// @ts-ignore - addresses.js is a JS file with runtime addresses
+const addresses = require('@/addresses');
 
 type ProposalActionType = 
-  | 'add_asset'
-  | 'remove_asset'
   | 'change_ltv'
   | 'change_liquidation_threshold'
   | 'change_liquidation_bonus'
   | 'change_supply_cap'
   | 'change_borrow_cap'
-  | 'change_interest_rate'
-  | 'change_base_rate_params'
   | 'change_reserve_factor'
+  | 'change_interest_rate'
   | 'pause_asset'
-  | 'unpause_asset'
-  | 'emergency_pause'
-  | 'custom';
+  | 'unpause_asset';
 
 export default function CreateProposalPage() {
   const router = useRouter();
@@ -52,6 +49,13 @@ export default function CreateProposalPage() {
   // Available assets
   const assets = ['WETH', 'DAI', 'USDC', 'LINK', 'USDT', 'WBTC', 'UNI'];
 
+  const assetAddressMap: Record<string, string | undefined> = {
+    WETH: addresses.WETHAddress,
+    DAI: addresses.DAIAddress,
+    USDC: addresses.USDCAddress,
+    LINK: addresses.LINKAddress,
+  };
+
   // Fetch reserve data for selected asset
   const { reserveData, loading: reserveLoading } = useReserveData(selectedAsset);
 
@@ -61,21 +65,10 @@ export default function CreateProposalPage() {
     const currentThreshold = reserveData ? (reserveData.liqThresholdBps / 100).toFixed(2) : '80';
     const currentBonus = reserveData ? (reserveData.liqBonusBps / 100).toFixed(2) : '5';
     const currentReserveFactor = reserveData ? (reserveData.reserveFactorBps / 100).toFixed(2) : '10';
+    const currentSupplyCap = reserveData?.supplyCap ?? '30000000';
+    const currentBorrowCap = reserveData?.borrowCap ?? '24000000';
 
     switch (type) {
-      case 'add_asset':
-        setParameters([
-          { name: 'Asset Address', value: '' },
-          { name: 'LTV', value: '75' },
-          { name: 'Liquidation Threshold', value: '80' },
-          { name: 'Liquidation Bonus', value: '5' },
-          { name: 'Supply Cap', value: '10000000' },
-          { name: 'Borrow Cap', value: '7500000' },
-        ]);
-        break;
-      case 'remove_asset':
-        setParameters([]); // Asset is selected above, no need to show in parameters
-        break;
       case 'change_ltv':
         setParameters([
           { name: 'Current LTV (%)', value: currentLTV, disabled: true },
@@ -96,28 +89,21 @@ export default function CreateProposalPage() {
         break;
       case 'change_supply_cap':
         setParameters([
-          { name: 'Current Supply Cap', value: '30000000' },
-          { name: 'Proposed Supply Cap', value: '50000000' },
+          { name: 'Current Supply Cap', value: currentSupplyCap, disabled: true },
+          { name: 'Proposed Supply Cap', value: currentSupplyCap },
         ]);
         break;
       case 'change_borrow_cap':
         setParameters([
-          { name: 'Current Borrow Cap', value: '24000000' },
-          { name: 'Proposed Borrow Cap', value: '40000000' },
+          { name: 'Current Borrow Cap', value: currentBorrowCap, disabled: true },
+          { name: 'Proposed Borrow Cap', value: currentBorrowCap },
         ]);
         break;
       case 'change_interest_rate':
-        setParameters([
-          { name: 'Base Rate (%)', value: '2' },
-          { name: 'Optimal Utilization (%)', value: '80' },
-          { name: 'Slope 1 (%)', value: '5' },
-          { name: 'Slope 2 (%)', value: '100' },
-        ]);
-        break;
-      case 'change_base_rate_params':
-        const currentBaseRate = reserveData ? (Number(reserveData.baseRateRayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '0';
-        const currentSlope1 = reserveData ? (Number(reserveData.slope1RayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '0';
-        const currentSlope2 = reserveData ? (Number(reserveData.slope2RayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '0';
+        const currentBaseRate = reserveData ? (Number(reserveData.baseRateRayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '2';
+        const currentSlope1 = reserveData ? (Number(reserveData.slope1RayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '5';
+        const currentSlope2 = reserveData ? (Number(reserveData.slope2RayPerSec) / 1e27 * 31536000 * 100).toFixed(4) : '100';
+        const currentOptimalU = reserveData ? (Number(reserveData.optimalUBps) / 100).toFixed(0) : '80';
         setParameters([
           { name: 'Current Base Rate (APR %)', value: currentBaseRate, disabled: true },
           { name: 'Proposed Base Rate (APR %)', value: currentBaseRate },
@@ -125,6 +111,8 @@ export default function CreateProposalPage() {
           { name: 'Proposed Slope 1 (APR %)', value: currentSlope1 },
           { name: 'Current Slope 2 (APR %)', value: currentSlope2, disabled: true },
           { name: 'Proposed Slope 2 (APR %)', value: currentSlope2 },
+          { name: 'Current Optimal Utilization (%)', value: currentOptimalU, disabled: true },
+          { name: 'Optimal Utilization (%)', value: currentOptimalU },
         ]);
         break;
       case 'change_reserve_factor':
@@ -137,11 +125,6 @@ export default function CreateProposalPage() {
       case 'unpause_asset':
         setParameters([]); // Asset is selected above, no need to show in parameters
         break;
-      case 'emergency_pause':
-        setParameters([
-          { name: 'Action', value: 'Pause all protocol operations' },
-        ]);
-        break;
       default:
         setParameters([]);
     }
@@ -149,7 +132,18 @@ export default function CreateProposalPage() {
 
   // Update parameters when reserve data or proposal type changes
   useEffect(() => {
-    if (proposalType && (proposalType === 'change_ltv' || proposalType === 'change_liquidation_threshold' || proposalType === 'change_liquidation_bonus' || proposalType === 'change_reserve_factor')) {
+    if (
+      proposalType &&
+      (
+        proposalType === 'change_ltv' ||
+        proposalType === 'change_liquidation_threshold' ||
+        proposalType === 'change_liquidation_bonus' ||
+        proposalType === 'change_reserve_factor' ||
+        proposalType === 'change_interest_rate' ||
+        proposalType === 'change_supply_cap' ||
+        proposalType === 'change_borrow_cap'
+      )
+    ) {
       updateParametersForType(proposalType, reserveData);
     }
   }, [reserveData, selectedAsset, proposalType]);
@@ -198,21 +192,68 @@ export default function CreateProposalPage() {
     try {
       // Build parameters array - include selected asset if applicable
       const finalParameters: ProposalParameter[] = [];
+      const assetAddress = assetAddressMap[selectedAsset];
       
-      // Add asset parameter if not add_asset or emergency_pause
-      if (proposalType !== 'add_asset' && proposalType !== 'emergency_pause' && proposalType !== 'custom') {
-        finalParameters.push({ name: 'Asset', value: selectedAsset });
+      // Add asset parameter lines
+      if (assetAddress) {
+        // Rõ ràng: 1 dòng cho address, 1 dòng cho symbol
+        finalParameters.push({ name: 'Asset Address', value: assetAddress });
+        finalParameters.push({ name: 'Asset Symbol', value: selectedAsset });
+      } else {
+        // Fallback: chỉ có symbol
+        finalParameters.push({ name: 'Asset Symbol', value: selectedAsset });
+      }
+      
+      // Add proposal type indicator to description for pause/unpause
+      let finalDescription = description;
+      if (proposalType === 'pause_asset') {
+        finalDescription = description + '\n\nPause Asset';
+      } else if (proposalType === 'unpause_asset') {
+        finalDescription = description + '\n\nUnpause Asset';
       }
       
       // Add other parameters
       finalParameters.push(...parameters.filter(p => p.value.trim() !== ''));
 
-      // Format parameters into description if needed
-      const parametersText = finalParameters.length > 0
-        ? `\n\nParameters:\n${finalParameters.map(p => `- ${p.name}: ${p.value}`).join('\n')}`
-        : '';
+      // Format parameters into description in a format that contract can parse
+      let parametersText = '';
+      if (finalParameters.length > 0) {
+        // Format for contract parsing
+        const paramLines = finalParameters.map(p => {
+          // Format for contract parsing - exact format matching contract expectations
+          if (p.name === 'Proposed LTV (%)') {
+            return `Proposed LTV (%): ${p.value}`;
+          } else if (p.name === 'Proposed Threshold (%)') {
+            return `Proposed Threshold (%): ${p.value}`;
+          } else if (p.name === 'Proposed Bonus (%)') {
+            return `Proposed Bonus (%): ${p.value}`;
+          } else if (p.name === 'Proposed Reserve Factor (%)') {
+            return `Proposed Reserve Factor (%): ${p.value}`;
+          } else if (p.name === 'Proposed Supply Cap') {
+            return `Proposed Supply Cap: ${p.value}`;
+          } else if (p.name === 'Proposed Borrow Cap') {
+            return `Proposed Borrow Cap: ${p.value}`;
+          } else if (p.name === 'Proposed Base Rate (APR %)') {
+            return `Proposed Base Rate (APR %): ${p.value}`;
+          } else if (p.name === 'Proposed Slope 1 (APR %)') {
+            return `Proposed Slope 1 (APR %): ${p.value}`;
+          } else if (p.name === 'Proposed Slope 2 (APR %)') {
+            return `Proposed Slope 2 (APR %): ${p.value}`;
+          } else if (p.name === 'Optimal Utilization (%)' || p.name.includes('Optimal Utilization')) {
+            return `Optimal Utilization (%): ${p.value}`;
+          } else if (p.name === 'Asset Address') {
+            return `Asset Address: ${p.value}`;
+          } else if (p.name === 'Asset Symbol') {
+            return `Asset Symbol: ${p.value}`;
+          } else if (p.name === 'Asset Symbol') {
+            return `Asset Symbol: ${p.value}`;
+          }
+          return `${p.name}: ${p.value}`;
+        });
+        parametersText = '\n\n' + paramLines.join('\n');
+      }
 
-      const fullDescription = description + parametersText;
+      const fullDescription = finalDescription + parametersText;
       const ipfsHash = `Qm${Math.random().toString(36).substring(7)}...`; // Placeholder for IPFS
 
       // Create proposal on-chain
@@ -324,20 +365,6 @@ export default function CreateProposalPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <ProposalTypeButton
-                type="add_asset"
-                label="Add New Asset"
-                description="Add a new asset as collateral"
-                selected={proposalType === 'add_asset'}
-                onClick={() => handleProposalTypeChange('add_asset')}
-              />
-              <ProposalTypeButton
-                type="remove_asset"
-                label="Remove Asset"
-                description="Remove an asset from the protocol"
-                selected={proposalType === 'remove_asset'}
-                onClick={() => handleProposalTypeChange('remove_asset')}
-              />
-              <ProposalTypeButton
                 type="change_ltv"
                 label="Change LTV"
                 description="Modify Loan-to-Value ratio"
@@ -373,25 +400,18 @@ export default function CreateProposalPage() {
                 onClick={() => handleProposalTypeChange('change_borrow_cap')}
               />
               <ProposalTypeButton
-                type="change_interest_rate"
-                label="Change Interest Rate Model"
-                description="Modify interest rate parameters"
-                selected={proposalType === 'change_interest_rate'}
-                onClick={() => handleProposalTypeChange('change_interest_rate')}
-              />
-              <ProposalTypeButton
-                type="change_base_rate_params"
-                label="Change Base Rate Parameters"
-                description="Modify base rate, slope1, and slope2"
-                selected={proposalType === 'change_base_rate_params'}
-                onClick={() => handleProposalTypeChange('change_base_rate_params')}
-              />
-              <ProposalTypeButton
                 type="change_reserve_factor"
                 label="Change Reserve Factor"
                 description="Modify protocol reserve factor"
                 selected={proposalType === 'change_reserve_factor'}
                 onClick={() => handleProposalTypeChange('change_reserve_factor')}
+              />
+              <ProposalTypeButton
+                type="change_interest_rate"
+                label="Change Interest Rate Model"
+                description="Modify slope1, slope2, and optimal utilization"
+                selected={proposalType === 'change_interest_rate'}
+                onClick={() => handleProposalTypeChange('change_interest_rate')}
               />
               <ProposalTypeButton
                 type="pause_asset"
@@ -407,25 +427,17 @@ export default function CreateProposalPage() {
                 selected={proposalType === 'unpause_asset'}
                 onClick={() => handleProposalTypeChange('unpause_asset')}
               />
-              <ProposalTypeButton
-                type="emergency_pause"
-                label="Emergency Pause"
-                description="Pause all protocol operations"
-                selected={proposalType === 'emergency_pause'}
-                onClick={() => handleProposalTypeChange('emergency_pause')}
-              />
             </div>
           </CardContent>
         </Card>
 
-        {/* Asset Selection (if needed) */}
-        {(proposalType !== 'add_asset' && proposalType !== 'emergency_pause' && proposalType !== 'custom') && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Select Asset</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <select
+        {/* Asset Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Asset</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <select
                 value={selectedAsset}
                 onChange={(e) => {
                   setSelectedAsset(e.target.value);
@@ -442,7 +454,6 @@ export default function CreateProposalPage() {
               )}
             </CardContent>
           </Card>
-        )}
 
         {/* Parameters */}
         {parameters.length > 0 && (

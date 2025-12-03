@@ -183,18 +183,33 @@ export function BorrowModal({
 
     try {
       const amountBN = parseTokenAmount(amount, token.decimals);
-      
+
+      // Tạo callback để hiển thị toast trực tiếp từ tx service
+      const toastCallback = (toast: { type: 'success' | 'error' | 'pending'; title: string; message: string; hash?: string }) => {
+        showToast({
+          type: toast.type,
+          title: toast.title,
+          message: toast.message,
+          hash: toast.hash,
+        });
+      };
+
       // Use transaction service
-      const result = await borrow(signer, token.address, amountBN);
-      
-      // Show success toast
+      const result = await borrow(signer, token.address, amountBN, toastCallback);
+
+      // Nếu result === null: borrow() đã fail và đã show toast; không đóng modal
+      if (!result) {
+        return;
+      }
+
+      // Show success toast (phần lớn đã được hiển thị trong sendWithToast, nhưng giữ lại để chắc chắn)
       showToast({
         type: 'success',
         title: 'Borrow Successful!',
         message: `Successfully borrowed ${amount} ${token.symbol}`,
-        hash: result.hash
+        hash: result.hash,
       });
-      
+
       // Reset form and close
       setAmount('');
       onSuccess?.();

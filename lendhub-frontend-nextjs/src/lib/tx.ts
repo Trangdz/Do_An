@@ -160,7 +160,7 @@ export async function lend(
   tokenAddress: string,
   amount: bigint,
   toastCallback?: ToastCallback
-): Promise<TxResult> {
+): Promise<TxResult | null> {
   const provider = signer.provider as ethers.Provider;
   if (!provider) throw new Error('No provider');
 
@@ -353,6 +353,12 @@ export async function lend(
       }
     }
     
+    // Handle specific known reverts (more user-friendly)
+    if (errorMsg.includes('Asset is paused')) {
+      errorMsg =
+        'Tài sản này hiện đang bị tạm dừng (paused). Bạn không thể supply trong lúc asset bị khoá. Vui lòng chọn tài sản khác hoặc đợi admin mở lại.';
+    }
+
     // Check for overflow errors specifically
     if (errorMsg.includes('OVERFLOW') || errorMsg.includes('overflow') || errorMsg.includes('Panic')) {
       // For overflow, provide detailed analysis
@@ -391,7 +397,12 @@ export async function lend(
     }
     
     // For "unknown custom error" or generic revert, try to provide more context
-    if (errorMsg.includes('unknown custom error') || errorMsg.includes('execution reverted') || errorMsg === 'Supply failed') {
+    if (
+      !errorMsg.includes('Tài sản này hiện đang bị tạm dừng') &&
+      (errorMsg.includes('unknown custom error') ||
+        errorMsg.includes('execution reverted') ||
+        errorMsg === 'Supply failed')
+    ) {
       // Try to get more information from reserve data
       try {
         if (!reserveData) {
@@ -445,8 +456,18 @@ export async function lend(
       } : 'not available',
       extractedErrorMsg: errorMsg
     });
-    
-    throw new Error(errorMsg);
+
+    // Show toast directly (nếu có) và KHÔNG ném lỗi để tránh Runtime Error overlay
+    if (toastCallback) {
+      toastCallback({
+        type: 'error',
+        title: 'Supply Failed',
+        message: errorMsg
+      });
+    }
+
+    // Trả về null để caller biết là đã fail (và error đã hiển thị cho user)
+    return null;
   }
 
   // Send lend transaction
@@ -657,8 +678,9 @@ export async function withdrawMax(
 export async function borrow(
   signer: ethers.Signer,
   tokenAddress: string,
-  amount: bigint
-): Promise<TxResult> {
+  amount: bigint,
+  toastCallback?: ToastCallback
+): Promise<TxResult | null> {
   // Block invalid asset: native ETH cannot be borrowed
   if (!tokenAddress || tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase()) {
     throw new Error('Cannot borrow native ETH. Select an ERC20 asset (e.g., DAI).');
@@ -689,9 +711,33 @@ export async function borrow(
   try {
     await poolContract.getFunction("borrow").staticCall(tokenAddress, amount);
   } catch (err: any) {
-    // Map and surface the reason clearly
-    const msg = String(err?.reason || err?.shortMessage || err?.message || 'Borrow failed');
-    throw new Error(msg);
+    // Map and surface the reason clearly, but don't throw raw errors to UI
+    const raw = String(err?.reason || err?.shortMessage || err?.message || 'Borrow failed');
+
+    let friendly = raw;
+    if (raw.includes('Borrow cap exceeded')) {
+      friendly = 'Vượt quá giới hạn vay (Borrow Cap) cho tài sản này. Hãy giảm số lượng vay hoặc chờ admin tăng cap thông qua governance.';
+    } else if (raw.includes('Health factor too low') || raw.toLowerCase().includes('health factor')) {
+      friendly = 'Health factor quá thấp sau khi vay. Hãy giảm số lượng vay hoặc supply thêm tài sản thế chấp.';
+    } else if (raw.includes('Insufficient liquidity')) {
+      friendly = 'Thanh khoản trong pool không đủ cho số lượng bạn muốn vay. Hãy thử số nhỏ hơn hoặc chọn tài sản khác.';
+    } else if (raw.toLowerCase().includes('no collateral') || raw.toLowerCase().includes('no collateral provided')) {
+      friendly = 'Bạn chưa có tài sản thế chấp đủ hoặc chưa bật tài sản làm collateral. Hãy supply và bật collateral trước khi vay.';
+    }
+
+    console.error('❌ Borrow staticCall failed:', { raw, friendly, err });
+
+    // Hiển thị toast thân thiện nếu có callback
+    if (toastCallback) {
+      toastCallback({
+        type: 'error',
+        title: 'Borrow Failed',
+        message: friendly,
+      });
+    }
+
+    // Trả về null – UI sẽ không crash
+    return null;
   }
 
   // Enhanced validation before borrowing
@@ -768,15 +814,37 @@ export async function borrow(
   
   const txPromise = poolContract.borrow(tokenAddress, amount, overrides);
 
-  return await sendWithToast(txPromise, {
-    pending: 'Borrowing tokens...',
-    success: 'Tokens borrowed successfully!',
-    error: 'Borrow failed'
-  }).catch((e) => {
+  try {
+    return await sendWithToast(txPromise, {
+      pending: 'Borrowing tokens...',
+      success: 'Tokens borrowed successfully!',
+      error: 'Borrow failed'
+    }, toastCallback);
+  } catch (e: any) {
     const raw = (e?.shortMessage || e?.message || '').toString();
-    // Surface revert reason if present from provider
-    throw new Error(raw.replace(/\n.*/, ''));
-  });
+    let friendly = raw.replace(/\n.*/, '');
+
+    if (friendly.includes('Borrow cap exceeded')) {
+      friendly = 'Vượt quá giới hạn vay (Borrow Cap) cho tài sản này. Hãy giảm số lượng vay hoặc chờ admin tăng cap thông qua governance.';
+    } else if (friendly.includes('Health factor too low') || friendly.toLowerCase().includes('health factor')) {
+      friendly = 'Health factor quá thấp sau khi vay. Hãy giảm số lượng vay hoặc supply thêm tài sản thế chấp.';
+    } else if (friendly.includes('Insufficient liquidity')) {
+      friendly = 'Thanh khoản trong pool không đủ cho số lượng bạn muốn vay. Hãy thử số nhỏ hơn hoặc chọn tài sản khác.';
+    }
+
+    console.error('❌ Borrow tx failed:', { raw, friendly });
+
+    if (toastCallback) {
+      toastCallback({
+        type: 'error',
+        title: 'Borrow Failed',
+        message: friendly,
+      });
+    }
+
+    // Không ném Error để tránh Runtime Error; trả null để UI handle thân thiện
+    return null;
+  }
 }
 
 /**

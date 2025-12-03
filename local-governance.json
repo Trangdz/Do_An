@@ -1,9 +1,9 @@
 {
   "network": "ganache",
-  "deployer": "0x8Db50A18C4f5EcC9caba8962C29f23F775402155",
+  "deployer": "0x3A716b4DeeA7dcdAAdd42b90BaA30E0A7B2fd412",
   "contracts": {
-    "governor": "0x736AaE225C34D922B27fa2AE89F700850DA5DCF6",
-    "lendxToken": "0x1Ff150e33dEe880Dc799d94f7854F7D33c6413a3"
+    "governor": "0xee1C05e1f6726107CC9Fa328551c4aA2CC1E1e99",
+    "lendxToken": "0x33498Cf14c4F9c079a673E99d1A43D6A0EFe6B8f"
   },
-  "timestamp": "2025-11-16T07:15:22.350Z"
+  "timestamp": "2025-12-03T10:22:57.748Z"
 }

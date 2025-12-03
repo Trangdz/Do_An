@@ -326,15 +326,20 @@ export function LendModal({
       // Use transaction service with toast callback
       // This will handle both approval and supply toasts automatically
       const result = await lend(signer, token.address, amountBN, toastCallback);
-      
+
+      // Nếu result === null: lend() đã hiển thị toast lỗi thân thiện, không đóng modal
+      if (!result) {
+        return;
+      }
+
       // Note: Success toast is already shown by sendWithToast via toastCallback
       // Only show final success toast if it wasn't already shown
       console.log('✅ Supply transaction completed:', result.hash);
-      
-      // Reset form and close
+
+      // Reset form và đóng modal
       setAmount('');
       onClose();
-      
+
       // Call onSuccess to trigger refresh
       setTimeout(() => {
         console.log("🔄 Refreshing data after supply...");
