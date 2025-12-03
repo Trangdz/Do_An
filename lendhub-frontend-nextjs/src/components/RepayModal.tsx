@@ -60,6 +60,14 @@ export function RepayModal({
 
   const handleAmountChange = (value: string) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      // If value has decimal point, check and truncate to token decimals
+      if (value.includes('.')) {
+        const parts = value.split('.');
+        if (parts[1] && parts[1].length > token.decimals) {
+          // Truncate to token decimals
+          value = parts[0] + '.' + parts[1].substring(0, token.decimals);
+        }
+      }
       setAmount(value);
     }
   };
@@ -81,25 +89,23 @@ export function RepayModal({
 
       // Check if this is "Repay All" mode
       if (amount === 'REPAY_ALL') {
-        console.log('🔄 REPAY ALL MODE: Calculating exact debt including interest...');
+        console.log('🔄 REPAY ALL MODE: Getting exact current debt including interest...');
         
         // Get the lending pool contract
         const poolContract = new ethers.Contract(
           poolAddress,
           [
-            'function userReserves(address user, address asset) external view returns (tuple(uint128 principal, uint128 index) supply, tuple(uint128 principal, uint128 index) borrow, bool useAsCollateral)'
+            'function getCurrentDebtBalance(address user, address asset) external view returns (uint256)'
           ],
           provider
         );
 
-        // Get user reserves - principal is already in 1e18 precision
-        const userReserve = await poolContract.userReserves(userAddress, token.address);
-        const principalRaw1e18 = userReserve.borrow.principal;
+        // Get current debt balance INCLUDING interest (returns in 1e18 format)
+        const currentDebt1e18 = await poolContract.getCurrentDebtBalance(userAddress, token.address);
         
-        console.log('📊 Borrow Principal (1e18):', principalRaw1e18.toString());
-        console.log('📊 As decimal:', ethers.formatUnits(principalRaw1e18, 18));
+        console.log('📊 Current Debt (1e18, includes interest):', currentDebt1e18.toString());
 
-        if (principalRaw1e18 === BigInt(0)) {
+        if (currentDebt1e18 === BigInt(0)) {
           showToast({
             type: 'info',
             title: 'No Debt',
@@ -113,24 +119,20 @@ export function RepayModal({
         const conversionFactor = BigInt(10 ** (18 - token.decimals));
         
         // Round UP division to ensure we don't lose precision
-        let debtInTokenDecimals = principalRaw1e18 / conversionFactor;
-        const remainder = principalRaw1e18 % conversionFactor;
+        let debtInTokenDecimals = currentDebt1e18 / conversionFactor;
+        const remainder = currentDebt1e18 % conversionFactor;
         if (remainder > BigInt(0)) {
           debtInTokenDecimals += BigInt(1); // Round up if there's any remainder
         }
-        
-        console.log('💰 Principal in', token.symbol, '(rounded up):', ethers.formatUnits(debtInTokenDecimals, token.decimals));
 
         // For very small debts, ensure minimum repay amount
         const minRepayAmount = BigInt(100); // Minimum 100 wei (0.0001 USDC for 6 decimals)
         if (debtInTokenDecimals < minRepayAmount) {
-          console.log('⚠️ Debt too small, using minimum repay:', ethers.formatUnits(minRepayAmount, token.decimals), token.symbol);
           debtInTokenDecimals = minRepayAmount;
         }
 
-        // Add 20% buffer to handle interest accrual during transaction
-        const withBuffer = (debtInTokenDecimals * BigInt(120)) / BigInt(100);
-        console.log('📈 With 20% buffer:', ethers.formatUnits(withBuffer, token.decimals), token.symbol);
+        // Add 5% buffer to handle interest accrual during transaction (reduced from 20% since we're using current debt)
+        const withBuffer = (debtInTokenDecimals * BigInt(105)) / BigInt(100);
 
         // Check user balance
         const tokenContract = new ethers.Contract(
@@ -139,18 +141,30 @@ export function RepayModal({
           provider
         );
         const userBalance = await tokenContract.balanceOf(userAddress);
-        console.log('👛 User balance:', ethers.formatUnits(userBalance, token.decimals), token.symbol);
         
         // Cap to user balance if needed
         if (withBuffer > userBalance) {
-          console.log('⚠️ Buffer exceeds balance, using full balance');
           amountBN = userBalance;
         } else {
           amountBN = withBuffer;
         }
         
-        displayAmount = ethers.formatUnits(debtInTokenDecimals, token.decimals);
-        console.log('💵 Final repay amount:', ethers.formatUnits(amountBN, token.decimals), token.symbol);
+        // Format display amount safely - use formatUnits and then round to token decimals
+        // This avoids "too many decimals" errors when formatting
+        try {
+          // Format with token decimals (this should work since debtInTokenDecimals is already in token decimals)
+          const formatted = ethers.formatUnits(debtInTokenDecimals, token.decimals);
+          // Round to token decimals to remove any excess precision
+          const rounded = parseFloat(formatted).toFixed(token.decimals);
+          // Remove trailing zeros
+          displayAmount = parseFloat(rounded).toString();
+        } catch (e) {
+          // Fallback: calculate manually to avoid formatUnits errors
+          const divisor = Math.pow(10, token.decimals);
+          const debtAsNumber = Number(debtInTokenDecimals) / divisor;
+          displayAmount = debtAsNumber.toFixed(token.decimals);
+          displayAmount = parseFloat(displayAmount).toString();
+        }
 
       } else {
         // Normal amount input
@@ -160,8 +174,21 @@ export function RepayModal({
           return;
         }
         
-        amountBN = parseTokenAmount(amount, token.decimals);
-        displayAmount = amount;
+        // Round to token decimals to avoid "too many decimals" error
+        // This prevents errors when user pastes or calculates amounts with too many decimal places
+        const roundedAmount = amountNum.toFixed(token.decimals);
+        const trimmedAmount = parseFloat(roundedAmount).toString(); // Remove trailing zeros
+        
+        try {
+          amountBN = parseTokenAmount(trimmedAmount, token.decimals);
+          displayAmount = trimmedAmount;
+        } catch (parseError: any) {
+          // If still fails, try with more aggressive rounding
+          const moreRounded = amountNum.toFixed(Math.max(0, token.decimals - 1));
+          const moreTrimmed = parseFloat(moreRounded).toString();
+          amountBN = parseTokenAmount(moreTrimmed, token.decimals);
+          displayAmount = moreTrimmed;
+        }
       }
       
       // Use transaction service
@@ -177,6 +204,11 @@ export function RepayModal({
       
       // Reset form and close
       setAmount('');
+      
+      // Wait for contract state to update before refreshing
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
+      
+      // Trigger refresh callback
       onSuccess?.();
       onClose();
 

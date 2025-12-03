@@ -194,12 +194,69 @@ export function WithdrawModal({
     }
   };
 
-  const handleMaxClick = () => {
-    if (!canWithdraw) return;
-    // subtract 1 wei to avoid dust (based on token decimals)
-    const epsilon = 1 / Math.pow(10, token.decimals || 18);
-    const safeMax = Math.max(0, xMax - epsilon);
-    setAmount(safeMax > 0 ? safeMax.toFixed(Math.min(6, token.decimals || 6)) : '');
+  const handleMaxClick = async () => {
+    if (!canWithdraw || !signer || !provider) return;
+    
+    try {
+      // Get exact current supply balance from contract (includes interest)
+      const userAddress = await signer.getAddress();
+      const poolContract = new ethers.Contract(
+        poolAddress,
+        [
+          'function getCurrentSupplyBalance(address user, address asset) external view returns (uint256)'
+        ],
+        provider
+      );
+      
+      // Get current supply balance INCLUDING interest (returns in 1e18 format)
+      const currentSupply1e18 = await poolContract.getCurrentSupplyBalance(userAddress, token.address);
+      
+      if (currentSupply1e18 === BigInt(0)) {
+        setAmount('');
+        return;
+      }
+      
+      // Convert from 1e18 to token decimals
+      const reserve = await poolContract.reserves(token.address);
+      const decimals: number = Number(reserve.decimals ?? 18);
+      const scale = BigInt('1' + '0'.repeat(decimals));
+      const currentSupplyTokens = (currentSupply1e18 * scale) / BigInt(1e18);
+      
+      // Use dryRunWithdrawAmount to get exact amount contract will withdraw
+      const exactWithdrawAmount = await dryRunWithdrawAmount(
+        provider,
+        userAddress,
+        token.address,
+        currentSupplyTokens
+      );
+      
+      // Convert to display format
+      const exactAmount = parseFloat(ethers.formatUnits(exactWithdrawAmount, decimals));
+      
+      // Clamp by xMax (max allowed by collateral/LTV constraints)
+      const finalAmount = Math.min(exactAmount, xMax);
+      
+      if (finalAmount > 0) {
+        setAmount(finalAmount.toFixed(Math.min(6, decimals || 6)));
+      } else {
+        setAmount('');
+      }
+      
+      console.log('📊 Max withdraw calculation:', {
+        currentSupply1e18: currentSupply1e18.toString(),
+        currentSupplyTokens: currentSupplyTokens.toString(),
+        exactWithdrawAmount: exactWithdrawAmount.toString(),
+        exactAmount,
+        xMax,
+        finalAmount
+      });
+    } catch (error) {
+      console.error('❌ Error calculating max withdraw:', error);
+      // Fallback to previous method
+      const epsilon = 1 / Math.pow(10, token.decimals || 18);
+      const safeMax = Math.max(0, xMax - epsilon);
+      setAmount(safeMax > 0 ? safeMax.toFixed(Math.min(6, token.decimals || 6)) : '');
+    }
   };
 
   const handleWithdraw = async () => {
@@ -229,16 +286,47 @@ export function WithdrawModal({
     setIsLoading(true);
 
     try {
-      const amountBN = parseTokenAmount(amount, token.decimals);
-      // Refine amount with a static call to avoid leaving residual due to clamps
       const userAddr = await signer.getAddress();
       const providerNonNull = provider as ethers.Provider;
-      const refinedAmount = await dryRunWithdrawAmount(providerNonNull, userAddr, token.address, amountBN);
-      const finalAmountBN = refinedAmount > BigInt(0) ? refinedAmount : amountBN;
+      
+      // Get exact current supply balance from contract (includes interest)
+      const poolContract = new ethers.Contract(
+        poolAddress,
+        [
+          'function getCurrentSupplyBalance(address user, address asset) external view returns (uint256)',
+          'function reserves(address asset) view returns (tuple(uint128 reserveCash, uint128 totalDebtPrincipal, uint40 lastUpdate, uint16 ltvBps, uint16 liquidationThresholdBps, uint16 liquidationBonusBps, uint16 closeFactorBps, bool isBorrowable, uint16 optimalUBps, uint8 decimals, uint128 liquidityIndex, uint128 variableBorrowIndex, uint128 reserveFactorBps))'
+        ],
+        providerNonNull
+      );
+      
+      // Get current supply balance INCLUDING interest (in 1e18)
+      const currentSupply1e18 = await poolContract.getCurrentSupplyBalance(userAddr, token.address);
+      const reserve = await poolContract.reserves(token.address);
+      const decimals: number = Number(reserve.decimals ?? 18);
+      
+      // Convert to token decimals
+      const scale = BigInt('1' + '0'.repeat(decimals));
+      const currentSupplyTokens = (currentSupply1e18 * scale) / BigInt(1e18);
+      
+      // If user wants to withdraw max, use exact current balance
+      let amountBN: bigint;
+      if (parseFloat(amount) >= xMax * 0.99) { // If withdrawing close to max (99%+)
+        console.log('🔄 Withdrawing max - using exact current balance');
+        // Use dryRunWithdrawAmount to get exact amount contract will withdraw
+        const exactAmount = await dryRunWithdrawAmount(providerNonNull, userAddr, token.address, currentSupplyTokens);
+        amountBN = exactAmount > BigInt(0) ? exactAmount : currentSupplyTokens;
+      } else {
+        // Normal amount - parse and refine
+        amountBN = parseTokenAmount(amount, token.decimals);
+        const refinedAmount = await dryRunWithdrawAmount(providerNonNull, userAddr, token.address, amountBN);
+        amountBN = refinedAmount > BigInt(0) ? refinedAmount : amountBN;
+      }
       
       console.log('💸 Withdraw transaction:', {
         amount,
         amountBN: amountBN.toString(),
+        currentSupply1e18: currentSupply1e18.toString(),
+        currentSupplyTokens: currentSupplyTokens.toString(),
         xMax,
         isCollateral,
         actualCollateralUSD,
@@ -246,7 +334,7 @@ export function WithdrawModal({
       });
       
       // Use transaction service
-      const result = await withdraw(signer, token.address, finalAmountBN);
+      const result = await withdraw(signer, token.address, amountBN);
       
       // Show success toast
       showToast({
@@ -256,8 +344,14 @@ export function WithdrawModal({
         hash: result.hash
       });
       
-      // Reset form and close
+      // Reset form
       setAmount('');
+      
+      // Wait for contract state to update before refreshing
+      // withdraw() function already has refresh logic, but we wait a bit more for UI
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
+      
+      // Trigger refresh callback
       onSuccess?.();
       onClose();
 

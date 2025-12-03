@@ -796,11 +796,61 @@ export async function repay(
   
   const txPromise = poolContract.repay(tokenAddress, amount, borrower);
   
-  return await sendWithToast(txPromise, {
+  const result = await sendWithToast(txPromise, {
     pending: 'Repaying tokens...',
     success: 'Tokens repaid successfully!',
     error: 'Repay failed'
   });
+
+  // After successful repay, refresh APR/Available snapshot
+  // Wait a bit to ensure contract has updated rates in the new block
+  try {
+    const provider = signer.provider as ethers.Provider;
+    const { triggerAPRRefresh } = await import('../hooks/useSharedAPR');
+    
+    // Wait for next block to ensure rates are updated
+    const currentBlock = await provider.getBlockNumber();
+    
+    // Wait for next block (or at least 1 second) to ensure contract state is updated
+    await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
+    
+    // Check if we're on a new block
+    let newBlock = await provider.getBlockNumber();
+    if (newBlock === currentBlock) {
+      // If still on same block, wait a bit more
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Another 1 second
+    }
+    
+    // Now fetch APR - contract should have updated rates by now
+    await triggerAPRRefresh(provider, CONFIG.LENDING_POOL, tokenAddress);
+    
+    // Also trigger another refresh after a short delay to catch any delayed updates
+    setTimeout(async () => {
+      try {
+        await triggerAPRRefresh(provider, CONFIG.LENDING_POOL, tokenAddress);
+      } catch (e) {
+        // Ignore errors in delayed refresh
+      }
+    }, 3000); // 3 seconds later
+    
+  } catch (e) {
+    console.warn('[repay] post-refresh failed:', (e as any)?.message || e);
+  }
+
+  // Clear realtime interest cache for this user/asset to avoid showing stale data after repay
+  try {
+    const user = borrower;
+    const pool = CONFIG.LENDING_POOL;
+    if (typeof window !== 'undefined') {
+      const borrowKey = `ri:${pool}:${user}:${tokenAddress}:b`;
+      const supplyKey = `ri:${pool}:${user}:${tokenAddress}:s`;
+      localStorage.removeItem(borrowKey);
+      // Also clear supply cache in case it affects display
+      localStorage.removeItem(supplyKey);
+    }
+  } catch {}
+
+  return result;
 }
 
 /**
@@ -989,9 +1039,27 @@ export async function getTokenAllowance(
 
 /**
  * Parse token amount to BigInt
+ * Safely handles numbers with too many decimals by rounding to token decimals
  */
 export function parseTokenAmount(amount: string, decimals: number): bigint {
-  return parseUnits(amount, decimals);
+  try {
+    return parseUnits(amount, decimals);
+  } catch (error: any) {
+    // If error is "too many decimals", round the number first
+    if (error.code === 'NUMERIC_FAULT' && error.fault === 'underflow') {
+      const num = parseFloat(amount);
+      if (isNaN(num)) {
+        throw new Error(`Invalid number: ${amount}`);
+      }
+      // Round to token decimals
+      const rounded = num.toFixed(decimals);
+      // Remove trailing zeros to avoid issues
+      const trimmed = parseFloat(rounded).toString();
+      return parseUnits(trimmed, decimals);
+    }
+    // Re-throw other errors
+    throw error;
+  }
 }
 
 /**

@@ -1408,20 +1408,20 @@ export default function DepositDetailPage() {
                   <span className="text-muted-foreground">Your balance in pool:</span>
                   <span className="font-medium font-mono text-sm">
                    {isNaN(suppliedBalance) ? '0.000000000000000000' : suppliedBalance.toFixed(18)} {asset.symbol}
-                    <span className="text-xs text-muted-foreground ml-2">
+                    {/* <span className="text-xs text-muted-foreground ml-2">
                       ({isNaN(suppliedBalanceUSD) ? '$0.00' : `$${suppliedBalanceUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`})
-                  </span>
+                  </span> */}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                {/* <div className="flex justify-between">
                   <span className="text-muted-foreground">Interest earned:</span>
                   <span className="font-medium font-mono text-sm">
                     {isNaN(interestEarned) ? '0.000000000000000000' : interestEarned.toFixed(18)} {asset.symbol}
                     <span className="text-xs text-muted-foreground ml-2">
-                      ({isNaN(interestEarnedUSD) ? '0.000000000000000000' : interestEarnedUSD.toFixed(18)} {asset.symbol}
+                      ({isNaN(interestEarnedUSD) ? '0.000000000000000000' : interestEarnedUSD.toFixed(18)} {asset.symbol})
                     </span>
                   </span>
-                </div>
+                </div> */}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Your wallet balance:</span>
                   <span className="font-medium">

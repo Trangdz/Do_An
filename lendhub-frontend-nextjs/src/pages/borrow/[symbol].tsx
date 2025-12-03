@@ -1021,12 +1021,12 @@ export default function BorrowDetailPage() {
                   <span className="text-muted-foreground">Your debt in pool:</span>
                   <span className="font-medium font-mono text-sm">
                    {isNaN(borrowedBalance) ? '0.000000000000000000' : borrowedBalance.toFixed(18)} {asset.symbol}
-                    <span className="text-xs text-muted-foreground ml-2">
+                    {/* <span className="text-xs text-muted-foreground ml-2">
                       ({isNaN(borrowedBalanceUSD) ? '$0.00' : `$${borrowedBalanceUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`})
-                  </span>
+                  </span> */}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                {/* <div className="flex justify-between">
                   <span className="text-muted-foreground">Interest accrued:</span>
                   <span className="font-medium text-red-600 font-mono text-sm">
                     {isNaN(interestAccrued) ? '0.000000000000000000' : interestAccrued.toFixed(18)} {asset.symbol}
@@ -1034,7 +1034,7 @@ export default function BorrowDetailPage() {
                       ({isNaN(interestAccruedUSD) ? '$0.00' : `$${interestAccruedUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`})
                   </span>
                   </span>
-                </div>
+                </div> */}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Your wallet balance:</span>
                   <span className="font-medium">
