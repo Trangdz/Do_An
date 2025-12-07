@@ -1,0 +1,41 @@
+sequenceDiagram
+    participant B as Borrower
+    participant P as LendingPool
+    participant O as Oracle
+    participant L as Liquidator
+
+    Note over B,L: STEP 1: Setup - Borrower Supplies DAI
+    
+    B->>P: approve(DAI, 100)
+    B->>P: lend(DAI, 100)
+    B->>P: setUserUseReserveAsCollateral(DAI, true)
+    
+    Note over B,P: State: 100 DAI supplied<br/>Collateral Value: $75 (75% LTV)<br/>HF: ∞
+
+    Note over B,L: STEP 2: Borrower Borrows USDC
+    
+    B->>P: borrow(USDC, 60)
+    
+    Note over B,P: State:<br/>Collateral: $75<br/>Debt: $60<br/>HF: 1.25 ✅
+
+    Note over B,L: STEP 3: Price Drops - Trigger Liquidation
+    
+    B->>O: updatePrice("DAI", $0.75)
+    O-->>B: Price updated
+    
+    Note over B,P: State:<br/>Collateral: $56.25 (100 × $0.75 × 75%)<br/>Debt: $60<br/>HF: 0.9375 ❌ LIQUIDATABLE!
+
+    Note over B,L: STEP 4: Liquidator Executes Liquidation
+    
+    L->>P: approve(USDC, 30)
+    L->>P: liquidationCall(USDC, DAI, borrower, 30)
+    
+    Note over P: Calculations:<br/>Max Repay = 60 × 50% = 30 USDC<br/>Repay USD = $30<br/>Seize USD = $30 × 1.05 = $31.50<br/>Seize DAI = $31.50 / $0.75 = 42 DAI
+    
+    P->>L: Transfer 42 DAI (seized collateral)
+    
+    Note over B,P: State After Liquidation:<br/>Borrower Collateral: 58 DAI ($43.50)<br/>Borrower Debt: 30 USDC ($30)<br/>HF: 1.45 ✅ SAFE!
+    
+    Note over L: Liquidator:<br/>Paid: 30 USDC<br/>Received: 42 DAI<br/>Profit: $1.50 (5% bonus)
+
+

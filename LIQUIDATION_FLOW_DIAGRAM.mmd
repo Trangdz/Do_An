@@ -1,0 +1,44 @@
+flowchart TD
+    Start([Liquidator gọi liquidationCall]) --> Accrue[Accrue Interest cho cả 2 assets]
+    Accrue --> CheckHF{Health Factor < 1.0?}
+    CheckHF -->|No| Revert1[Revert: HF>=1]
+    CheckHF -->|Yes| GetDebt[Lấy debt hiện tại của user]
+    GetDebt --> CheckDebt{Debt > 0?}
+    CheckDebt -->|No| Revert2[Revert: no debt]
+    CheckDebt -->|Yes| CalcMaxRepay[Tính max repay = debt × closeFactor]
+    CalcMaxRepay --> ClampRepay[Clamp repay = min(requested, maxRepay)]
+    ClampRepay --> TransferDebt[Liquidator transfer debtAsset vào pool]
+    TransferDebt --> CheckReceived{Số token thực nhận < repay?}
+    CheckReceived -->|Yes| AdjustRepay[Điều chỉnh repay = số thực nhận]
+    CheckReceived -->|No| GetPrices[Lấy giá từ oracle]
+    AdjustRepay --> GetPrices
+    GetPrices --> CalcRepayUSD[repayUSD = repay × priceDebt / 1e18]
+    CalcRepayUSD --> CalcSeizeUSD[seizeUSD = repayUSD × 1 + bonus / 10000]
+    CalcSeizeUSD --> CalcSeizeColl[seizeColl = seizeUSD × 1e18 / priceColl]
+    CalcSeizeColl --> GetUserColl[Lấy collateral hiện tại của user]
+    GetUserColl --> CheckColl{User có đủ collateral?}
+    CheckColl -->|No| Revert3[Revert: insufficient collateral]
+    CheckColl -->|Yes| UpdateDebt[Cập nhật debt: principal -= repay]
+    UpdateDebt --> UpdateColl[Cập nhật collateral: principal -= seize]
+    UpdateColl --> UpdateLedger[Cập nhật sổ cái]
+    UpdateLedger --> UpdateDebtReserve[totalDebtPrincipal -= repay<br/>reserveCash += repay]
+    UpdateDebtReserve --> UpdateCollReserve[reserveCash -= seize]
+    UpdateCollReserve --> CheckPoolCash{Pool có đủ cash?}
+    CheckPoolCash -->|No| Revert4[Revert: pool coll cash low]
+    CheckPoolCash -->|Yes| TransferColl[Transfer collateral cho liquidator]
+    TransferColl --> EmitEvent[Emit Liquidated event]
+    EmitEvent --> End([Hoàn thành])
+
+    style Start fill:#e1f5ff
+    style End fill:#c8e6c9
+    style Revert1 fill:#ffcdd2
+    style Revert2 fill:#ffcdd2
+    style Revert3 fill:#ffcdd2
+    style Revert4 fill:#ffcdd2
+    style CheckHF fill:#fff9c4
+    style CheckDebt fill:#fff9c4
+    style CheckReceived fill:#fff9c4
+    style CheckColl fill:#fff9c4
+    style CheckPoolCash fill:#fff9c4
+
+

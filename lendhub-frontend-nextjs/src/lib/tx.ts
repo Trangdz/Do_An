@@ -1111,7 +1111,18 @@ export async function getTokenAllowance(
  */
 export function parseTokenAmount(amount: string, decimals: number): bigint {
   try {
-    return parseUnits(amount, decimals);
+    // Convert scientific notation to decimal string if needed
+    let amountStr = amount;
+    if (amount.includes('e') || amount.includes('E')) {
+      const num = parseFloat(amount);
+      if (isNaN(num)) {
+        throw new Error(`Invalid number: ${amount}`);
+      }
+      // Convert to fixed decimal string
+      amountStr = num.toFixed(decimals);
+    }
+    
+    return parseUnits(amountStr, decimals);
   } catch (error: any) {
     // If error is "too many decimals", round the number first
     if (error.code === 'NUMERIC_FAULT' && error.fault === 'underflow') {
@@ -1124,6 +1135,16 @@ export function parseTokenAmount(amount: string, decimals: number): bigint {
       // Remove trailing zeros to avoid issues
       const trimmed = parseFloat(rounded).toString();
       return parseUnits(trimmed, decimals);
+    }
+    // Handle invalid FixedNumber string (scientific notation)
+    if (error.code === 'INVALID_ARGUMENT' && error.argument === 'value') {
+      const num = parseFloat(amount);
+      if (isNaN(num)) {
+        throw new Error(`Invalid number: ${amount}`);
+      }
+      // Convert to fixed decimal string
+      const fixed = num.toFixed(decimals);
+      return parseUnits(fixed, decimals);
     }
     // Re-throw other errors
     throw error;

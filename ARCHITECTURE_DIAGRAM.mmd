@@ -1,0 +1,65 @@
+graph TB
+    subgraph Client["🖥️ CLIENT (Browser)"]
+        Frontend["Frontend<br/>(Next.js Client)"]
+        Wallet["Wallet<br/>(MetaMask)"]
+    end
+
+    subgraph OffChain["📡 OFF-CHAIN"]
+        Backend["Backend API<br/>(Next.js Routes)"]
+        Indexer["Indexer/Workers<br/>(Event Listener)"]
+        MongoDB[("MongoDB<br/>(Database)")]
+        ChainlinkNode["Chainlink Node<br/>(Oracle Service)"]
+    end
+
+    subgraph OnChain["⛓️ ON-CHAIN (Blockchain)"]
+        RPCNode["RPC Node<br/>(http://127.0.0.1:7545)"]
+        LendingPool["LendingPool<br/>(Smart Contract)"]
+        Oracle["Oracle<br/>(MultiPriceAggregator)"]
+        IRM["InterestRateModel<br/>(Smart Contract)"]
+        ERC20["ERC20 Tokens<br/>(Smart Contracts)"]
+    end
+
+    %% Client to Off-chain
+    Frontend -->|"1. REST/JSON<br/>(Optional - Cache)"| Backend
+
+    %% Client to On-chain (DIRECT - Quan trọng!)
+    Frontend -->|"2. Read RPC<br/>(Direct - Đọc data)"| RPCNode
+    Wallet -->|"3. Signed TX<br/>(Transactions)"| RPCNode
+    Wallet -->|"4. Read RPC<br/>(Query state)"| RPCNode
+
+    %% Off-chain Internal
+    Backend -->|"5. Store parsed data"| MongoDB
+    Indexer -->|"6. Subscribe Events<br/>(Real-time)"| RPCNode
+    Indexer -->|"7. Store events"| MongoDB
+
+    %% Off-chain to On-chain
+    Backend -->|"8. Read RPC<br/>(API endpoints)"| RPCNode
+    ChainlinkNode -->|"9. Update prices<br/>(Optional)"| Oracle
+
+    %% On-chain Internal
+    RPCNode -->|"10. Query/Execute"| LendingPool
+    RPCNode -->|"11. Query/Execute"| Oracle
+    RPCNode -->|"12. Query/Execute"| IRM
+    RPCNode -->|"13. Query/Execute"| ERC20
+
+    %% Smart Contract Interactions
+    LendingPool -->|"14. Get prices"| Oracle
+    LendingPool -->|"15. Get rates"| IRM
+    LendingPool -->|"16. Transfer tokens"| ERC20
+
+    %% Styling
+    classDef client fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef offchain fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef onchain fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef database fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+
+    class Frontend,Wallet client
+    class Backend,Indexer,ChainlinkNode offchain
+    class RPCNode,LendingPool,Oracle,IRM,ERC20 onchain
+    class MongoDB database
+
+
+
+
+
+

@@ -57,7 +57,8 @@ export default function CreateProposalPage() {
   };
 
   // Fetch reserve data for selected asset
-  const { reserveData, loading: reserveLoading } = useReserveData(selectedAsset);
+  // Use shorter refresh interval to get latest data after proposal execution
+  const { reserveData, loading: reserveLoading, refresh: refreshReserveData } = useReserveData(selectedAsset, 5000);
 
   // Update parameters based on proposal type
   const updateParametersForType = (type: ProposalActionType, reserveData?: any) => {
@@ -130,8 +131,19 @@ export default function CreateProposalPage() {
     }
   };
 
-  // Update parameters when reserve data or proposal type changes
+  // Track last type/asset combination to detect changes
+  const [lastTypeAsset, setLastTypeAsset] = useState<string>('');
+
+  // Update parameters when proposal type or selected asset changes
+  // Only update "Current" values when reserveData changes, preserve "Proposed" user input
   useEffect(() => {
+    const currentTypeAsset = `${proposalType}-${selectedAsset}`;
+    const typeAssetChanged = currentTypeAsset !== lastTypeAsset;
+    
+    if (typeAssetChanged) {
+      setLastTypeAsset(currentTypeAsset);
+    }
+
     if (
       proposalType &&
       (
@@ -144,9 +156,47 @@ export default function CreateProposalPage() {
         proposalType === 'change_borrow_cap'
       )
     ) {
-      updateParametersForType(proposalType, reserveData);
+      if (typeAssetChanged) {
+        // Type or asset changed: set all parameters (including defaults for Proposed)
+        updateParametersForType(proposalType, reserveData);
+      } else if (reserveData) {
+        // Only update "Current" values, preserve "Proposed" user input
+        setParameters(prevParams => {
+          const currentLTV = (reserveData.ltvBps / 100).toFixed(2);
+          const currentThreshold = (reserveData.liqThresholdBps / 100).toFixed(2);
+          const currentBonus = (reserveData.liqBonusBps / 100).toFixed(2);
+          const currentReserveFactor = (reserveData.reserveFactorBps / 100).toFixed(2);
+          const currentSupplyCap = reserveData?.supplyCap ?? '30000000';
+          const currentBorrowCap = reserveData?.borrowCap ?? '24000000';
+          
+          return prevParams.map(param => {
+            // Only update "Current" values (disabled fields)
+            if (param.disabled) {
+              if (param.name.includes('Current LTV')) {
+                return { ...param, value: currentLTV };
+              } else if (param.name.includes('Current Threshold')) {
+                return { ...param, value: currentThreshold };
+              } else if (param.name.includes('Current Bonus')) {
+                return { ...param, value: currentBonus };
+              } else if (param.name.includes('Current Reserve Factor')) {
+                return { ...param, value: currentReserveFactor };
+              } else if (param.name.includes('Current Supply Cap')) {
+                return { ...param, value: currentSupplyCap };
+              } else if (param.name.includes('Current Borrow Cap')) {
+                return { ...param, value: currentBorrowCap };
+              }
+            }
+            // Keep "Proposed" values unchanged (preserve user input)
+            return param;
+          });
+        });
+      } else {
+        // No reserveData yet: set defaults
+        updateParametersForType(proposalType, reserveData);
+      }
     }
-  }, [reserveData, selectedAsset, proposalType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAsset, proposalType, reserveData]);
 
   const handleProposalTypeChange = (type: ProposalActionType) => {
     setProposalType(type);

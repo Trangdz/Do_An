@@ -63,13 +63,14 @@ const computeAccountDataFallback = async (rpcProvider, wallet) => {
       
       const supplyAmount = Number(ethers.formatUnits(supplyBalance ?? 0n, 18));
       const debtAmount = Number(ethers.formatUnits(debtBalance ?? 0n, 18));
-      // CRITICAL: Use ltvBps (Loan-to-Value) for collateral calculation, NOT liqThresholdBps
-      // This matches the on-chain _getAccountData calculation in LendingPool.sol
-      const ltvBps = Number(reserveData?.ltvBps ?? 0);
+      // CRITICAL: Use liqThresholdBps (Liquidation Threshold) for collateral calculation
+      // This matches the on-chain _getAccountData calculation in LendingPool.sol (after fix)
+      // The contract now uses liqThresholdBps instead of ltvBps for Health Factor calculation
+      const liqThresholdBps = Number(reserveData?.liqThresholdBps ?? 0);
       const useAsCollateral = Boolean(userReserve?.useAsCollateral);
       let collateralUSD = 0;
-      if (supplyAmount > 0 && useAsCollateral && ltvBps > 0) {
-        const weighted = (supplyAmount * priceUSD) * (ltvBps / 10000);
+      if (supplyAmount > 0 && useAsCollateral && liqThresholdBps > 0) {
+        const weighted = (supplyAmount * priceUSD) * (liqThresholdBps / 10000);
         if (Number.isFinite(weighted)) {
           collateralUSD = weighted;
         }
@@ -755,18 +756,19 @@ const LendState = (props) => {
             if (Number.parseFloat(supplyFormatted) > 0) {
               const price = await getPriceUSD(token.address);
               const balanceUSD = Number(supplyFormatted) * Number(price);
-              // CRITICAL: Use ltvBps (Loan-to-Value) for collateral calculation, NOT liqThresholdBps
-              // This matches the on-chain _getAccountData calculation in LendingPool.sol
-              // ltvBps is used for borrow capacity, liqThresholdBps is only for liquidation threshold
-              const collateralUSD = balanceUSD * (ltvBps > 0 ? ltvBps / 10000 : 0);
+              // CRITICAL: Use liqThresholdBps (Liquidation Threshold) for collateral calculation
+              // This matches the on-chain _getAccountData calculation in LendingPool.sol (after fix)
+              // The contract now uses liqThresholdBps instead of ltvBps for Health Factor calculation
+              // Note: ltvBps is still used for borrow capacity, but liqThresholdBps is used for HF
+              const collateralUSD = balanceUSD * (liqThresholdBps > 0 ? liqThresholdBps / 10000 : 0);
               
               console.log(`✅ Found supply for ${token.symbol}:`, {
                 principal: supplyPrincipalFormatted,
                 withInterest: supplyFormatted,
                 balanceUSD,
                 collateralUSD,
-                ltvBps, // Using LTV for collateral (matches on-chain)
-                liqThresholdBps // Only used for liquidation threshold display
+                liqThresholdBps, // Using LiqThreshold for collateral (matches on-chain HF calculation)
+                ltvBps // Only used for borrow capacity
               });
               
               return {

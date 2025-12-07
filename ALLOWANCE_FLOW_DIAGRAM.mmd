@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant U as User
+    participant T as Token Contract<br/>(ERC20)
+    participant P as LendingPool<br/>(Spender)
+
+    Note over U,P: STEP 1: User Approve Token
+    
+    U->>T: approve(LendingPool, 1000 DAI)
+    T->>T: allowance[user][pool] = 1000
+    T-->>U: ✅ Approved
+    
+    Note over U,P: STEP 2: User Supply Token
+    
+    U->>P: lend(DAI, 1000)
+    P->>T: transferFrom(user, pool, 1000)
+    T->>T: Check: allowance >= 1000? ✅
+    T->>T: balance[user] -= 1000
+    T->>T: balance[pool] += 1000
+    T->>T: allowance[user][pool] -= 1000
+    T-->>P: ✅ Transfer successful
+    P-->>U: ✅ Supply successful
+
+    Note over U,P: State After:
+    Note over T: User Balance: 0 DAI<br/>Pool Balance: 1000 DAI<br/>Allowance: 0 DAI
+
+

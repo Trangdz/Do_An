@@ -73,8 +73,80 @@ export function RepayModal({
   };
 
   const handleMaxClick = () => {
-    // Set to "REPAY_ALL" mode instead of calculating max
-    setAmount('REPAY_ALL');
+    // Nếu số quá nhỏ (< 0.000001), cho bằng 0
+    const MIN_REPAY_AMOUNT = 0.000001;
+    
+    // Parse userDebt để check
+    const debtValue = parseFloat(userDebt) || 0;
+    
+    // Check nếu số quá nhỏ
+    if (debtValue < MIN_REPAY_AMOUNT || debtValue === 0 || isNaN(debtValue)) {
+      setAmount('0');
+      return;
+    }
+    
+    // Lấy balance
+    const balanceNum = parseFloat(balance) || 0;
+    
+    // Tính max amount (min của debt và balance)
+    const maxAmount = Math.min(debtValue, balanceNum);
+    
+    // Check lại maxAmount
+    if (maxAmount < MIN_REPAY_AMOUNT || maxAmount === 0 || isNaN(maxAmount)) {
+      setAmount('0');
+      return;
+    }
+    
+    // Ưu tiên: Dùng userDebt string trực tiếp nếu:
+    // 1. maxAmount = debtValue (có đủ balance để trả hết)
+    // 2. userDebt là string hợp lệ (không có scientific notation)
+    const isMaxAmountEqualsDebt = Math.abs(maxAmount - debtValue) < 1e-10;
+    const isUserDebtValid = userDebt && 
+                            userDebt.trim() !== '' &&
+                            userDebt !== '0' && 
+                            !userDebt.includes('e') && 
+                            !userDebt.includes('E') && 
+                            !isNaN(parseFloat(userDebt)) &&
+                            parseFloat(userDebt) > 0;
+    
+    if (isMaxAmountEqualsDebt && isUserDebtValid) {
+      // Dùng userDebt string trực tiếp để giữ nguyên precision
+      setAmount(userDebt);
+      return;
+    }
+    
+    // Fallback: Format từ maxAmount
+    // Format với đủ precision (tối đa 18 decimals cho DAI)
+    const maxDecimals = Math.min(token.decimals, 18);
+    const formatted = maxAmount.toFixed(maxDecimals);
+    
+    // Check lại sau khi format
+    const finalAmount = parseFloat(formatted);
+    if (finalAmount < MIN_REPAY_AMOUNT || finalAmount === 0 || isNaN(finalAmount)) {
+      setAmount('0');
+      return;
+    }
+    
+    // Remove trailing zeros nhưng giữ lại precision
+    let trimmed = formatted;
+    if (trimmed.includes('.')) {
+      trimmed = trimmed.replace(/\.?0+$/, '');
+    }
+    
+    // Check lại một lần nữa
+    const finalCheck = parseFloat(trimmed);
+    if (finalCheck < MIN_REPAY_AMOUNT || finalCheck === 0 || isNaN(finalCheck)) {
+      setAmount('0');
+      return;
+    }
+    
+    // Nếu trimmed có scientific notation, set về 0
+    if (trimmed.includes('e') || trimmed.includes('E')) {
+      setAmount('0');
+      return;
+    }
+    
+    setAmount(trimmed);
   };
 
   const handleRepay = async () => {
@@ -87,9 +159,27 @@ export function RepayModal({
       let amountBN: bigint;
       let displayAmount: string;
 
-      // Check if this is "Repay All" mode
-      if (amount === 'REPAY_ALL') {
+      // Check if user wants to repay all (amount equals debt or very close)
+      const debtNum = parseFloat(userDebt) || 0;
+      const amountNum = parseFloat(amount) || 0;
+      
+      // Nếu số quá nhỏ (< 0.000001), cho bằng 0 và return
+      const MIN_REPAY_AMOUNT = 0.000001;
+      if (debtNum < MIN_REPAY_AMOUNT || amountNum < MIN_REPAY_AMOUNT) {
+        showToast({
+          type: 'info',
+          title: 'Amount Too Small',
+          message: 'Debt amount is too small (< 0.000001). No repayment needed.'
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      const isRepayAll = Math.abs(amountNum - debtNum) < 0.00000001 || amountNum >= debtNum;
+      
+      if (isRepayAll) {
         console.log('🔄 REPAY ALL MODE: Getting exact current debt including interest...');
+        console.log('📊 User entered amount:', amountNum, 'Debt:', debtNum);
         
         // Get the lending pool contract
         const poolContract = new ethers.Contract(
@@ -101,6 +191,7 @@ export function RepayModal({
         );
 
         // Get current debt balance INCLUDING interest (returns in 1e18 format)
+        // Lấy debt ngay trước khi gửi transaction để tránh interest tăng trong lúc chờ
         const currentDebt1e18 = await poolContract.getCurrentDebtBalance(userAddress, token.address);
         
         console.log('📊 Current Debt (1e18, includes interest):', currentDebt1e18.toString());
@@ -115,6 +206,14 @@ export function RepayModal({
           return;
         }
 
+        // Check user balance
+        const tokenContract = new ethers.Contract(
+          token.address,
+          ['function balanceOf(address) view returns (uint256)'],
+          provider
+        );
+        const userBalance = await tokenContract.balanceOf(userAddress);
+        
         // Convert from 1e18 internal precision to token decimals (ROUND UP!)
         const conversionFactor = BigInt(10 ** (18 - token.decimals));
         
@@ -131,44 +230,70 @@ export function RepayModal({
           debtInTokenDecimals = minRepayAmount;
         }
 
-        // Add 5% buffer to handle interest accrual during transaction (reduced from 20% since we're using current debt)
-        const withBuffer = (debtInTokenDecimals * BigInt(105)) / BigInt(100);
+        // Thêm 15% buffer để handle interest accrual trong lúc transaction chờ
+        // Buffer tăng từ 5% lên 15% để đảm bảo trả hết nợ
+        const withBuffer = (debtInTokenDecimals * BigInt(115)) / BigInt(100);
 
-        // Check user balance
-        const tokenContract = new ethers.Contract(
-          token.address,
-          ['function balanceOf(address) view returns (uint256)'],
-          provider
-        );
-        const userBalance = await tokenContract.balanceOf(userAddress);
-        
-        // Cap to user balance if needed
-        if (withBuffer > userBalance) {
-          amountBN = userBalance;
+        // Nếu user có đủ balance (bao gồm buffer) → Gửi MaxUint256, contract sẽ tự cap về currentDebt
+        // Điều này đảm bảo trả hết nợ ngay cả khi interest tăng trong lúc transaction chờ
+        if (userBalance >= withBuffer) {
+          // Gửi MaxUint256, contract sẽ tự động cap về currentDebt (xem LendingPool.sol dòng 685)
+          amountBN = ethers.MaxUint256;
+          console.log('✅ User has sufficient balance, sending MaxUint256 (contract will auto-cap to currentDebt)');
+          
+          // Format display amount từ debtInTokenDecimals (không phải withBuffer)
+          try {
+            const formatted = ethers.formatUnits(debtInTokenDecimals, token.decimals);
+            const rounded = parseFloat(formatted).toFixed(token.decimals);
+            displayAmount = parseFloat(rounded).toString();
+          } catch (e) {
+            const divisor = Math.pow(10, token.decimals);
+            const debtAsNumber = Number(debtInTokenDecimals) / divisor;
+            displayAmount = debtAsNumber.toFixed(token.decimals);
+            displayAmount = parseFloat(displayAmount).toString();
+          }
         } else {
-          amountBN = withBuffer;
-        }
-        
-        // Format display amount safely - use formatUnits and then round to token decimals
-        // This avoids "too many decimals" errors when formatting
-        try {
-          // Format with token decimals (this should work since debtInTokenDecimals is already in token decimals)
-          const formatted = ethers.formatUnits(debtInTokenDecimals, token.decimals);
-          // Round to token decimals to remove any excess precision
-          const rounded = parseFloat(formatted).toFixed(token.decimals);
-          // Remove trailing zeros
-          displayAmount = parseFloat(rounded).toString();
-        } catch (e) {
-          // Fallback: calculate manually to avoid formatUnits errors
-          const divisor = Math.pow(10, token.decimals);
-          const debtAsNumber = Number(debtInTokenDecimals) / divisor;
-          displayAmount = debtAsNumber.toFixed(token.decimals);
-          displayAmount = parseFloat(displayAmount).toString();
+          // Nếu không đủ balance, gửi hết balance (với buffer nếu có thể)
+          // Ưu tiên gửi withBuffer, nhưng nếu không đủ thì gửi hết balance
+          if (userBalance >= debtInTokenDecimals) {
+            // Có đủ để trả debt (không có buffer), gửi hết balance
+            amountBN = userBalance;
+            console.log('⚠️ User balance insufficient for buffer, sending full balance');
+          } else {
+            // Không đủ để trả debt, gửi hết balance
+            amountBN = userBalance;
+            console.log('⚠️ User balance insufficient to repay full debt, sending full balance');
+          }
+          
+          // Format display amount từ userBalance
+          try {
+            const formatted = ethers.formatUnits(userBalance, token.decimals);
+            const rounded = parseFloat(formatted).toFixed(token.decimals);
+            displayAmount = parseFloat(rounded).toString();
+          } catch (e) {
+            const divisor = Math.pow(10, token.decimals);
+            const balanceAsNumber = Number(userBalance) / divisor;
+            displayAmount = balanceAsNumber.toFixed(token.decimals);
+            displayAmount = parseFloat(displayAmount).toString();
+          }
         }
 
       } else {
         // Normal amount input
         const amountNum = parseFloat(amount);
+        
+        // Nếu số quá nhỏ (< 0.000001), cho bằng 0 và return
+        const MIN_REPAY_AMOUNT = 0.000001;
+        if (amountNum < MIN_REPAY_AMOUNT) {
+          showToast({
+            type: 'info',
+            title: 'Amount Too Small',
+            message: 'Repay amount is too small (< 0.000001). Please enter a larger amount.'
+          });
+          setIsLoading(false);
+          return;
+        }
+        
         if (amountNum <= 0) {
           setIsLoading(false);
           return;
@@ -177,7 +302,14 @@ export function RepayModal({
         // Round to token decimals to avoid "too many decimals" error
         // This prevents errors when user pastes or calculates amounts with too many decimal places
         const roundedAmount = amountNum.toFixed(token.decimals);
-        const trimmedAmount = parseFloat(roundedAmount).toString(); // Remove trailing zeros
+        // Convert scientific notation to decimal string if needed
+        let trimmedAmount = parseFloat(roundedAmount).toString();
+        
+        // Nếu vẫn là scientific notation, convert về decimal
+        if (trimmedAmount.includes('e') || trimmedAmount.includes('E')) {
+          // Convert scientific notation to fixed decimal
+          trimmedAmount = amountNum.toFixed(token.decimals);
+        }
         
         try {
           amountBN = parseTokenAmount(trimmedAmount, token.decimals);
@@ -185,7 +317,13 @@ export function RepayModal({
         } catch (parseError: any) {
           // If still fails, try with more aggressive rounding
           const moreRounded = amountNum.toFixed(Math.max(0, token.decimals - 1));
-          const moreTrimmed = parseFloat(moreRounded).toString();
+          let moreTrimmed = parseFloat(moreRounded).toString();
+          
+          // Convert scientific notation if needed
+          if (moreTrimmed.includes('e') || moreTrimmed.includes('E')) {
+            moreTrimmed = amountNum.toFixed(Math.max(0, token.decimals - 1));
+          }
+          
           amountBN = parseTokenAmount(moreTrimmed, token.decimals);
           displayAmount = moreTrimmed;
         }
@@ -226,10 +364,10 @@ export function RepayModal({
     }
   };
 
-  const debtNum = parseFloat(userDebt);
-  const balanceNum = parseFloat(balance);
-  const amountNum = amount === 'REPAY_ALL' ? debtNum : (parseFloat(amount) || 0);
-  const isDisabled = !signer || !amount || (amount !== 'REPAY_ALL' && (amountNum <= 0 || amountNum > debtNum || amountNum > balanceNum));
+  const debtNum = parseFloat(userDebt) || 0;
+  const balanceNum = parseFloat(balance) || 0;
+  const amountNum = parseFloat(amount) || 0;
+  const isDisabled = !signer || !amount || amountNum <= 0 || amountNum > debtNum || amountNum > balanceNum;
 
   if (!open) return null;
 
@@ -292,7 +430,7 @@ export function RepayModal({
               <Input
                 id="amount"
                 type="text"
-                value={amount === 'REPAY_ALL' ? 'Repay All (including interest)' : amount}
+                value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 placeholder="0.00"
                 className="pr-20 text-lg"

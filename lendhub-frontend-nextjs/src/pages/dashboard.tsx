@@ -551,7 +551,13 @@ export default function DashboardPage() {
             poolAddress={CONFIG.LENDING_POOL}
             signer={signer}
             provider={provider}
-            userDebt={selectedToken.borrowBalance?.toString() || '0'}
+            userDebt={
+              selectedToken.borrowBalance !== undefined && selectedToken.borrowBalance !== null
+                ? (typeof selectedToken.borrowBalance === 'string'
+                    ? selectedToken.borrowBalance
+                    : selectedToken.borrowBalance.toFixed(18).replace(/\.?0+$/, ''))
+                : '0'
+            }
             price={selectedToken.price || parseFloat(selectedToken.priceUSD || '0')}
             onSuccess={handleRepaySuccess}
           />

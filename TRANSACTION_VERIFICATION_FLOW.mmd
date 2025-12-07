@@ -1,0 +1,55 @@
+graph TD
+    A[User Click 'Lend' Button] --> B[Frontend: poolContract.lend]
+    B --> C[MetaMask: Tạo Transaction Object]
+    
+    C --> D["Transaction Object:<br/>{<br/>  from: '0x742d35...',<br/>  to: '0x5FbDB2...',<br/>  data: '0x6171d1c9...',<br/>  nonce: 5,<br/>  chainId: 1337<br/>}"]
+    
+    D --> E[MetaMask: Hash Transaction]
+    E --> F["txHash = keccak256(rlpEncode(tx))<br/>→ 0x8f8a8b8c..."]
+    
+    F --> G[MetaMask: Ký Transaction ECDSA]
+    G --> H["signature = ecdsaSign(txHash, privateKey)<br/>→ { r, s, v }"]
+    
+    H --> I[Gửi Signed Transaction Đến RPC]
+    I --> J["eth_sendRawTransaction(signedTx)"]
+    
+    J --> K[RPC Node: Nhận Transaction]
+    K --> L[Thêm Vào Mempool]
+    
+    L --> M[Miner: Verify Signature]
+    M --> N["publicKey = ecrecover(txHash, v, r, s)"]
+    
+    N --> O["address = keccak256(publicKey)[12:32]"]
+    O --> P{address === tx.from?}
+    
+    P -->|Yes ✅| Q[Signature Hợp Lệ]
+    P -->|No ❌| R[Signature Không Hợp Lệ]
+    
+    R --> S[Reject Transaction]
+    
+    Q --> T[Execute Transaction]
+    T --> U["LendingPool.lend(token, amount)"]
+    
+    U --> V["msg.sender = verified address<br/>0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"]
+    
+    V --> W[Transfer Tokens]
+    W --> X["safeTransferFrom(msg.sender, contract, amount)"]
+    
+    X --> Y[Update State]
+    Y --> Z["userReserves[msg.sender][token].supply += amount<br/>reserves[token].reserveCash += amount"]
+    
+    Z --> AA[Transaction Confirmed ✅]
+    
+    style A fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    style C fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style G fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style M fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style P fill:#fff9c4,stroke:#f57f17,stroke-width:3px
+    style Q fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style R fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    style AA fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+
+
+
+
+

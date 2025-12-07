@@ -1,0 +1,61 @@
+graph TB
+    subgraph Input["📥 INPUT - Tham Số Đầu Vào"]
+        Cash["cash: Tiền còn trống<br/>(WAD)"]
+        Debt["debtNow: Tiền đang cho vay<br/>(WAD)"]
+        RF["reserveFactorBps<br/>(0-10000 bps)"]
+        OptU["optimalUBps<br/>(Ví dụ: 8000 = 80%)"]
+        Base["baseRateRayPerSec<br/>(Lãi suất cơ bản)"]
+        S1["slope1RayPerSec<br/>(Độ dốc 1)"]
+        S2["slope2RayPerSec<br/>(Độ dốc 2)"]
+    end
+
+    subgraph Step1["🔢 BƯỚC 1: Tính Utilization Rate"]
+        CalcU["U = debtNow / (cash + debtNow)<br/><br/>Ví dụ:<br/>cash = 1,000,000<br/>debtNow = 800,000<br/>U = 800,000 / 1,800,000 = 44.44%"]
+    end
+
+    subgraph Step2["📈 BƯỚC 2: Tính Borrow Rate"]
+        CheckU{"U ≤ U* ?"}
+        Formula1["borrowRate = baseRate + slope1 × (U/U*)<br/><br/>Tăng tuyến tính<br/>Pool còn dư thừa"]
+        Formula2["borrowRate = baseRate + slope1 +<br/>slope2 × ((U-U*)/(1-U*))<br/><br/>Tăng mạnh<br/>Pool gần cạn kiệt"]
+    end
+
+    subgraph Step3["💰 BƯỚC 3: Tính Supply Rate"]
+        CalcSupply["supplyRate = borrowRate × U × (1 - reserveFactor)<br/><br/>Lãi từ người vay<br/>Trừ đi phần dự trữ"]
+    end
+
+    subgraph Output["📤 OUTPUT - Kết Quả"]
+        BorrowRate["borrowRateRayPerSec<br/>(RAY/second)"]
+        SupplyRate["supplyRateRayPerSec<br/>(RAY/second)"]
+    end
+
+    Cash --> CalcU
+    Debt --> CalcU
+    CalcU --> CheckU
+    OptU --> CheckU
+    
+    CheckU -->|"Có (U ≤ U*)"| Formula1
+    CheckU -->|"Không (U > U*)"| Formula2
+    
+    Base --> Formula1
+    S1 --> Formula1
+    Base --> Formula2
+    S1 --> Formula2
+    S2 --> Formula2
+    
+    Formula1 --> CalcSupply
+    Formula2 --> CalcSupply
+    
+    RF --> CalcSupply
+    CalcU --> CalcSupply
+    
+    CalcSupply --> BorrowRate
+    CalcSupply --> SupplyRate
+
+    style Input fill:#e1f5ff
+    style Step1 fill:#fff4e1
+    style Step2 fill:#ffe1f5
+    style Step3 fill:#e1ffe1
+    style Output fill:#f5e1ff
+
+
+

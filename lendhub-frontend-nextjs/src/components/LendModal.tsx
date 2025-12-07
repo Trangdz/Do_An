@@ -392,14 +392,7 @@ export function LendModal({
                 {balance} {token.symbol}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-600">Allowance</span>
-              <span className={`text-sm font-mono ${
-                parseFloat(allowance) === 0 ? 'text-red-600' : 'text-gray-900'
-              }`}>
-                {formatNumber(parseFloat(allowance), 4)} {token.symbol}
-              </span>
-            </div>
+           
             
             {/* Show info about allowance */}
             {/* {parseFloat(allowance) === 0 && parseFloat(balance) > 0 && (
@@ -421,7 +414,7 @@ export function LendModal({
               </div>
             )} */}
             
-            {parseFloat(allowance) > 0 && (
+            {/*parseFloat(allowance) > 0 && (
               <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <span className="text-green-500">✅</span>
@@ -430,7 +423,7 @@ export function LendModal({
                   </p>
                 </div>
               </div>
-            )}
+            )*/}
             {parseFloat(balance) === 0 && (
               <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800 mb-2">

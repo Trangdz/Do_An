@@ -1,0 +1,46 @@
+graph TB
+    subgraph User["👤 User Account"]
+        Balance[Balance: 10,000 DAI]
+        Allowance[Allowance: 0 DAI]
+    end
+
+    subgraph Approve["1️⃣ Approve Step"]
+        ApproveAction[User calls:<br/>approve(pool, 1000 DAI)]
+        ApproveResult[Allowance = 1000 DAI]
+    end
+
+    subgraph Supply["2️⃣ Supply Step"]
+        SupplyAction[User calls:<br/>lend(DAI, 1000)]
+        Transfer[Pool calls:<br/>transferFrom(user, pool, 1000)]
+        CheckAllowance{allowance >= 1000?}
+        CheckBalance{balance >= 1000?}
+        Execute[Execute Transfer]
+    end
+
+    subgraph After["3️⃣ After Supply"]
+        NewBalance[Balance: 9,000 DAI]
+        NewAllowance[Allowance: 0 DAI]
+    end
+
+    Balance --> ApproveAction
+    ApproveAction --> ApproveResult
+    ApproveResult --> SupplyAction
+    SupplyAction --> Transfer
+    Transfer --> CheckAllowance
+    CheckAllowance -->|Yes| CheckBalance
+    CheckAllowance -->|No| Revert1[❌ Revert: Insufficient allowance]
+    CheckBalance -->|Yes| Execute
+    CheckBalance -->|No| Revert2[❌ Revert: Insufficient balance]
+    Execute --> NewBalance
+    Execute --> NewAllowance
+
+    style User fill:#e3f2fd
+    style Approve fill:#fff9c4
+    style Supply fill:#f3e5f5
+    style After fill:#c8e6c9
+    style CheckAllowance fill:#ffebee
+    style CheckBalance fill:#ffebee
+    style Revert1 fill:#ffcdd2
+    style Revert2 fill:#ffcdd2
+
+

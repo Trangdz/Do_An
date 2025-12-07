@@ -1,0 +1,66 @@
+graph TB
+    subgraph Client["🖥️ CLIENT (Browser)"]
+        F[Frontend<br/>Next.js App]
+        W[Wallet<br/>MetaMask]
+    end
+
+    subgraph OffChain["📡 OFF-CHAIN (Server)"]
+        B[Backend API<br/>Next.js API Routes<br/>/api/*]
+        I[Indexer/Workers<br/>Event Listener]
+        DB[(MongoDB<br/>Database)]
+        CL[Chainlink Node<br/>Oracle Service]
+    end
+
+    subgraph OnChain["⛓️ ON-CHAIN (Blockchain)"]
+        RPC[RPC Node<br/>http://127.0.0.1:7545]
+        LP[LendingPool<br/>Smart Contract]
+        O[Oracle<br/>MultiPriceAggregator]
+        IRM[InterestRateModel<br/>Smart Contract]
+        ERC20[ERC20 Tokens<br/>Smart Contracts]
+    end
+
+    %% Frontend flows - READ QUA BACKEND, WRITE TRỰC TIẾP
+    F -->|"1. Read Data<br/>(QUA API - Server-side)"| B
+    F -.->|"2. Cached Data<br/>(Optional)"| B
+
+    %% Wallet flows - Transactions TRỰC TIẾP RPC (KHÔNG QUA BACKEND)
+    F -->|"3. Request Transaction<br/>(User Action)"| W
+    W -->|"4. Signed TX<br/>(TRỰC TIẾP RPC - KHÔNG QUA BACKEND)"| RPC
+
+    %% Backend flows - TẤT CẢ RPC QUA BACKEND
+    B -->|"5. Read RPC<br/>(Server-side)"| RPC
+    B -->|"6. Read Cache"| DB
+    B -->|"7. Write Cache"| DB
+
+    %% Indexer flows
+    I -->|"8. Subscribe Events<br/>(Real-time)"| RPC
+    I -->|"9. Store events"| DB
+
+    %% Chainlink flows
+    CL -->|"10. Fetch Price<br/>(HTTP - Binance API)"| CL
+    CL -->|"11. Write Price<br/>(RPC Transaction)"| RPC
+
+    %% On-chain internal
+    RPC -->|"12. Query/Execute"| LP
+    RPC -->|"13. Query/Execute"| O
+    RPC -->|"14. Query/Execute"| IRM
+    RPC -->|"15. Query/Execute"| ERC20
+
+    %% Smart contract interactions
+    LP -->|"16. Get prices"| O
+    LP -->|"17. Get rates"| IRM
+    LP -->|"18. Transfer"| ERC20
+
+    %% Styling
+    classDef client fill:#e1f5ff,stroke:#01579b,stroke-width:3px
+    classDef offchain fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef onchain fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef db fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef primary stroke:#f44336,stroke-width:4px
+
+    class F,W client
+    class B,I,CL offchain
+    class RPC,LP,O,IRM,ERC20 onchain
+    class DB db
+    class B,RPC primary
+

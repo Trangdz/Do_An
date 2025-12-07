@@ -1,0 +1,44 @@
+flowchart TD
+    Start([🎬 Bắt Đầu Demo]) --> Step1[STEP 1: Borrower Supplies 100 DAI]
+    
+    Step1 --> Step1_1[Approve DAI]
+    Step1_1 --> Step1_2[Supply 100 DAI]
+    Step1_2 --> Step1_3[Enable as Collateral]
+    Step1_3 --> Step1_State[State:<br/>Collateral: $75<br/>HF: ∞]
+    
+    Step1_State --> Step2[STEP 2: Borrower Borrows 60 USDC]
+    Step2 --> Step2_State[State:<br/>Collateral: $75<br/>Debt: $60<br/>HF: 1.25 ✅]
+    
+    Step2_State --> Step3[STEP 3: Price Drops]
+    Step3 --> Step3_1[Update DAI Price: $1.00 → $0.75]
+    Step3_1 --> Step3_State[State:<br/>Collateral: $56.25<br/>Debt: $60<br/>HF: 0.9375 ❌]
+    
+    Step3_State --> Step4{Is HF < 1.0?}
+    Step4 -->|No| Step3_1
+    Step4 -->|Yes| Step5[STEP 4: Liquidation]
+    
+    Step5 --> Step5_1[Liquidator Approves USDC]
+    Step5_1 --> Step5_2[Calculate:<br/>Max Repay = 30 USDC<br/>Seize = 42 DAI]
+    Step5_2 --> Step5_3[Execute liquidationCall]
+    Step5_3 --> Step5_4[Transfer 42 DAI to Liquidator]
+    
+    Step5_4 --> Step6[STEP 5: Verify Results]
+    Step6 --> Step6_1[Check Borrower State]
+    Step6_1 --> Step6_2[Check Liquidator Balance]
+    Step6_2 --> Step6_3[Verify HF Improved]
+    
+    Step6_3 --> End([✅ Demo Complete!])
+    
+    style Start fill:#e1f5ff
+    style End fill:#c8e6c9
+    style Step1 fill:#fff9c4
+    style Step2 fill:#fff9c4
+    style Step3 fill:#ffcdd2
+    style Step5 fill:#f3e5f5
+    style Step6 fill:#c8e6c9
+    style Step4 fill:#fff9c4
+    style Step1_State fill:#e8f5e9
+    style Step2_State fill:#e8f5e9
+    style Step3_State fill:#ffebee
+
+

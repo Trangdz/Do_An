@@ -1,0 +1,53 @@
+graph TB
+    subgraph Input["📥 Input"]
+        Debt[Debt Amount<br/>debtNow]
+        Repay[Repay Requested<br/>repayRequested]
+        PriceDebt[Price Debt Asset<br/>priceDebt]
+        PriceColl[Price Collateral Asset<br/>priceColl]
+        CloseFactor[Close Factor<br/>closeFactorBps]
+        Bonus[Liquidation Bonus<br/>liqBonusBps]
+    end
+
+    subgraph Step1["Step 1: Max Repay"]
+        MaxRepay["maxRepay = debtNow × closeFactorBps / 10000"]
+        ActualRepay["actualRepay = min(repayRequested, maxRepay)"]
+    end
+
+    subgraph Step2["Step 2: USD Conversion"]
+        RepayUSD["repayUSD = actualRepay × priceDebt / 1e18"]
+    end
+
+    subgraph Step3["Step 3: Apply Bonus"]
+        SeizeUSD["seizeUSD = repayUSD × (10000 + bonusBps) / 10000"]
+    end
+
+    subgraph Step4["Step 4: Collateral Amount"]
+        SeizeColl["seizeColl = seizeUSD × 1e18 / priceColl"]
+    end
+
+    subgraph Output["📤 Output"]
+        FinalRepay[Final Repay Amount<br/>repay1e18]
+        FinalSeize[Final Seize Amount<br/>seizeColl1e18]
+    end
+
+    Debt --> MaxRepay
+    CloseFactor --> MaxRepay
+    Repay --> ActualRepay
+    MaxRepay --> ActualRepay
+    ActualRepay --> RepayUSD
+    PriceDebt --> RepayUSD
+    RepayUSD --> SeizeUSD
+    Bonus --> SeizeUSD
+    SeizeUSD --> SeizeColl
+    PriceColl --> SeizeColl
+    ActualRepay --> FinalRepay
+    SeizeColl --> FinalSeize
+
+    style Input fill:#e3f2fd
+    style Step1 fill:#f3e5f5
+    style Step2 fill:#f3e5f5
+    style Step3 fill:#f3e5f5
+    style Step4 fill:#f3e5f5
+    style Output fill:#c8e6c9
+
+

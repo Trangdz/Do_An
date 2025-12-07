@@ -1,0 +1,43 @@
+graph LR
+    subgraph Utilization["Utilization Rate (U)"]
+        U0["0%"]
+        U50["50%"]
+        U80["80%<br/>(U* - Optimal)"]
+        U90["90%"]
+        U100["100%"]
+    end
+
+    subgraph BorrowRate["Borrow Rate (Lãi Suất Cho Vay)"]
+        BR0["baseRate<br/>(~0.01%)"]
+        BR50["baseRate + slope1×0.625<br/>(~3.1%)"]
+        BR80["baseRate + slope1<br/>(~5%)"]
+        BR90["baseRate + slope1 + slope2×0.5<br/>(~30%)"]
+        BR100["baseRate + slope1 + slope2<br/>(~55%)"]
+    end
+
+    subgraph SupplyRate["Supply Rate (Lãi Suất Gửi Tiền)"]
+        SR0["0%"]
+        SR50["~1.4%<br/>(borrowRate × 0.5 × 0.9)"]
+        SR80["~3.6%<br/>(borrowRate × 0.8 × 0.9)"]
+        SR90["~24.3%<br/>(borrowRate × 0.9 × 0.9)"]
+        SR100["~49.5%<br/>(borrowRate × 1.0 × 0.9)"]
+    end
+
+    U0 --> BR0
+    U50 --> BR50
+    U80 --> BR80
+    U90 --> BR90
+    U100 --> BR100
+
+    BR0 --> SR0
+    BR50 --> SR50
+    BR80 --> SR80
+    BR90 --> SR90
+    BR100 --> SR100
+
+    style U80 fill:#ffeb3b,stroke:#f57f17,stroke-width:3px
+    style BR80 fill:#ffeb3b,stroke:#f57f17,stroke-width:3px
+    style SR80 fill:#ffeb3b,stroke:#f57f17,stroke-width:3px
+
+
+

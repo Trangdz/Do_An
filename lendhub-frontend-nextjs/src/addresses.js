@@ -3,15 +3,15 @@
 // Mnemonic: uniform message payment medal rural toward reject resist test immune smile ridge
 
 export const ETHAddress = "0x0000000000000000000000000000000000000000";
-export const LendingPoolAddress = "0x49002A79850916B5972FCaE55a02690A4c6814c1";
-export const InterestRateModelAddress = "0xe5eb90B2390FF6a2B92A56A31c1154f2A83AD231";
-export const PriceOracleAddress = "0x8746387E0f46244C6020aB83597dB8ae46aC7b70"; // MultiPriceAggregator serves as PriceOracle
-export const PricemultiAddr = "0x8746387E0f46244C6020aB83597dB8ae46aC7b70";
+export const LendingPoolAddress = "0xDB19f2Dd97760e560b4E10b0590C32691a292939";
+export const InterestRateModelAddress = "0xB5edb16e392D19ed5046D875A3592BE9B07A4850";
+export const PriceOracleAddress = "0x9eE64780609935da5240349341bf87656280263C"; // MultiPriceAggregator serves as PriceOracle
+export const PricemultiAddr = "0x9eE64780609935da5240349341bf87656280263C";
 export const LendingHelperAddress = "0x0000000000000000000000000000000000000000";
-export const WETHAddress = "0x96C35C1977EFD153D3fadfeE03BCccC963Cc9598";
-export const DAIAddress = "0x0cc334a1e5ce0a78EF7864407EEE1ca29F37F33C";
-export const USDCAddress = "0x4C13840D9BbA1Ba5805044054fFBf176B2939909";
-export const LINKAddress = "0xF3962bf7a13b5e57a718CAeb7fE981990d1cc1Af";
+export const WETHAddress = "0x3C6E95602207826bb13F95BAd036BCa9dE85d06b";
+export const DAIAddress = "0x18f91383EF3FD703B689aFdECaf4278d550d196a";
+export const USDCAddress = "0x112150a34D26931024c4be0785bc02c37733997e";
+export const LINKAddress = "0x067CdEA1597c92CF1cb2B2faaBE9BEc8A27d7033";
 
 // 10 Demo Users (each has 10K WETH, 1M DAI, 1M USDC, 100K LINK)
 export const User0Address = "0x3A716b4DeeA7dcdAAdd42b90BaA30E0A7B2fd412";

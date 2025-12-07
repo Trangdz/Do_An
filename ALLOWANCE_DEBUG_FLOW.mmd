@@ -1,0 +1,46 @@
+flowchart TB
+    Start[Allowance = 0?] --> Check1{User đã<br/>approve chưa?}
+    
+    Check1 -->|Chưa| Normal1[✅ Bình thường<br/>Chưa approve bao giờ]
+    Normal1 --> Solution1[Giải pháp:<br/>Hệ thống tự động approve<br/>khi click Supply]
+    
+    Check1 -->|Đã approve| Check2{Đã dùng<br/>hết chưa?}
+    
+    Check2 -->|Đã dùng hết| Normal2[✅ Bình thường<br/>Allowance giảm sau khi supply]
+    Normal2 --> Solution2[Giải pháp:<br/>Approve lại nếu cần]
+    
+    Check2 -->|Chưa dùng| Problem[⚠️ Có vấn đề<br/>Cần kiểm tra]
+    
+    Problem --> Check3{Approve sai<br/>address?}
+    Check3 -->|Có| Fix1[❌ Sửa:<br/>Kiểm tra CONFIG.LENDING_POOL]
+    
+    Check3 -->|Không| Check4{Token chưa<br/>deploy?}
+    Check4 -->|Có| Fix2[❌ Sửa:<br/>Deploy token contract]
+    
+    Check4 -->|Không| Check5{Pool chưa<br/>deploy?}
+    Check5 -->|Có| Fix3[❌ Sửa:<br/>Deploy LendingPool]
+    
+    Check5 -->|Không| Check6{Network/Chain ID<br/>sai?}
+    Check6 -->|Có| Fix4[❌ Sửa:<br/>Switch network hoặc<br/>sửa CONFIG.CHAIN_ID]
+    
+    Check6 -->|Không| Check7{RPC không<br/>kết nối?}
+    Check7 -->|Có| Fix5[❌ Sửa:<br/>Khởi động Ganache]
+    
+    Check7 -->|Không| Check8{Lỗi đọc<br/>allowance?}
+    Check8 -->|Có| Fix6[❌ Sửa:<br/>Kiểm tra token contract<br/>có implement ERC20 đúng không]
+    
+    Check8 -->|Không| Unknown[❓ Vấn đề khác<br/>Xem console logs]
+    
+    style Normal1 fill:#c8e6c9
+    style Normal2 fill:#c8e6c9
+    style Solution1 fill:#fff9c4
+    style Solution2 fill:#fff9c4
+    style Problem fill:#ffebee
+    style Fix1 fill:#ffcdd2
+    style Fix2 fill:#ffcdd2
+    style Fix3 fill:#ffcdd2
+    style Fix4 fill:#ffcdd2
+    style Fix5 fill:#ffcdd2
+    style Fix6 fill:#ffcdd2
+    style Unknown fill:#ffcdd2
+

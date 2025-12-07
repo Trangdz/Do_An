@@ -1,0 +1,53 @@
+graph TB
+    subgraph UserAssets["User Assets"]
+        Asset1[Asset 1<br/>Supply: S1<br/>LTV: L1<br/>Price: P1]
+        Asset2[Asset 2<br/>Supply: S2<br/>LTV: L2<br/>Price: P2]
+        AssetN[Asset N<br/>Supply: Sn<br/>LTV: Ln<br/>Price: Pn]
+    end
+
+    subgraph CollateralCalc["Collateral Calculation"]
+        Coll1["Coll1 = S1 × P1 × L1 / 10000<br/>if useAsCollateral = true"]
+        Coll2["Coll2 = S2 × P2 × L2 / 10000<br/>if useAsCollateral = true"]
+        CollN["CollN = Sn × Pn × Ln / 10000<br/>if useAsCollateral = true"]
+        TotalColl["Total Collateral = Σ(Coll1, Coll2, ..., CollN)"]
+    end
+
+    subgraph DebtCalc["Debt Calculation"]
+        Debt1["Debt1 = D1 × P1<br/>if debt > 0"]
+        Debt2["Debt2 = D2 × P2<br/>if debt > 0"]
+        DebtN["DebtN = Dn × Pn<br/>if debt > 0"]
+        TotalDebt["Total Debt = Σ(Debt1, Debt2, ..., DebtN)"]
+    end
+
+    subgraph HealthFactor["Health Factor"]
+        CheckDebt{Total Debt = 0?}
+        HFInf["HF = ∞<br/>type(uint256).max"]
+        HFCalc["HF = Total Collateral × 1e18 / Total Debt"]
+    end
+
+    Asset1 --> Coll1
+    Asset2 --> Coll2
+    AssetN --> CollN
+    Coll1 --> TotalColl
+    Coll2 --> TotalColl
+    CollN --> TotalColl
+
+    Asset1 --> Debt1
+    Asset2 --> Debt2
+    AssetN --> DebtN
+    Debt1 --> TotalDebt
+    Debt2 --> TotalDebt
+    DebtN --> TotalDebt
+
+    TotalColl --> CheckDebt
+    TotalDebt --> CheckDebt
+    CheckDebt -->|Yes| HFInf
+    CheckDebt -->|No| HFCalc
+
+    style UserAssets fill:#e3f2fd
+    style CollateralCalc fill:#f3e5f5
+    style DebtCalc fill:#fff3e0
+    style HealthFactor fill:#c8e6c9
+    style CheckDebt fill:#fff9c4
+
+

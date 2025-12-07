@@ -1,0 +1,69 @@
+graph TB
+    subgraph Client["🖥️ CLIENT"]
+        F[Frontend<br/>Next.js App]
+        W[Wallet<br/>MetaMask]
+    end
+
+    subgraph OffChain["📡 OFF-CHAIN"]
+        B[Backend API<br/>Next.js API Routes<br/>/api/*]
+        I[Indexer/Workers<br/>Event Listener]
+        DB[(MongoDB<br/>Database)]
+        CL[Chainlink Node<br/>Oracle Service]
+    end
+
+    subgraph OnChain["⛓️ ON-CHAIN"]
+        RPC[RPC Node<br/>http://127.0.0.1:7545]
+        LP[LendingPool<br/>Smart Contract]
+        O[Oracle<br/>MultiPriceAggregator]
+        IRM[InterestRateModel<br/>Smart Contract]
+        ERC20[ERC20 Tokens<br/>Smart Contracts]
+    end
+
+    %% Frontend flows - READ QUA BACKEND
+    F -->|"1. Read Data<br/>(REST/JSON)"| B
+    F -.->|"2. Cached Data<br/>(Optional)"| B
+
+    %% Wallet flows - Transactions TRỰC TIẾP RPC
+    F -->|"3. Request Transaction<br/>(User Action)"| W
+    W -->|"4. Signed TX<br/>(deposit/borrow/repay/withdraw)"| RPC
+
+    %% Backend flows - READ RPC QUA BACKEND
+    B -->|"5. Read RPC<br/>(Server-side)"| RPC
+    B -->|"6. Read Cache"| DB
+
+    %% Indexer flows - LẮNG NGHE EVENTS
+    I -->|"7. Subscribe Events<br/>(Real-time)"| RPC
+    I -->|"8. Store Parsed Data"| DB
+
+    %% Chainlink flows
+    CL -->|"9. Fetch Price<br/>(HTTP - Binance API)"| CL
+    CL -->|"10. Update Prices<br/>(RPC Transaction)"| RPC
+
+    %% On-chain internal
+    RPC -->|"11. Query/Execute"| LP
+    RPC -->|"12. Query/Execute"| O
+    RPC -->|"13. Query/Execute"| IRM
+    RPC -->|"14. Query/Execute"| ERC20
+
+    %% Smart contract interactions
+    LP -->|"15. Get prices"| O
+    LP -->|"16. Get rates"| IRM
+    LP -->|"17. Transfer"| ERC20
+
+    %% Styling
+    classDef client fill:#e1f5ff,stroke:#01579b,stroke-width:3px
+    classDef offchain fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef onchain fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef db fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef primary stroke:#f44336,stroke-width:4px
+
+    class F,W client
+    class B,I,CL offchain
+    class RPC,LP,O,IRM,ERC20 onchain
+    class DB db
+    class B,RPC primary
+
+
+
+
+

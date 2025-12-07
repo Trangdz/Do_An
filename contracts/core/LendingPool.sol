@@ -31,6 +31,7 @@ contract LendingPool is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
     address public owner = msg.sender;
     address public governor; // Governor contract address
+    address public treasury = msg.sender;
     
     // Hardcoded addresses for demo (in production, these would be configurable)
     // Note: These addresses will be set during deployment
@@ -80,6 +81,39 @@ contract LendingPool is ReentrancyGuard, Pausable {
     function setRewardDistributor(address _rewardDistributor) external onlyOwner {
         rewardDistributor = IAAVERewardDistributor(_rewardDistributor);
     }
+
+    /**
+     * @notice Withdraw protocol reserves collected via reserve factor (only owner/governor)
+     * @param asset The asset to withdraw
+     * @param amount Amount to withdraw in the asset's native decimals
+     */
+    function withdrawTreasury(address asset, uint256 amount) external onlyOwnerOrGovernor nonReentrant {
+        require(treasury != address(0), "Treasury not set");
+        require(amount > 0, "Invalid amount");
+        _requireInited(asset);
+        _accrue(asset);
+
+        ReserveUserModels.ReserveData storage r = reserves[asset];
+        uint256 amt1e18 = _to1e18(amount, r.decimals);
+        require(r.reserveCash >= amt1e18, "Insufficient reserve cash");
+
+        r.reserveCash = uint128(uint256(r.reserveCash) - amt1e18);
+
+        uint256 transferAmount = _from1e18(amt1e18, r.decimals);
+        IERC20(asset).safeTransfer(treasury, transferAmount);
+
+        emit TreasuryWithdrawn(treasury, asset, amt1e18, transferAmount);
+    }
+
+    /**
+     * @notice Set treasury address to receive protocol reserves (only owner)
+     */
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Treasury zero");
+        address oldTreasury = treasury;
+        treasury = _treasury;
+        emit TreasuryUpdated(oldTreasury, _treasury);
+    }
     
     /**
      * @notice Internal function to accumulate rewards for a user
@@ -122,6 +156,8 @@ contract LendingPool is ReentrancyGuard, Pausable {
     
     // Event for debugging reward update failures
     event RewardUpdateFailed(address indexed user, address indexed asset, bytes returnData);
+    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event TreasuryWithdrawn(address indexed treasury, address indexed asset, uint256 amount1e18, uint256 amountAsset);
     
     /**
      * @notice Internal function to update borrow balance in RewardAccumulator
@@ -318,14 +354,16 @@ function _getAccountData(address user) internal view returns (
         uint256 price = _safeGetPrice(asset);
         if (price == 0) continue; // Skip if price is zero or not available
         
-        // Calculate collateral value (weighted by LTV)
+        // Calculate collateral value (weighted by Liquidation Threshold)
         // ONLY if user has enabled this asset as collateral
         uint256 supply = _currentSupply(user, asset);
         if (supply > 0 && u.useAsCollateral) {
-            // collateralValue = supply * price * ltvBps / 10000
+            // collateralValue = supply * price * liqThresholdBps / 10000
+            // Use Liquidation Threshold instead of LTV for Health Factor calculation
+            // This ensures positions are only liquidatable when they actually cross the liquidation threshold
             // Both supply and price are in 1e18, so we divide by 1e18 once
             uint256 supplyValueUSD = (supply * price) / 1e18;
-            uint256 weightedCollateral = (supplyValueUSD * uint256(r.ltvBps)) / 10000;
+            uint256 weightedCollateral = (supplyValueUSD * uint256(r.liqThresholdBps)) / 10000;
             collateralValue1e18 += weightedCollateral;
         }
         
@@ -1108,7 +1146,11 @@ function liquidationCall(
         msg.sender, user, debtAsset, collateralAsset, repay1e18, seizeColl1e18
     );
 
-    // (optional) bạn có thể re-check HF(user) sau khi thanh lý để đảm bảo >1
+    // Re-check HF(user) sau khi thanh lý để đảm bảo >1
+    // Nếu HF vẫn < 1, position vẫn có thể thanh lý tiếp
+    (, , uint256 hfAfter) = _getAccountData(user);
+    // Note: Không require hfAfter >= 1e18 vì có thể cần thanh lý nhiều lần
+    // Nếu HF vẫn < 1, liquidator có thể thanh lý tiếp
 }
 
 // Function to set asset as collateral
