@@ -232,6 +232,11 @@ contract LendingPool is ReentrancyGuard, Pausable {
         uint256 borIndex = uint256(r.variableBorrowIndex);
         liqIndex = RayMath.rayMul(liqIndex, 1e27 + uint256(r.liquidityRateRayPerSec) * dt);
         borIndex = RayMath.rayMul(borIndex, 1e27 + uint256(r.variableBorrowRateRayPerSec) * dt);
+        
+        // CRITICAL: Validate uint128 overflow before casting
+        require(liqIndex <= type(uint128).max, "Liquidity index overflow");
+        require(borIndex <= type(uint128).max, "Borrow index overflow");
+        
         r.liquidityIndex = uint128(liqIndex);
         r.variableBorrowIndex = uint128(borIndex);
         r.lastUpdate = uint40(block.timestamp);
@@ -305,6 +310,17 @@ function _to1e18(uint256 amt, uint8 decimals) internal pure returns (uint256) {
 function _from1e18(uint256 amt1e18, uint8 decimals) internal pure returns (uint256) {
     if (decimals == 18) return amt1e18;
     if (decimals < 18)  return amt1e18 / (10 ** (18 - decimals));
+    return amt1e18 * (10 ** (decimals - 18));
+}
+
+/// @dev Convert 1e18 amount to token decimals, rounding UP to avoid underpay
+function _from1e18RoundUp(uint256 amt1e18, uint8 decimals) internal pure returns (uint256) {
+    if (decimals == 18) return amt1e18;
+    if (decimals < 18)  {
+        uint256 denom = 10 ** (18 - decimals);
+        return (amt1e18 + denom - 1) / denom; // ceil division
+    }
+    // decimals > 18
     return amt1e18 * (10 ** (decimals - 18));
 }
 
@@ -508,8 +524,35 @@ function lend(address asset, uint256 amount) external {
     // 3) Cập nhật supplyNow → +delta → chốt lại principal/index
     uint256 sNow = _currentSupply(msg.sender, asset); // 1e18
     uint256 sNew = sNow + delta1e18;
-    u.supply.principal = uint128(sNew);
-    u.supply.index = r.liquidityIndex;
+    
+    // CRITICAL FIX: Normalize sNew về principal mới với index mới nếu vượt quá uint128.max
+    // Tương tự như trong withdraw(), đảm bảo principal luôn <= uint128.max
+    if (sNew > type(uint128).max) {
+        uint256 oldSnapshotIndex = u.supply.index;
+        uint256 currentLiquidityIndex = r.liquidityIndex;
+        
+        if (oldSnapshotIndex == 0) {
+            oldSnapshotIndex = currentLiquidityIndex;
+        }
+        
+        uint256 newPrincipal = (sNew * oldSnapshotIndex) / currentLiquidityIndex;
+        
+        if (newPrincipal > type(uint128).max) {
+            uint256 scaleFactor = (newPrincipal / type(uint128).max) + 1;
+            newPrincipal = newPrincipal / scaleFactor;
+            currentLiquidityIndex = currentLiquidityIndex / scaleFactor;
+        }
+        
+        require(newPrincipal <= type(uint128).max, "Normalized principal overflow");
+        require(currentLiquidityIndex <= type(uint128).max, "Normalized index overflow");
+        
+        u.supply.principal = uint128(newPrincipal);
+        u.supply.index = uint128(currentLiquidityIndex);
+    } else {
+        require(uint256(r.liquidityIndex) <= type(uint128).max, "Liquidity index overflow");
+        u.supply.principal = uint128(sNew);
+        u.supply.index = r.liquidityIndex;
+    }
     
     // Do NOT auto-enable collateral on supply.
     // Collateral must be toggled explicitly by user via setUserUseReserveAsCollateral.
@@ -570,11 +613,52 @@ function withdraw(address asset, uint256 requested) external returns (uint256 am
 
     // cập nhật vị thế: supplyNew = balNow - amt
     uint256 sNew = balNow - amt;
-    u.supply.principal = uint128(sNew);
-    u.supply.index = r.liquidityIndex;
+    
+    // CRITICAL FIX: Normalize sNew về principal mới với index mới để tránh overflow
+    // Vấn đề: sNew có thể > uint128.max nếu liquidityIndex tăng quá lớn
+    // Giải pháp: Normalize lại về principal/index mới, giữ nguyên tỷ lệ
+    // Công thức: principal_new = sNew * snapshotIndex / liquidityIndex
+    if (sNew > type(uint128).max) {
+        // Nếu sNew vượt quá uint128.max, normalize lại về principal mới
+        uint256 oldSnapshotIndex = u.supply.index;
+        uint256 currentLiquidityIndex = r.liquidityIndex;
+        
+        // Nếu snapshotIndex = 0 hoặc quá nhỏ, dùng index hiện tại
+        if (oldSnapshotIndex == 0) {
+            oldSnapshotIndex = currentLiquidityIndex;
+        }
+        
+        // Tính principal mới: principal_new = sNew * oldSnapshotIndex / currentLiquidityIndex
+        // Điều này đảm bảo: valueByIndex(principal_new, currentLiquidityIndex, oldSnapshotIndex) = sNew
+        uint256 newPrincipal = (sNew * oldSnapshotIndex) / currentLiquidityIndex;
+        
+        // Nếu newPrincipal vẫn > uint128.max, scale down cả principal và index
+        // Điều này xảy ra khi currentLiquidityIndex quá nhỏ so với oldSnapshotIndex
+        if (newPrincipal > type(uint128).max) {
+            // Scale factor để đảm bảo principal <= uint128.max
+            uint256 scaleFactor = (newPrincipal / type(uint128).max) + 1;
+            newPrincipal = newPrincipal / scaleFactor;
+            // Scale down cả liquidityIndex để giữ nguyên tỷ lệ
+            currentLiquidityIndex = currentLiquidityIndex / scaleFactor;
+        }
+        
+        require(newPrincipal <= type(uint128).max, "Normalized principal overflow");
+        require(currentLiquidityIndex <= type(uint128).max, "Normalized index overflow");
+        
+        u.supply.principal = uint128(newPrincipal);
+        u.supply.index = uint128(currentLiquidityIndex);
+    } else {
+        // Trường hợp bình thường: sNew <= uint128.max
+        require(uint256(r.liquidityIndex) <= type(uint128).max, "Liquidity index overflow");
+        u.supply.principal = uint128(sNew);
+        u.supply.index = r.liquidityIndex;
+    }
 
     // cập nhật sổ cái & chuyển token
-    r.reserveCash = uint128(uint256(r.reserveCash) - amt);
+    uint256 newReserveCash = uint256(r.reserveCash) - amt;
+    // CRITICAL: Validate uint128 overflow before casting
+    require(newReserveCash <= type(uint128).max, "Reserve cash overflow");
+    r.reserveCash = uint128(newReserveCash);
 
     // Accrue lại để tính rates mới sau khi utilization thay đổi
     _accrue(asset);
@@ -686,8 +770,8 @@ function repay(address asset, uint256 amount, address onBehalfOf) external nonRe
     uint256 repayAmount1e18 = _to1e18(amount, r.decimals);
     if (repayAmount1e18 > currentDebt) repayAmount1e18 = currentDebt;
     
-    // Transfer tokens from user
-    uint256 transferAmount = _from1e18(repayAmount1e18, r.decimals);
+    // Transfer tokens from user (round UP to avoid underpay due to decimals)
+    uint256 transferAmount = _from1e18RoundUp(repayAmount1e18, r.decimals);
     
     // DUST PROTECTION: If transferAmount rounds to 0, set to 1 wei minimum
     if (transferAmount == 0 && repayAmount1e18 > 0) {
@@ -708,12 +792,14 @@ function repay(address asset, uint256 amount, address onBehalfOf) external nonRe
     // DUST CLEANUP: Clear dust based on token decimals
     // For 18 decimals (DAI): 1000 wei = 0.000000000000001
     // For 6 decimals (USDC): 1000000000000 wei (1e12) = 0.000001 USDC
+    // Dust threshold normalized in 1e18 units.
+    // For 18 decimals: 1e12 wei  = 0.000001 token.
+    // For 6 decimals:  1e12      = 0.000001 token (because _to1e18 multiplies by 1e12).
     uint256 dustThreshold;
     if (r.decimals >= 18) {
-        dustThreshold = 1000; // ~0.000000000000001 for 18 decimals
+        dustThreshold = 1e12;
     } else {
-        // Scale threshold: 1e12 for 6 decimals, 1e15 for 3 decimals, etc.
-        dustThreshold = 10 ** (18 - r.decimals); 
+        dustThreshold = 10 ** (18 - r.decimals); // e.g., 6 decimals -> 1e12 (0.000001 token)
     }
     
     if (newDebt > 0 && newDebt < dustThreshold) {

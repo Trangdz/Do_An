@@ -501,6 +501,12 @@ export async function withdraw(
     else if (msg.includes("Insufficient liquidity")) friendly = "Thanh khoản pool không đủ để rút số lượng này.";
     else if (msg.includes("No collateral enabled")) friendly = "Bạn chưa bật tài sản làm tài sản thế chấp (collateral).";
     else if (msg.match(/insufficient funds|balance/gi)) friendly = "Số dư không đủ hoặc vượt quá số đã supply.";
+    else if (msg.includes("overflow") || msg.includes("OVERFLOW") || msg.includes("Panic")) {
+      friendly = "Lỗi overflow: Số lượng quá lớn. Vui lòng rút số lượng nhỏ hơn hoặc liên hệ admin.";
+    }
+    else if (msg.includes("Supply balance overflow") || msg.includes("Reserve cash overflow")) {
+      friendly = "Số lượng rút vượt quá giới hạn hệ thống. Vui lòng rút số lượng nhỏ hơn.";
+    }
     else if (amount === BigInt(0)) friendly = "Số lượng rút phải lớn hơn 0.";
     throw new Error(friendly);
   }

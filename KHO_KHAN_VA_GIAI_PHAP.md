@@ -442,3 +442,8 @@ Có thể trình bày theo format:
 - ✅ **Code review:** Nhờ người khác review để phát hiện lỗi
 - ✅ **Learn from mistakes:** Mỗi bug là một bài học
 
+
+
+
+
+

@@ -31,11 +31,11 @@ export default function GovernanceDashboardPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-4xl font-bold text-foreground mb-2">Aave Governance</h1>
-            <p className="text-muted-foreground text-lg">
+            {/* <p className="text-muted-foreground text-lg">
               LendHub is a fully decentralized, community governed protocol by the LENDX token-holders. 
               LENDX token-holders collectively discuss, propose, and vote on upgrades to the protocol. 
               LENDX token-holders can either vote themselves on new proposals or delegate to an address of choice.
-            </p>
+            </p> */}
           </div>
           {hasProposalRights && (
             <Button

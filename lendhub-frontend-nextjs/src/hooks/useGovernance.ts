@@ -249,15 +249,19 @@ export function useGovernance() {
               console.warn('Gas estimation failed, using default');
             }
             
-            const updateTx = await governor.updateProposalStates(proposalIdsBigInt, {
-              gasLimit: Math.floor(gasLimit)
-            });
-            await updateTx.wait();
+            // Try to update; if RPC/internal error, log and fallback to read-only state check
+            try {
+              const updateTx = await governor.updateProposalStates(proposalIdsBigInt, {
+                gasLimit: Math.floor(gasLimit)
+              });
+              await updateTx.wait();
+              // Wait a bit for state to update
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            } catch (updateSendError: any) {
+              console.warn('[governance] updateProposalStates failed, will fallback to read-only state check:', updateSendError);
+            }
             
-            // Wait a bit for state to update
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Verify state was updated
+            // Verify state was updated (or already correct)
             const updatedProposal = await readOnlyGovernor.getProposal(proposalId);
             const updatedState = Number(updatedProposal.state);
             
@@ -268,7 +272,8 @@ export function useGovernance() {
             if (updateError.message?.includes('rejected')) {
               throw new Error('Transaction rejected. Please try again.');
             }
-            throw new Error(`Failed to update proposal state: ${updateError.message || 'Unknown error'}`);
+            // More informative message
+            throw new Error(`Failed to update proposal state (state=${mapProposalState(onChainState)}): ${updateError.message || 'Unknown error'}`);
           }
         } else {
           throw new Error('Voting period has not ended yet. Cannot execute proposal.');

@@ -373,6 +373,10 @@ export function WithdrawModal({
         errorMessage = 'Cannot withdraw: Health Factor would be too low. Try withdrawing a smaller amount.';
       } else if (errorMessage.includes('Insufficient liquidity')) {
         errorMessage = 'Pool does not have enough liquidity. Try withdrawing less.';
+      } else if (errorMessage.includes('overflow') || errorMessage.includes('OVERFLOW') || errorMessage.includes('Panic')) {
+        errorMessage = 'Lỗi overflow: Số lượng quá lớn. Vui lòng rút số lượng nhỏ hơn (thử rút 50% hoặc ít hơn).';
+      } else if (errorMessage.includes('Supply balance overflow') || errorMessage.includes('Reserve cash overflow')) {
+        errorMessage = 'Số lượng rút vượt quá giới hạn hệ thống. Vui lòng rút số lượng nhỏ hơn.';
       } else if (errorMessage.includes('Internal JSON-RPC error')) {
         errorMessage = 'Transaction failed: Health Factor too low or insufficient liquidity. Try a smaller amount.';
       }
